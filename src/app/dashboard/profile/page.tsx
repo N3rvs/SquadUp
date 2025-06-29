@@ -3,6 +3,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -15,11 +16,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, MessageCircle, Camera, Loader2, User, ShieldCheck, Crown } from "lucide-react";
+import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, MessageCircle, Camera, Loader2, User, ShieldCheck, Crown, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { auth, db, storage } from "@/lib/firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
-import { doc, updateDoc, getDoc, setDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc, setDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
@@ -79,6 +80,7 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(false); // For form submission
   const [isPageLoading, setIsPageLoading] = useState(true); // For initial page data load
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
+  const [userTeam, setUserTeam] = useState<{ id: string; name: string } | null>(null);
   
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -132,6 +134,15 @@ export default function ProfilePage() {
           setProfileData(defaultData);
           form.reset(defaultData);
         }
+        
+        // --- Fetch user's team ---
+        const teamsQuery = query(collection(db, "teams"), where("memberIds", "array-contains", user.uid), limit(1));
+        const teamSnapshot = await getDocs(teamsQuery);
+        if (!teamSnapshot.empty) {
+            const teamDoc = teamSnapshot.docs[0];
+            setUserTeam({ id: teamDoc.id, name: teamDoc.data().name });
+        }
+        
       } else {
         router.push("/login");
       }
@@ -280,6 +291,14 @@ export default function ProfilePage() {
             </div>
             <p className="text-sm text-muted-foreground mt-2">{profileData.bio}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {userTeam && (
+                    <Link href={`/dashboard/teams/${userTeam.id}`}>
+                        <Badge variant="default" className="cursor-pointer">
+                            <Users className="mr-1 h-3 w-3" />
+                            {userTeam.name}
+                        </Badge>
+                    </Link>
+                )}
                 <Badge variant="secondary"><Gamepad2 className="mr-1 h-3 w-3" />{profileData.valorantRole}</Badge>
                 <Badge variant="secondary" className="inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1">
                     {countryCode ? (

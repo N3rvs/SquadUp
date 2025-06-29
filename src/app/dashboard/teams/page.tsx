@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Image from "next/image";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { collection, query, where, getDocs, doc, getDoc, addDoc } from "firebase/firestore";
+import { collection, query, getDocs, doc, getDoc, addDoc, orderBy } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "@/lib/firebase";
 
@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, PlusCircle, Users, Camera } from "lucide-react";
+import { Loader2, PlusCircle, Users, Camera, Eye } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Team {
@@ -58,13 +58,16 @@ export default function TeamsPage() {
     mode: "onChange",
   });
 
-  const fetchTeams = async (userId: string) => {
+  const fetchTeams = async (userId: string | null) => {
     try {
-      const q = query(collection(db, "teams"), where("memberIds", "array-contains", userId));
+      const q = query(collection(db, "teams"), orderBy("createdAt", "desc"));
       const querySnapshot = await getDocs(q);
       const fetchedTeams: Team[] = querySnapshot.docs.map(doc => {
         const data = doc.data();
-        const role = data.ownerId === userId ? "Founder" : "Member";
+        let role = "";
+        if (userId && data.memberIds?.includes(userId)) {
+          role = data.ownerId === userId ? "Founder" : "Member";
+        }
         return {
           id: doc.id,
           name: data.name || "Unnamed Team",
@@ -76,7 +79,7 @@ export default function TeamsPage() {
       setTeams(fetchedTeams);
     } catch (error) {
       console.error("Error fetching teams:", error);
-      toast({ variant: "destructive", title: "Error al cargar equipos", description: "No se pudieron cargar tus equipos." });
+      toast({ variant: "destructive", title: "Error al cargar equipos", description: "No se pudieron cargar los equipos." });
     }
   };
 
@@ -90,11 +93,10 @@ export default function TeamsPage() {
         if (docSnap.exists()) {
           setProfile(docSnap.data() as UserProfile);
         }
-        await fetchTeams(currentUser.uid);
       } else {
-        setTeams([]);
         setProfile(null);
       }
+      await fetchTeams(currentUser?.uid || null);
       setIsLoading(false);
     });
     return () => unsubscribe();
@@ -172,8 +174,8 @@ export default function TeamsPage() {
       <div className="grid gap-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold font-headline">Mis Equipos</h1>
-            <p className="text-muted-foreground">Gestiona tus equipos o crea uno nuevo.</p>
+            <h1 className="text-3xl font-bold font-headline">Equipos</h1>
+            <p className="text-muted-foreground">Explora los equipos existentes o crea el tuyo.</p>
           </div>
           
           <DialogTrigger asChild>
@@ -233,7 +235,7 @@ export default function TeamsPage() {
                   />
                   <div>
                     <CardTitle className="font-headline text-xl">{team.name}</CardTitle>
-                    <CardDescription>{team.role}</CardDescription>
+                    {team.role && <CardDescription>{team.role}</CardDescription>}
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -243,7 +245,11 @@ export default function TeamsPage() {
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button variant="outline" className="w-full">Gestionar Equipo</Button>
+                    {team.role ? (
+                        <Button variant="outline" className="w-full">Gestionar Equipo</Button>
+                    ) : (
+                        <Button variant="outline" className="w-full"><Eye className="mr-2 h-4 w-4" />Ver Equipo</Button>
+                    )}
                 </CardFooter>
               </Card>
             ))}
@@ -252,9 +258,9 @@ export default function TeamsPage() {
           <Card className="col-span-full">
               <CardContent className="flex flex-col items-center justify-center text-center p-10 gap-4">
                   <Users className="h-12 w-12 text-muted-foreground" />
-                  <h3 className="text-xl font-semibold">No se encontraron equipos</h3>
+                  <h3 className="text-xl font-semibold">No hay equipos creados</h3>
                   <p className="text-muted-foreground">
-                      Aún no eres parte de ningún equipo.
+                      Sé el primero en crear uno para empezar a competir.
                   </p>
                   <DialogTrigger asChild>
                     {createTeamButton}

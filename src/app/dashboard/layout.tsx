@@ -30,7 +30,7 @@ export default function DashboardLayout({
 
   const navItems = [
     { href: "/dashboard/profile", icon: User, label: "Profile" },
-    { href: "/dashboard/teams", icon: Users, label: "My Teams" },
+    { href: "/dashboard/teams", icon: Users, label: "Teams" },
     { href: "/dashboard/marketplace", icon: Store, label: "Marketplace" },
     { href: "/dashboard/tournaments", icon: Trophy, label: "Tournaments" },
     { href: "/dashboard/scrims", icon: Swords, label: "Scrims" },

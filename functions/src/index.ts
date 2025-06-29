@@ -24,3 +24,22 @@ export const setUserRole = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError("internal", error.message);
   }
 });
+
+export const deleteTournament = functions.https.onCall(async (data, context) => {
+  const requesterClaims = context.auth?.token;
+  if (!requesterClaims || requesterClaims.role !== "admin") {
+    throw new functions.https.HttpsError("permission-denied", "No autorizado para realizar esta acción.");
+  }
+
+  const { tournamentId } = data;
+  if (!tournamentId) {
+    throw new functions.https.HttpsError("invalid-argument", "Se requiere el ID del torneo.");
+  }
+
+  try {
+    await admin.firestore().collection("tournaments").doc(tournamentId).delete();
+    return { message: `Torneo ${tournamentId} eliminado exitosamente.` };
+  } catch (error: any) {
+    throw new functions.https.HttpsError("internal", error.message);
+  }
+});

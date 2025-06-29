@@ -11,6 +11,8 @@ import { es } from 'date-fns/locale';
 import { auth, db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, query, orderBy, Timestamp, where, doc, getDoc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
+import { useAuthRole } from "@/hooks/useAuthRole";
+import { deleteTournamentAction } from "./actions";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +33,17 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Form,
   FormControl,
@@ -76,13 +89,13 @@ import {
   Globe,
   Link as LinkIcon,
   Swords,
+  Trash2,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 interface UserProfile {
-  primaryRole?: 'player' | 'moderator' | 'admin';
   twitchUrl?: string;
   youtubeUrl?: string;
 }
@@ -161,11 +174,13 @@ export default function TournamentsPage() {
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [activeTab, setActiveTab] = useState<TournamentStatus>('Open');
   const { toast } = useToast();
+  const { role: userRole, isLoading: isRoleLoading } = useAuthRole();
 
   const form = useForm<TournamentFormValues>({
     resolver: zodResolver(tournamentFormSchema),
@@ -286,14 +301,30 @@ export default function TournamentsPage() {
     });
   };
 
+  const handleDeleteTournament = async () => {
+    if (!selectedTournament) return;
+    setIsDeleting(true);
+    const result = await deleteTournamentAction(selectedTournament.id);
+    if (result.success) {
+        toast({ title: "Torneo eliminado", description: "El torneo ha sido eliminado con éxito." });
+        setIsDetailModalOpen(false);
+        fetchTournaments();
+    } else {
+        toast({ variant: "destructive", title: "Error al eliminar", description: result.error });
+    }
+    setIsDeleting(false);
+  };
+
   const hasStreamingLink = !!(profile?.twitchUrl || profile?.youtubeUrl);
   const canCreateTournament = user && !isProfileLoading && hasStreamingLink;
   
-  const canManageTournament = user && profile && selectedTournament && (
-    profile.primaryRole === 'admin' ||
-    profile.primaryRole === 'moderator' ||
+  const canManageTournament = user && selectedTournament && (
+    userRole === 'admin' ||
+    userRole === 'moderator' ||
     user.uid === selectedTournament.creatorId
   );
+  
+  const canDeleteTournament = userRole === 'admin';
 
   const triggerButton = (
     <Button disabled={!canCreateTournament}>
@@ -658,12 +689,40 @@ export default function TournamentsPage() {
 
                 <Separator />
                 
-                <DialogFooter className="pt-4">
+                <DialogFooter className="pt-4 flex flex-row justify-end gap-2">
                     <Button variant="secondary">Inscribir mi Equipo</Button>
                     {canManageTournament && (
                         <Button onClick={handleRandomPairing}>
-                            <Swords className="mr-2 h-4 w-4" /> Generar Emparejamientos Aleatorios
+                            <Swords className="mr-2 h-4 w-4" /> Generar Emparejamientos
                         </Button>
+                    )}
+                    {canDeleteTournament && (
+                         <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive">
+                                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Estás completamente seguro?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta acción no se puede deshacer. Esto eliminará permanentemente el torneo y todos sus datos asociados.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={handleDeleteTournament}
+                                        disabled={isDeleting}
+                                        className="bg-destructive hover:bg-destructive/90"
+                                    >
+                                        {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Sí, eliminar torneo
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     )}
                 </DialogFooter>
             </DialogContent>

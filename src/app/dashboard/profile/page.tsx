@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { auth, db, storage } from "@/lib/firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { doc, updateDoc, getDoc, setDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -89,90 +89,90 @@ export default function ProfilePage() {
     mode: "onChange",
   });
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setIsPageLoading(true);
-        const idTokenResultPromise = user.getIdTokenResult(true);
-        const userDocRef = doc(db, "users", user.uid);
-        const docSnapPromise = getDoc(userDocRef);
+  const handleAuthStateChange = useCallback(async (user: FirebaseUser | null) => {
+    if (user) {
+      setIsPageLoading(true);
+      const idTokenResultPromise = user.getIdTokenResult(true);
+      const userDocRef = doc(db, "users", user.uid);
+      const docSnapPromise = getDoc(userDocRef);
 
-        try {
-          const [idTokenResult, docSnap] = await Promise.all([
-            idTokenResultPromise,
-            docSnapPromise,
-          ]);
-          const userClaimRole = (idTokenResult.claims.role as SecurityRole) || "player";
-          setSecurityRole(userClaimRole);
+      try {
+        const [idTokenResult, docSnap] = await Promise.all([
+          idTokenResultPromise,
+          docSnapPromise,
+        ]);
+        const userClaimRole = (idTokenResult.claims.role as SecurityRole) || "player";
+        setSecurityRole(userClaimRole);
 
-          let dataToSet: UserProfileData;
+        let dataToSet: UserProfileData;
+        
+        if (docSnap.exists()) {
+          const data = { uid: user.uid, email: user.email, ...docSnap.data() } as UserProfileData;
           
-          if (docSnap.exists()) {
-            const data = { uid: user.uid, email: user.email, ...docSnap.data() } as UserProfileData;
-            
-            if (!Array.isArray(data.valorantRoles) || data.valorantRoles.length === 0) {
-              data.valorantRoles = ["Flex"];
-            }
-            dataToSet = data;
-          } else {
-            console.log("No profile found, creating a new one for existing user.");
-            const defaultData: UserProfileData = {
-              uid: user.uid,
-              email: user.email,
-              displayName: user.displayName || "New User",
-              primaryRole: "player", // Default subscription plan
-              isBanned: false,
-              valorantRoles: ["Flex"],
-              valorantRank: "Unranked",
-              bio: "",
-              country: "United Kingdom",
-              twitchUrl: "",
-              twitterUrl: "",
-              youtubeUrl: "",
-              discord: "",
-              avatarUrl: user.photoURL || "",
-              createdAt: new Date().toISOString(),
-              lookingForTeam: false,
-            };
-            await setDoc(userDocRef, defaultData);
-            dataToSet = defaultData;
+          if (!Array.isArray(data.valorantRoles) || data.valorantRoles.length === 0) {
+            data.valorantRoles = ["Flex"];
           }
-
-          setProfileData(dataToSet);
-          form.reset({
-            ...dataToSet,
-            bio: dataToSet.bio || "",
-            twitchUrl: dataToSet.twitchUrl || "",
-            twitterUrl: dataToSet.twitterUrl || "",
-            youtubeUrl: dataToSet.youtubeUrl || "",
-            discord: dataToSet.discord || "",
-            valorantRank: dataToSet.valorantRank || "Unranked",
-            lookingForTeam: dataToSet.lookingForTeam || false,
-          });
-
-          // Fetch user's team
-          const teamsQuery = query(collection(db, "teams"), where("memberIds", "array-contains", user.uid), limit(1));
-          const teamSnapshot = await getDocs(teamsQuery);
-          if (!teamSnapshot.empty) {
-            const teamDoc = teamSnapshot.docs[0];
-            setUserTeam({ id: teamDoc.id, name: teamDoc.data().name });
-          } else {
-            setUserTeam(null);
-          }
-        } catch (error) {
-            console.error("Error fetching user data on profile page:", error);
-            toast({ variant: "destructive", title: "Error", description: "No se pudo cargar tu perfil." });
-            router.push("/login"); // or a generic dashboard page
+          dataToSet = data;
+        } else {
+          console.log("No profile found, creating a new one for existing user.");
+          const defaultData: UserProfileData = {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || "New User",
+            primaryRole: "player", // Default subscription plan
+            isBanned: false,
+            valorantRoles: ["Flex"],
+            valorantRank: "Unranked",
+            bio: "",
+            country: "United Kingdom",
+            twitchUrl: "",
+            twitterUrl: "",
+            youtubeUrl: "",
+            discord: "",
+            avatarUrl: user.photoURL || "",
+            createdAt: new Date().toISOString(),
+            lookingForTeam: false,
+          };
+          await setDoc(userDocRef, defaultData);
+          dataToSet = defaultData;
         }
-      } else {
-        router.push("/login");
-      }
-      setIsPageLoading(false);
-    });
 
+        setProfileData(dataToSet);
+        form.reset({
+          ...dataToSet,
+          bio: dataToSet.bio || "",
+          twitchUrl: dataToSet.twitchUrl || "",
+          twitterUrl: dataToSet.twitterUrl || "",
+          youtubeUrl: dataToSet.youtubeUrl || "",
+          discord: dataToSet.discord || "",
+          valorantRank: dataToSet.valorantRank || "Unranked",
+          lookingForTeam: dataToSet.lookingForTeam || false,
+        });
+
+        // Fetch user's team
+        const teamsQuery = query(collection(db, "teams"), where("memberIds", "array-contains", user.uid), limit(1));
+        const teamSnapshot = await getDocs(teamsQuery);
+        if (!teamSnapshot.empty) {
+          const teamDoc = teamSnapshot.docs[0];
+          setUserTeam({ id: teamDoc.id, name: teamDoc.data().name });
+        } else {
+          setUserTeam(null);
+        }
+      } catch (error) {
+          console.error("Error fetching user data on profile page:", error);
+          toast({ variant: "destructive", title: "Error", description: "No se pudo cargar tu perfil." });
+          router.push("/login");
+      }
+    } else {
+      router.push("/login");
+    }
+    setIsPageLoading(false);
+  }, [form, router, toast]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, handleAuthStateChange);
     return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [handleAuthStateChange]);
 
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -681,3 +681,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

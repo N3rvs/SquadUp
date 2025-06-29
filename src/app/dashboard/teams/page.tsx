@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
@@ -324,7 +325,7 @@ export default function TeamsPage() {
     return () => unsubscribe();
   }, [fetchTeams]);
   
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => {
+  const handleImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
@@ -343,24 +344,24 @@ export default function TeamsPage() {
         setBannerPreview(URL.createObjectURL(file));
       }
     }
-  };
+  }, [toast]);
 
-  const resetPreviews = () => {
+  const resetPreviews = useCallback(() => {
     setLogoFile(null);
     setLogoPreview(null);
     setBannerFile(null);
     setBannerPreview(null);
-  };
+  }, []);
 
-  const onCreateDialogChange = (open: boolean) => {
+  const onCreateDialogChange = useCallback((open: boolean) => {
     if (!open) {
       resetPreviews();
       form.reset();
     }
     setIsCreateDialogOpen(open);
-  };
+  }, [form, resetPreviews]);
 
-  const onManageDialogChange = (open: boolean) => {
+  const onManageDialogChange = useCallback((open: boolean) => {
     setIsManageDialogOpen(open);
     if (!open) {
       setSelectedTeam(null);
@@ -378,15 +379,15 @@ export default function TeamsPage() {
       setLogoPreview(selectedTeam.logo);
       setBannerPreview(selectedTeam.banner);
     }
-  };
+  }, [form, resetPreviews, selectedTeam]);
   
-  const uploadImage = async (file: File, path: string): Promise<string> => {
+  const uploadImage = useCallback(async (file: File, path: string): Promise<string> => {
     const fileRef = storageRef(storage, path);
     const uploadResult = await uploadBytes(fileRef, file);
     return getDownloadURL(uploadResult.ref);
-  };
+  }, []);
 
-  async function handleCreateTeam(data: TeamFormValues) {
+  const handleCreateTeam = useCallback(async (data: TeamFormValues) => {
     if (!user) {
       toast({ variant: "destructive", title: "No autenticado", description: "Debes iniciar sesión para crear un equipo." });
       return;
@@ -424,12 +425,12 @@ export default function TeamsPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  }, [user, logoFile, bannerFile, uploadImage, toast, fetchTeams, onCreateDialogChange]);
 
-  async function handleUpdateTeam(data: TeamFormValues) {
-    if (!user || !selectedTeam) return;
+  const handleUpdateTeam = useCallback(async (data: TeamFormValues) => {
+    if (!user || !selectedTeam || !profile) return;
 
-    const canManage = user?.uid === selectedTeam.ownerId || profile?.primaryRole === 'admin' || profile?.primaryRole === 'moderator';
+    const canManage = user.uid === selectedTeam.ownerId || profile.primaryRole === 'admin' || profile.primaryRole === 'moderator';
     if (!canManage) {
         toast({ variant: "destructive", title: "Sin permisos", description: "No tienes permiso para editar este equipo." });
         return;
@@ -457,12 +458,12 @@ export default function TeamsPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  }, [user, selectedTeam, profile, logoFile, bannerFile, uploadImage, toast, fetchTeams, onManageDialogChange]);
 
-  const handleDeleteTeam = async () => {
-    if (!user || !selectedTeam) return;
+  const handleDeleteTeam = useCallback(async () => {
+    if (!user || !selectedTeam || !profile) return;
 
-    const canManage = user?.uid === selectedTeam.ownerId || profile?.primaryRole === 'admin' || profile?.primaryRole === 'moderator';
+    const canManage = user.uid === selectedTeam.ownerId || profile.primaryRole === 'admin' || profile.primaryRole === 'moderator';
     if (!canManage) {
         toast({ variant: "destructive", title: "Sin permisos", description: "No tienes permiso para eliminar este equipo." });
         return;
@@ -480,7 +481,7 @@ export default function TeamsPage() {
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [user, selectedTeam, profile, toast, fetchTeams, onManageDialogChange]);
 
   const myTeams = teams.filter(team => team.role);
   

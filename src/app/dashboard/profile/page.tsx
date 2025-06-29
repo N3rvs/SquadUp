@@ -107,64 +107,86 @@ export default function ProfilePage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        setIsPageLoading(true);
+        const idTokenResultPromise = user.getIdTokenResult(true);
         const userDocRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(userDocRef);
+        const docSnapPromise = getDoc(userDocRef);
 
-        let dataToSet;
-        if (docSnap.exists()) {
-          const data = { ...docSnap.data() } as UserProfileData;
-          if (data.valorantRole && !Array.isArray(data.valorantRoles)) {
-            data.valorantRoles = [data.valorantRole];
-            delete data.valorantRole;
-          }
-          if (!data.valorantRoles) {
-            data.valorantRoles = ["Flex"];
-          }
-          dataToSet = data;
-        } else {
-           console.log("No profile found, creating a new one for existing user.");
-           const defaultData: UserProfileData = {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName || "New User",
-            primaryRole: "player",
-            isBanned: false,
-            valorantRoles: ["Flex"],
-            valorantRank: "Unranked",
-            bio: "",
-            country: "United Kingdom",
-            twitchUrl: "",
-            twitterUrl: "",
-            youtubeUrl: "",
-            discord: "",
-            avatarUrl: user.photoURL || "",
-            createdAt: new Date().toISOString(),
-            lookingForTeam: false,
-          };
-          await setDoc(userDocRef, defaultData);
-          dataToSet = defaultData;
-        }
+        try {
+          const [idTokenResult, docSnap] = await Promise.all([
+            idTokenResultPromise,
+            docSnapPromise,
+          ]);
+          const userRole = (idTokenResult.claims.role as "player" | "moderator" | "admin") || "player";
 
-        setProfileData(dataToSet);
-        form.reset({
-          ...dataToSet,
-          bio: dataToSet.bio || '',
-          twitchUrl: dataToSet.twitchUrl || '',
-          twitterUrl: dataToSet.twitterUrl || '',
-          youtubeUrl: dataToSet.youtubeUrl || '',
-          discord: dataToSet.discord || '',
-          valorantRank: dataToSet.valorantRank || 'Unranked',
-          lookingForTeam: dataToSet.lookingForTeam || false,
-        });
-        
-        // --- Fetch user's team ---
-        const teamsQuery = query(collection(db, "teams"), where("memberIds", "array-contains", user.uid), limit(1));
-        const teamSnapshot = await getDocs(teamsQuery);
-        if (!teamSnapshot.empty) {
+          let dataToSet;
+          if (docSnap.exists()) {
+            const data = { ...docSnap.data() } as UserProfileData;
+            
+            // Backwards compatibility for old data structure
+            if (data.valorantRole && !Array.isArray(data.valorantRoles)) {
+              data.valorantRoles = [data.valorantRole];
+              delete data.valorantRole;
+            }
+            if (!data.valorantRoles) {
+              data.valorantRoles = ["Flex"];
+            }
+
+            // Use the custom claim as the single source of truth for the role
+            data.primaryRole = userRole;
+            dataToSet = data;
+
+            // Sync Firestore document if its role is out of date
+            if (docSnap.data().primaryRole !== userRole) {
+              await updateDoc(userDocRef, { primaryRole: userRole });
+            }
+          } else {
+            console.log("No profile found, creating a new one for existing user.");
+            const defaultData: UserProfileData = {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName || "New User",
+              primaryRole: userRole,
+              isBanned: false,
+              valorantRoles: ["Flex"],
+              valorantRank: "Unranked",
+              bio: "",
+              country: "United Kingdom",
+              twitchUrl: "",
+              twitterUrl: "",
+              youtubeUrl: "",
+              discord: "",
+              avatarUrl: user.photoURL || "",
+              createdAt: new Date().toISOString(),
+              lookingForTeam: false,
+            };
+            await setDoc(userDocRef, defaultData);
+            dataToSet = defaultData;
+          }
+
+          setProfileData(dataToSet);
+          form.reset({
+            ...dataToSet,
+            bio: dataToSet.bio || "",
+            twitchUrl: dataToSet.twitchUrl || "",
+            twitterUrl: dataToSet.twitterUrl || "",
+            youtubeUrl: dataToSet.youtubeUrl || "",
+            discord: dataToSet.discord || "",
+            valorantRank: dataToSet.valorantRank || "Unranked",
+            lookingForTeam: dataToSet.lookingForTeam || false,
+          });
+
+          // Fetch user's team
+          const teamsQuery = query(collection(db, "teams"), where("memberIds", "array-contains", user.uid), limit(1));
+          const teamSnapshot = await getDocs(teamsQuery);
+          if (!teamSnapshot.empty) {
             const teamDoc = teamSnapshot.docs[0];
             setUserTeam({ id: teamDoc.id, name: teamDoc.data().name });
+          }
+        } catch (error) {
+            console.error("Error fetching user data on profile page:", error);
+            router.push("/login");
         }
-        
       } else {
         router.push("/login");
       }
@@ -669,5 +691,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    

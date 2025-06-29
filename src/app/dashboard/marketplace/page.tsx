@@ -21,9 +21,23 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target, UserPlus, Briefcase } from "lucide-react";
+import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target, UserPlus, Briefcase, Loader2 } from "lucide-react";
 import Image from "next/image";
 import type { Team } from "@/components/team-card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+    sendFriendRequest,
+    getManagedTeams,
+    sendTeamInvite,
+} from "./actions";
 
 // --- DATA & TYPE DEFINITIONS ---
 
@@ -36,6 +50,11 @@ interface Player {
   country: string;
   bio?: string;
   bannerUrl?: string;
+}
+
+interface ManagedTeam {
+    id: string;
+    name: string;
 }
 
 const valorantRanks = ["All", ...allValorantRanks];
@@ -92,11 +111,16 @@ export default function MarketplacePage() {
     const [players, setPlayers] = useState<Player[]>([]);
     const [teams, setTeams] = useState<Team[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
     const [rankFilter, setRankFilter] = useState('All');
     const [countryFilter, setCountryFilter] = useState('All');
     const { toast } = useToast();
     const { role } = useAuthRole();
     const [user, setUser] = useState<FirebaseUser | null>(null);
+
+    const [playerToInvite, setPlayerToInvite] = useState<Player | null>(null);
+    const [managedTeams, setManagedTeams] = useState<ManagedTeam[]>([]);
+    const [selectedTeam, setSelectedTeam] = useState<string>("");
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -104,6 +128,21 @@ export default function MarketplacePage() {
         });
         return () => unsubscribe();
     }, []);
+
+    const isTeamManager = role === 'admin' || role === 'moderator' || role === 'founder';
+    
+    useEffect(() => {
+        if (isTeamManager && user) {
+            const fetchManagedTeams = async () => {
+                const result = await getManagedTeams(user.uid);
+                if (result.success && result.teams) {
+                    setManagedTeams(result.teams);
+                }
+            };
+            fetchManagedTeams();
+        }
+    }, [isTeamManager, user]);
+
 
     useEffect(() => {
         const fetchData = async () => {
@@ -150,7 +189,39 @@ export default function MarketplacePage() {
         });
     }, [teams, rankFilter]);
 
-    const isTeamManager = role === 'admin' || role === 'moderator' || role === 'founder';
+    const handleSendFriendRequest = async (receiverId: string) => {
+        if (!user) return;
+        setIsSubmitting(receiverId);
+        const result = await sendFriendRequest(user.uid, receiverId);
+        if (result.success) {
+            toast({ title: "¡Solicitud de amistad enviada!" });
+        } else {
+            toast({ variant: "destructive", title: "Error", description: result.error });
+        }
+        setIsSubmitting(null);
+    };
+
+    const handleOpenInviteDialog = (player: Player) => {
+        if (managedTeams.length === 0) {
+            toast({ variant: "destructive", title: "No se encontraron equipos", description: "No administras ningún equipo para invitar jugadores." });
+            return;
+        }
+        setPlayerToInvite(player);
+        setSelectedTeam(managedTeams[0]?.id || "");
+    };
+
+    const handleSendInvite = async () => {
+        if (!playerToInvite || !selectedTeam || !user) return;
+        setIsSubmitting(playerToInvite.uid);
+        const result = await sendTeamInvite(user.uid, selectedTeam, playerToInvite.uid);
+        if (result.success) {
+            toast({ title: "¡Invitación enviada!" });
+            setPlayerToInvite(null);
+        } else {
+            toast({ variant: "destructive", title: "Error", description: result.error });
+        }
+        setIsSubmitting(null);
+    };
 
     return (
         <div className="flex flex-col gap-8">
@@ -254,8 +325,8 @@ export default function MarketplacePage() {
                                                 <TooltipProvider>
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Button variant="ghost" size="icon" onClick={() => toast({ title: 'Próximamente', description: 'La función para añadir amigos estará disponible pronto.' })}>
-                                                                <UserPlus className="h-4 w-4" />
+                                                            <Button variant="ghost" size="icon" disabled={isSubmitting === player.uid} onClick={() => handleSendFriendRequest(player.uid)}>
+                                                                {isSubmitting === player.uid ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
                                                             </Button>
                                                         </TooltipTrigger>
                                                         <TooltipContent>
@@ -268,8 +339,8 @@ export default function MarketplacePage() {
                                                     <TooltipProvider>
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
-                                                                <Button variant="ghost" size="icon" onClick={() => toast({ title: 'Próximamente', description: 'La función para invitar al equipo estará disponible pronto.' })}>
-                                                                    <Briefcase className="h-4 w-4" />
+                                                                <Button variant="ghost" size="icon" disabled={isSubmitting === player.uid} onClick={() => handleOpenInviteDialog(player)}>
+                                                                    {isSubmitting === player.uid ? <Loader2 className="h-4 w-4 animate-spin" /> : <Briefcase className="h-4 w-4" />}
                                                                 </Button>
                                                             </TooltipTrigger>
                                                             <TooltipContent>
@@ -387,6 +458,32 @@ export default function MarketplacePage() {
                     )}
                 </TabsContent>
             </Tabs>
+            
+            <Dialog open={!!playerToInvite} onOpenChange={(open) => !open && setPlayerToInvite(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Invitar a {playerToInvite?.displayName} a un equipo</DialogTitle>
+                        <DialogDescription>Selecciona uno de tus equipos para enviar una invitación.</DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Select onValueChange={setSelectedTeam} defaultValue={selectedTeam}>
+                            <SelectTrigger><SelectValue placeholder="Selecciona un equipo" /></SelectTrigger>
+                            <SelectContent>
+                                {managedTeams.map(team => (
+                                    <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="ghost">Cancelar</Button></DialogClose>
+                        <Button onClick={handleSendInvite} disabled={isSubmitting === playerToInvite?.uid}>
+                            {isSubmitting === playerToInvite?.uid && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Enviar Invitación
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

@@ -17,6 +17,7 @@ import {
   Settings,
   LifeBuoy,
   Circle,
+  Shield,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -126,6 +127,8 @@ export default function DashboardLayout({
     displayName: string;
     email: string;
     avatarUrl: string;
+    uid: string;
+    primaryRole: 'player' | 'moderator' | 'admin';
   } | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = React.useState(true);
   const [status, setStatus] = React.useState<'disponible' | 'ausente' | 'ocupado'>('disponible');
@@ -139,12 +142,19 @@ export default function DashboardLayout({
         if (docSnap.exists()) {
           const data = docSnap.data();
           setUserProfile({
+            uid: user.uid,
+            primaryRole: data.primaryRole || 'player',
             displayName: data.displayName || 'Usuario',
             email: user.email || 'usuario@example.com',
             avatarUrl: data.avatarUrl || '',
           });
         } else {
+            // This case might happen for a newly signed-up user whose doc hasn't been created yet.
+            // Or if a user document is missing for some reason.
+            // We create a default profile here.
             setUserProfile({
+                uid: user.uid,
+                primaryRole: 'player',
                 displayName: user.displayName || 'Usuario',
                 email: user.email || 'usuario@example.com',
                 avatarUrl: user.photoURL || '',
@@ -158,6 +168,8 @@ export default function DashboardLayout({
     return () => unsubscribe();
   }, [router]);
 
+  const isPrivilegedUser = userProfile?.primaryRole === 'admin' || userProfile?.primaryRole === 'moderator';
+
   const navItems = [
     { href: "/dashboard/profile", icon: User, label: "Perfil" },
     { href: "/dashboard/teams", icon: Users, label: "Mi Equipo" },
@@ -167,6 +179,11 @@ export default function DashboardLayout({
     { href: "/dashboard/ai-coach", icon: BrainCircuit, label: "Coach AI" },
     { href: "/dashboard/chat", icon: MessageSquare, label: "Chat" },
   ];
+  
+  if (isPrivilegedUser) {
+    navItems.push({ href: "/dashboard/admin", icon: Shield, label: "Panel Admin" });
+  }
+
 
   const handleLogout = async () => {
     try {
@@ -288,7 +305,7 @@ export default function DashboardLayout({
                                 Describe tu problema y nuestros moderadores te ayudaran a categorizarlo para una respuesta más rápida.
                             </DialogDescription>
                         </DialogHeader>
-                        <SupportForm />
+                        {userProfile && <SupportForm userProfile={userProfile} />}
                     </DialogContent>
                 </Dialog>
                 <DropdownMenuSeparator />

@@ -16,10 +16,13 @@ const CategorizeSupportRequestInputSchema = z.object({
 export type CategorizeSupportRequestInput = z.infer<typeof CategorizeSupportRequestInputSchema>;
 
 const CategorizeSupportRequestOutputSchema = z.object({
+  isAppropriate: z.boolean().describe('Whether the user\'s request is appropriate and related to the platform.'),
+  rejectionReason: z.string().optional().describe('If the request is not appropriate, the reason for rejection, written in Spanish in a respectful tone.'),
   category: z.enum(["Reporte de Usuario", "Problema Técnico", "Consulta de Torneo", "Feedback General", "Otro"])
-    .describe('The category of the support request.'),
-  summary: z.string().describe('A concise, one-paragraph summary of the user\'s problem, written in Spanish.'),
-  subject: z.string().describe('A short, descriptive subject line for the support email, written in Spanish.'),
+    .optional()
+    .describe('The category of the support request. Only present if the request is appropriate.'),
+  summary: z.string().optional().describe('A concise, one-paragraph summary of the user\'s problem, written in Spanish. Only present if the request is appropriate.'),
+  subject: z.string().optional().describe('A short, descriptive subject line for the support email, written in Spanish. Only present if the request is appropriate.'),
 });
 export type CategorizeSupportRequestOutput = z.infer<typeof CategorizeSupportRequestOutputSchema>;
 
@@ -31,12 +34,23 @@ const prompt = ai.definePrompt({
   name: 'categorizeSupportRequestPrompt',
   input: {schema: CategorizeSupportRequestInputSchema},
   output: {schema: CategorizeSupportRequestOutputSchema},
-  prompt: `You are a support agent for a gaming platform called SquadUp. Your task is to analyze a user's problem description, written in Spanish, and prepare it for a support ticket.
+  prompt: `You are a support agent for a gaming platform called SquadUp. Your primary task is to analyze a user's problem description, written in Spanish, and prepare it for a support ticket, while also acting as a content moderator.
 
-Based on the user's description, you must perform the following actions:
-1.  Categorize the problem into one of the following categories: "Reporte de Usuario", "Problema Técnico", "Consulta de Torneo", "Feedback General", "Otro".
-2.  Write a clear and concise summary of the issue in a single paragraph. The summary must be in Spanish.
-3.  Create a short, descriptive subject line for the support email. The subject line must be in Spanish.
+First, you must determine if the user's message is appropriate and relevant to the SquadUp platform.
+- An appropriate message is one that is not offensive, abusive, hateful, or contains spam.
+- A relevant message is one that relates to the platform's features (teams, tournaments, profiles, etc.) or is a genuine support request.
+
+If the message is inappropriate or irrelevant:
+- Set \`isAppropriate\` to \`false\`.
+- Provide a brief, respectful reason for the rejection in the \`rejectionReason\` field. The reason should be in Spanish. For example: "El mensaje no parece estar relacionado con la plataforma SquadUp." or "El contenido del mensaje es inapropiado y no se puede procesar."
+- Do not fill in the \`category\`, \`summary\`, or \`subject\` fields.
+
+If the message is appropriate and relevant:
+- Set \`isAppropriate\` to \`true\`.
+- Categorize the problem into one of the following: "Reporte de Usuario", "Problema Técnico", "Consulta de Torneo", "Feedback General", "Otro".
+- Write a clear and concise summary of the issue in a single paragraph (in Spanish).
+- Create a short, descriptive subject line for the support email (in Spanish).
+- Do not fill in the \`rejectionReason\` field.
 
 User's problem description:
 {{{problemDescription}}}

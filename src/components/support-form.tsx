@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Send, CheckCircle, BrainCircuit } from "lucide-react";
-import { categorizeProblem, sendSupportEmail } from "@/app/dashboard/support/actions";
+import { categorizeProblem, createSupportTicket } from "@/app/dashboard/support/actions";
 
 type Stage = "initial" | "analyzing" | "confirming" | "sent";
 
@@ -24,7 +24,14 @@ const confirmationFormSchema = z.object({
     body: z.string().min(20, "El cuerpo del mensaje es requerido."),
 });
 
-export function SupportForm() {
+interface SupportFormProps {
+    userProfile: {
+        uid: string;
+        displayName: string;
+    }
+}
+
+export function SupportForm({ userProfile }: SupportFormProps) {
     const [stage, setStage] = useState<Stage>("initial");
     const [category, setCategory] = useState("");
     const { toast } = useToast();
@@ -43,12 +50,21 @@ export function SupportForm() {
         setStage("analyzing");
         const result = await categorizeProblem(values.problemDescription);
         if (result.success) {
-            confirmationForm.reset({
-                subject: result.data.subject,
-                body: result.data.summary,
-            });
-            setCategory(result.data.category);
-            setStage("confirming");
+            if (result.data.isAppropriate) {
+                confirmationForm.reset({
+                    subject: result.data.subject || '',
+                    body: result.data.summary || '',
+                });
+                setCategory(result.data.category || 'Otro');
+                setStage("confirming");
+            } else {
+                 toast({
+                    variant: "destructive",
+                    title: "Solicitud Rechazada",
+                    description: result.data.rejectionReason || "Tu mensaje no pudo ser procesado por ser inapropiado o no estar relacionado con la plataforma.",
+                });
+                setStage("initial");
+            }
         } else {
             toast({
                 variant: "destructive",
@@ -61,14 +77,19 @@ export function SupportForm() {
     
     const handleConfirmationSubmit = async (values: z.infer<typeof confirmationFormSchema>) => {
         setStage("analyzing"); // Reuse analyzing state for sending
-        const result = await sendSupportEmail({ ...values, category });
+        const result = await createSupportTicket({ 
+            ...values, 
+            category,
+            userId: userProfile.uid,
+            userDisplayName: userProfile.displayName
+        });
         if (result.success) {
             setStage("sent");
         } else {
             toast({
                 variant: "destructive",
                 title: "Error al Enviar",
-                description: result.error,
+                description: result.error || "Ocurrió un error desconocido",
             });
             setStage("confirming");
         }

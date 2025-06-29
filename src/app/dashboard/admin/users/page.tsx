@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { collection, getDocs, orderBy, query, doc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import {
   Table,
   TableBody,
@@ -21,10 +24,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Loader2, Trash2, Edit, ArrowLeft } from 'lucide-react';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogClose,
+} from '@/components/ui/dialog';
+import { MoreHorizontal, Loader2, Trash2, Edit, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { deleteUserAction } from './actions';
+import { deleteUserAction, updateUserAction } from './actions';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -37,6 +49,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuthRole } from '@/hooks/useAuthRole';
 import { Card, CardContent } from '@/components/ui/card';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 
 
 type UserData = {
@@ -44,10 +59,126 @@ type UserData = {
     displayName: string;
     email: string;
     avatarUrl?: string;
-    primaryRole?: string; // security role
-    role?: string; // from claims, might be different
+    primaryRole?: string;
+    isBanned?: boolean;
     createdAt: string;
 };
+
+const userRoles = ['admin', 'moderator', 'player', 'founder', 'coach'];
+
+const editUserFormSchema = z.object({
+  role: z.string().refine(val => userRoles.includes(val)),
+  isBanned: z.boolean(),
+});
+
+function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: UserData | null, open: boolean, onOpenChange: (open: boolean) => void, onUserUpdate: () => void }) {
+    const { toast } = useToast();
+    const [isSaving, setIsSaving] = useState(false);
+
+    const form = useForm<z.infer<typeof editUserFormSchema>>({
+        resolver: zodResolver(editUserFormSchema),
+        defaultValues: {
+            role: 'player',
+            isBanned: false,
+        }
+    });
+
+    useEffect(() => {
+        if (user) {
+            form.reset({
+                role: user.primaryRole || 'player',
+                isBanned: user.isBanned || false,
+            });
+        }
+    }, [user, form]);
+    
+    if (!user) return null;
+
+    const onSubmit = async (data: z.infer<typeof editUserFormSchema>) => {
+        setIsSaving(true);
+        const result = await updateUserAction({
+            uid: user.uid,
+            role: data.role,
+            isBanned: data.isBanned,
+        });
+
+        if (result.success) {
+            toast({ title: 'Usuario actualizado', description: 'Los cambios se han guardado correctamente.' });
+            onUserUpdate();
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSaving(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Editar Usuario: {user.displayName}</DialogTitle>
+                    <DialogDescription>
+                        Modifica el rol y el estado de baneo del usuario.
+                    </DialogDescription>
+                </DialogHeader>
+                 <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                        <FormField
+                            control={form.control}
+                            name="role"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Rol</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecciona un rol" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {userRoles.map(role => (
+                                                <SelectItem key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1)}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="isBanned"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                    <div className="space-y-0.5">
+                                        <FormLabel className="flex items-center gap-2"><ShieldAlert className="h-4 w-4" /> Baneado</FormLabel>
+                                        <FormDescription>
+                                           Activar para deshabilitar la cuenta del usuario.
+                                        </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                        <Switch
+                                            checked={field.value}
+                                            onCheckedChange={field.onChange}
+                                        />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+                        <DialogFooter>
+                            <DialogClose asChild>
+                                <Button type="button" variant="ghost">Cancelar</Button>
+                            </DialogClose>
+                            <Button type="submit" disabled={isSaving}>
+                                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                                Guardar Cambios
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                 </Form>
+            </DialogContent>
+        </Dialog>
+    )
+}
 
 export default function UsersAdminPage() {
     const [users, setUsers] = useState<UserData[]>([]);
@@ -66,7 +197,6 @@ export default function UsersAdminPage() {
                 return {
                     ...data,
                     uid: doc.id,
-                    role: data.primaryRole, // Placeholder, actual role from claims
                     createdAt: data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'N/A'
                 } as UserData;
             });
@@ -85,6 +215,7 @@ export default function UsersAdminPage() {
     
     const [isDeleting, setIsDeleting] = useState(false);
     const [userToDelete, setUserToDelete] = useState<UserData | null>(null);
+    const [userToEdit, setUserToEdit] = useState<UserData | null>(null);
 
     const handleDelete = async () => {
         if (!userToDelete) return;
@@ -92,7 +223,7 @@ export default function UsersAdminPage() {
         const result = await deleteUserAction(userToDelete.uid);
         if (result.success) {
             toast({ title: 'Usuario Eliminado', description: `El usuario ${userToDelete.displayName} ha sido eliminado.` });
-            setUsers(users.filter(u => u.uid !== userToDelete.uid));
+            fetchUsers();
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -128,13 +259,14 @@ export default function UsersAdminPage() {
                                 <TableHead>Usuario</TableHead>
                                 <TableHead>Email</TableHead>
                                 <TableHead>Rol</TableHead>
+                                <TableHead>Estado</TableHead>
                                 <TableHead>Registrado</TableHead>
                                 <TableHead className="text-right">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {users.map(user => (
-                                <TableRow key={user.uid}>
+                                <TableRow key={user.uid} className={user.isBanned ? 'bg-destructive/10' : ''}>
                                     <TableCell>
                                         <div className="flex items-center gap-3">
                                             <Avatar className="h-8 w-8">
@@ -146,6 +278,9 @@ export default function UsersAdminPage() {
                                     </TableCell>
                                     <TableCell>{user.email}</TableCell>
                                     <TableCell><Badge variant="outline">{user.primaryRole}</Badge></TableCell>
+                                    <TableCell>
+                                        {user.isBanned && <Badge variant="destructive">Baneado</Badge>}
+                                    </TableCell>
                                     <TableCell>{user.createdAt}</TableCell>
                                     <TableCell className="text-right">
                                         {adminRole === 'admin' && (
@@ -156,9 +291,9 @@ export default function UsersAdminPage() {
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem onClick={() => toast({title: "Próximamente", description: "La edición de roles estará disponible aquí pronto."})}>
+                                                    <DropdownMenuItem onClick={() => setUserToEdit(user)}>
                                                         <Edit className="mr-2 h-4 w-4"/>
-                                                        Editar Rol
+                                                        Editar Usuario
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem className="text-destructive" onSelect={() => setUserToDelete(user)}>
                                                         <Trash2 className="mr-2 h-4 w-4"/>
@@ -175,6 +310,16 @@ export default function UsersAdminPage() {
                     )}
                 </CardContent>
             </Card>
+
+            <UserEditDialog 
+                user={userToEdit} 
+                open={!!userToEdit} 
+                onOpenChange={(open) => !open && setUserToEdit(null)}
+                onUserUpdate={() => {
+                    fetchUsers();
+                    setUserToEdit(null);
+                }}
+            />
 
             <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
                 <AlertDialogContent>

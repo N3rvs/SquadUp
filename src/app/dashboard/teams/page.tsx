@@ -330,9 +330,10 @@ export default function TeamsPage() {
 
   const uploadImage = useCallback(async (file: File, path: string): Promise<string> => {
     const fileRef = storageRef(storage, path);
-    await uploadBytes(fileRef, file);
-    return getDownloadURL(fileRef);
+    const uploadResult = await uploadBytes(fileRef, file);
+    return getDownloadURL(uploadResult.ref);
   }, []);
+  
 
   const handleFormSubmit = useCallback(async (data: TeamFormValues) => {
     if (!user) return;
@@ -344,21 +345,21 @@ export default function TeamsPage() {
             ownerId: user.uid,
             memberIds: [user.uid],
             createdAt: Timestamp.now(),
-            logoUrl: 'https://placehold.co/128x128.png',
-            bannerUrl: 'https://placehold.co/400x150.png',
+            logoUrl: '',
+            bannerUrl: '',
         });
         const teamId = newTeamRef.id;
         let updateData: { logoUrl?: string; bannerUrl?: string } = {};
-        if (logoFile) updateData.logoUrl = await uploadImage(logoFile, `team-logos/${teamId}/${logoFile.name}`);
-        if (bannerFile) updateData.bannerUrl = await uploadImage(bannerFile, `team-banners/${teamId}/${bannerFile.name}`);
+        if (logoFile) updateData.logoUrl = await uploadImage(logoFile, `team-logos/${teamId}/logo`);
+        if (bannerFile) updateData.bannerUrl = await uploadImage(bannerFile, `team-banners/${teamId}/banner`);
         if (Object.keys(updateData).length > 0) await updateDoc(doc(db, "teams", teamId), updateData);
         toast({ title: "¡Equipo Creado!" });
 
       } else if (dialogState.mode === 'manage' && dialogState.team) {
         const teamId = dialogState.team.id;
         let updateData: any = { ...data };
-        if (logoFile) updateData.logoUrl = await uploadImage(logoFile, `team-logos/${teamId}/${logoFile.name}`);
-        if (bannerFile) updateData.bannerUrl = await uploadImage(bannerFile, `team-banners/${teamId}/${bannerFile.name}`);
+        if (logoFile) updateData.logoUrl = await uploadImage(logoFile, `team-logos/${teamId}/logo`);
+        if (bannerFile) updateData.bannerUrl = await uploadImage(bannerFile, `team-banners/${teamId}/banner`);
         await updateDoc(doc(db, "teams", teamId), updateData);
         toast({ title: "¡Equipo Actualizado!" });
       }

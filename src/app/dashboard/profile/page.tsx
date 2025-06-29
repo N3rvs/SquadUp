@@ -233,7 +233,7 @@ export default function ProfilePage() {
         <Card>
           <CardContent className="pt-6 text-center flex flex-col items-center">
             <Avatar className="h-24 w-24 mb-4">
-              <AvatarImage src={profileData.avatarUrl} data-ai-hint="male avatar" alt={profileData.displayName} />
+              <AvatarImage src={profileData.avatarUrl} alt={profileData.displayName} />
               <AvatarFallback>{profileData.displayName?.substring(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
             <h2 className="text-2xl font-bold font-headline">{profileData.displayName}</h2>

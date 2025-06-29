@@ -29,13 +29,13 @@ export default function DashboardLayout({
   const { toast } = useToast();
 
   const navItems = [
-    { href: "/dashboard/profile", icon: User, label: "Profile" },
-    { href: "/dashboard/teams", icon: Users, label: "Teams" },
+    { href: "/dashboard/profile", icon: User, label: "Perfil" },
+    { href: "/dashboard/teams", icon: Users, label: "Equipos" },
     { href: "/dashboard/marketplace", icon: Store, label: "Marketplace" },
-    { href: "/dashboard/tournaments", icon: Trophy, label: "Tournaments" },
+    { href: "/dashboard/tournaments", icon: Trophy, label: "Torneos" },
     { href: "/dashboard/scrims", icon: Swords, label: "Scrims" },
-    { href: "/dashboard/friends", icon: UserPlus, label: "Friends" },
-    { href: "/dashboard/ai-coach", icon: BrainCircuit, label: "AI Coach" },
+    { href: "/dashboard/friends", icon: UserPlus, label: "Amigos" },
+    { href: "/dashboard/ai-coach", icon: BrainCircuit, label: "Coach AI" },
     { href: "/dashboard/chat", icon: MessageSquare, label: "Chat" },
   ];
 

@@ -160,7 +160,7 @@ export default function TeamDetailPage() {
           }
         }
       } else {
-        setApplicationStatus('member'); // Treat as not-applicable for non-logged-in users
+        setApplicationStatus('idle'); // A non-logged in user is 'idle', not a 'member'
       }
 
       // Fetch members data

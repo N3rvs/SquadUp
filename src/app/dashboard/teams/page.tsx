@@ -90,6 +90,14 @@ interface TeamFormFieldsProps {
   isReadOnly: boolean;
 }
 
+interface TeamGridProps {
+  teamList: Team[];
+  user: User | null;
+  profile: UserProfile | null;
+  setSelectedTeam: (team: Team) => void;
+  onManageDialogChange: (open: boolean) => void;
+}
+
 function TeamFormFields({
   control,
   logoInputRef,
@@ -156,14 +164,6 @@ function TeamFormFields({
   );
 }
 
-interface TeamGridProps {
-  teamList: Team[];
-  user: User | null;
-  profile: UserProfile | null;
-  setSelectedTeam: (team: Team) => void;
-  onManageDialogChange: (open: boolean) => void;
-}
-
 function TeamGrid({ teamList, user, profile, setSelectedTeam, onManageDialogChange }: TeamGridProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -228,8 +228,8 @@ function LoadingSkeleton() {
               <Skeleton className="h-4 w-2/3" />
               </CardHeader>
               <CardContent className="space-y-2">
-              <Skeleton className="h-5 w-1/2" />
-              <Skeleton className="h-5 w-1/3" />
+                <Skeleton className="h-5 w-1/2" />
+                <Skeleton className="h-5 w-1/3" />
               </CardContent>
               <CardFooter><Skeleton className="h-10 w-full" /></CardFooter>
           </Card>
@@ -237,6 +237,7 @@ function LoadingSkeleton() {
       </div>
   );
 }
+
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState<Team[]>([]);

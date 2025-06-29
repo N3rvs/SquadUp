@@ -8,11 +8,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { format } from "date-fns";
 import { es } from 'date-fns/locale';
-import { auth, db } from "@/lib/firebase";
+import { auth, db, functions } from "@/lib/firebase";
+import { httpsCallable, FunctionsError } from "firebase/functions";
 import { collection, addDoc, getDocs, query, orderBy, Timestamp, where, doc, getDoc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { useAuthRole } from "@/hooks/useAuthRole";
-import { deleteTournamentAction } from "./actions";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -167,6 +167,24 @@ const getStatusVariant = (status: Tournament['status']) => {
   }
 }
 
+function getErrorMessage(error: any): string {
+    if (error instanceof FunctionsError) {
+        switch (error.code) {
+            case 'unauthenticated':
+                return "No estás autenticado. Por favor, inicia sesión de nuevo.";
+            case 'permission-denied':
+                return "No tienes los permisos necesarios para realizar esta acción.";
+            case 'not-found':
+                return "El torneo o la operación no fue encontrada en el servidor.";
+            case 'invalid-argument':
+                return "Los datos enviados son incorrectos. Por favor, revisa la información.";
+            default:
+                return `Ocurrió un error con la función: ${error.message}`;
+        }
+    }
+    return "Ocurrió un error desconocido al contactar con el servidor.";
+}
+
 export default function TournamentsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -306,29 +324,24 @@ export default function TournamentsPage() {
     setIsDeleting(true);
 
     if (!auth.currentUser) {
-        toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'No estás autenticado. Por favor, inicia sesión de nuevo.' });
+        toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'No estás autenticado.' });
         setIsDeleting(false);
         return;
     }
 
     try {
         await auth.currentUser.getIdToken(true); // Force token refresh
-    } catch (tokenError) {
-        console.error("Token refresh failed:", tokenError);
-        toast({ variant: 'destructive', title: 'Error de Sesión', description: 'No se pudo verificar tu sesión. Intenta recargar la página.' });
-        setIsDeleting(false);
-        return;
-    }
-
-    const result = await deleteTournamentAction(selectedTournament.id);
-    if (result.success) {
+        const deleteTournamentFunc = httpsCallable(functions, 'deleteTournament');
+        await deleteTournamentFunc({ tournamentId: selectedTournament.id });
         toast({ title: "Torneo eliminado", description: "El torneo ha sido eliminado con éxito." });
         setIsDetailModalOpen(false);
+        setSelectedTournament(null);
         fetchTournaments();
-    } else {
-        toast({ variant: "destructive", title: "Error al eliminar", description: result.error });
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Error al eliminar", description: getErrorMessage(error) });
+    } finally {
+      setIsDeleting(false);
     }
-    setIsDeleting(false);
   };
 
   const hasStreamingLink = !!(profile?.twitchUrl || profile?.youtubeUrl);

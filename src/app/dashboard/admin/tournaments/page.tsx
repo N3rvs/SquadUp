@@ -5,6 +5,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { httpsCallable, FunctionsError } from "firebase/functions";
+import { doc, updateDoc } from "firebase/firestore";
+import { revalidatePath } from 'next/cache';
+
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,9 +17,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
+import { auth, functions, db } from '@/lib/firebase';
 import { ArrowLeft, Check, Loader2, Trophy, X } from 'lucide-react';
-import { getAdminTournaments, updateTournamentStatusAction } from './actions';
+import { getAdminTournaments } from './actions';
 
 type TournamentStatus = 'Pending' | 'Open' | 'In Progress' | 'Finished' | 'Rejected';
 
@@ -41,6 +45,26 @@ const getStatusVariant = (status: Tournament['status']) => {
   }
 };
 
+function getErrorMessage(error: any): string {
+    if (error instanceof FunctionsError) {
+        switch (error.code) {
+            case 'unauthenticated':
+                return "No estás autenticado. Por favor, inicia sesión de nuevo.";
+            case 'permission-denied':
+                return "No tienes los permisos necesarios para realizar esta acción.";
+            case 'not-found':
+                return "La operación solicitada no fue encontrada en el servidor. Verifica que la función esté desplegada en la región correcta.";
+            case 'invalid-argument':
+                return "Los datos enviados son incorrectos. Por favor, revisa la información.";
+            case 'already-exists':
+                 return "El torneo ya ha sido aprobado o está en un estado que no permite esta acción.";
+            default:
+                return `Ocurrió un error con la función: ${error.message}`;
+        }
+    }
+    return "Ocurrió un error desconocido al contactar con el servidor.";
+}
+
 export default function TournamentsAdminPage() {
     const [tournaments, setTournaments] = useState<Tournament[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -64,8 +88,8 @@ export default function TournamentsAdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const handleUpdateStatus = async (id: string, status: 'Open' | 'Rejected') => {
-        setIsUpdating(id);
+    const handleUpdateStatus = async (tournamentId: string, status: 'Open' | 'Rejected') => {
+        setIsUpdating(tournamentId);
         
         if (!auth.currentUser) {
             toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'No estás autenticado. Por favor, inicia sesión de nuevo.' });
@@ -75,21 +99,23 @@ export default function TournamentsAdminPage() {
 
         try {
             await auth.currentUser.getIdToken(true); // Force token refresh
-        } catch (tokenError) {
-            console.error("Token refresh failed:", tokenError);
-            toast({ variant: 'destructive', title: 'Error de Sesión', description: 'No se pudo verificar tu sesión. Intenta recargar la página.' });
-            setIsUpdating(null);
-            return;
-        }
+            
+            const approveTournamentFunc = httpsCallable(functions, 'approveTournament');
+            const approved = status === 'Open';
+            await approveTournamentFunc({ tournamentId, approved });
 
-        const result = await updateTournamentStatusAction(id, status);
-        if (result.success) {
+            const tournamentRef = doc(db, 'tournaments', tournamentId);
+            await updateDoc(tournamentRef, { status: status, approved: approved });
+
             toast({ title: 'Éxito', description: `El torneo ha sido ${status === 'Open' ? 'aprobado' : 'rechazado'}.` });
             fetchTournaments();
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+
+        } catch (error: any) {
+            console.error(`Error updating tournament status to ${status}:`, error);
+            toast({ variant: 'destructive', title: 'Error', description: getErrorMessage(error) });
+        } finally {
+            setIsUpdating(null);
         }
-        setIsUpdating(null);
     };
 
     const filteredTournaments = useMemo(() => {

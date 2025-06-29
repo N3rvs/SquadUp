@@ -3,8 +3,9 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { collection, getDocs, orderBy, query, Timestamp } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { collection, getDocs, orderBy, query, Timestamp, doc, updateDoc } from 'firebase/firestore';
+import { db, auth, functions } from '@/lib/firebase';
+import { httpsCallable, FunctionsError } from "firebase/functions";
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -40,7 +41,6 @@ import {
 import { MoreHorizontal, Loader2, Trash2, Edit, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { deleteUserAction, updateUserAction } from './actions';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -82,6 +82,24 @@ const editUserFormSchema = z.object({
   banOption: z.custom<BanOptionKey>(val => typeof val === 'string' && Object.keys(banOptions).includes(val)),
 });
 
+function getErrorMessage(error: any): string {
+    if (error instanceof FunctionsError) {
+        switch (error.code) {
+            case 'unauthenticated':
+                return "No estás autenticado. Por favor, inicia sesión de nuevo.";
+            case 'permission-denied':
+                return "No tienes los permisos necesarios para realizar esta acción.";
+            case 'not-found':
+                return "La operación o el usuario no fue encontrado en el servidor.";
+            case 'invalid-argument':
+                return "Los datos enviados son incorrectos. Por favor, revisa la información.";
+            default:
+                return `Ocurrió un error con la función: ${error.message}`;
+        }
+    }
+    return "Ocurrió un error desconocido al contactar con el servidor.";
+}
+
 function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: UserData | null, open: boolean, onOpenChange: (open: boolean) => void, onUserUpdate: () => void }) {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
@@ -104,9 +122,7 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
                     if (expiry.getFullYear() >= 3000) {
                         currentBanOption = 'permanent';
                     } else if (expiry > new Date()) {
-                        // For simplicity, we don't try to reverse-engineer the exact option
-                        // If it's a temporary ban, the admin can choose to unban or set a new duration
-                        currentBanOption = 'permanent'; // represent any active ban this way
+                        currentBanOption = 'permanent';
                     }
                 } else {
                      currentBanOption = 'permanent';
@@ -126,52 +142,47 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
         setIsSaving(true);
         
         if (!auth.currentUser) {
-            toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'No estás autenticado. Por favor, inicia sesión de nuevo.' });
+            toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'No estás autenticado.' });
             setIsSaving(false);
             return;
         }
 
         try {
-            await auth.currentUser.getIdToken(true); // Force token refresh
-        } catch (tokenError) {
-            console.error("Token refresh failed:", tokenError);
-            toast({ variant: 'destructive', title: 'Error de Sesión', description: 'No se pudo verificar tu sesión. Intenta recargar la página.' });
-            setIsSaving(false);
-            return;
-        }
+            await auth.currentUser.getIdToken(true);
 
-        let banExpiresAt: string | null;
+            let banExpiresAt: string | null;
+            switch (data.banOption) {
+                case '1day': banExpiresAt = addDays(new Date(), 1).toISOString(); break;
+                case '7days': banExpiresAt = addDays(new Date(), 7).toISOString(); break;
+                case '30days': banExpiresAt = addDays(new Date(), 30).toISOString(); break;
+                case 'permanent': banExpiresAt = new Date('3000-01-01').toISOString(); break;
+                default: banExpiresAt = null;
+            }
 
-        switch (data.banOption) {
-            case '1day':
-                banExpiresAt = addDays(new Date(), 1).toISOString();
-                break;
-            case '7days':
-                banExpiresAt = addDays(new Date(), 7).toISOString();
-                break;
-            case '30days':
-                banExpiresAt = addDays(new Date(), 30).toISOString();
-                break;
-            case 'permanent':
-                banExpiresAt = new Date('3000-01-01').toISOString();
-                break;
-            default: // 'none'
-                banExpiresAt = null;
-        }
+            const isBanned = banExpiresAt !== null;
 
-        const result = await updateUserAction({
-            uid: user.uid,
-            role: data.role,
-            banExpiresAt: banExpiresAt,
-        });
+            // Call Cloud Functions
+            const setUserRoleFunc = httpsCallable(functions, 'setUserRole');
+            await setUserRoleFunc({ uid: user.uid, role: data.role });
 
-        if (result.success) {
-            toast({ title: 'Usuario actualizado', description: 'Los cambios se han guardado correctamente.' });
+            const banUserFunc = httpsCallable(functions, 'banUser');
+            await banUserFunc({ uid: user.uid, isBanned });
+            
+            // Also update Firestore for UI consistency
+            const dataToUpdate: any = {
+                primaryRole: data.role,
+                isBanned: isBanned,
+                banExpiresAt: banExpiresAt ? new Date(banExpiresAt) : null,
+            };
+            await updateDoc(doc(db, 'users', user.uid), dataToUpdate);
+
+            toast({ title: 'Usuario actualizado', description: 'Los cambios se han guardado.' });
             onUserUpdate();
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error al actualizar', description: getErrorMessage(error) });
+        } finally {
+            setIsSaving(false);
         }
-        setIsSaving(false);
     };
 
     return (
@@ -289,7 +300,7 @@ export default function UsersAdminPage() {
         setIsDeleting(true);
 
         if (!auth.currentUser) {
-            toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'No estás autenticado. Por favor, inicia sesión de nuevo.' });
+            toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'No estás autenticado.' });
             setIsDeleting(false);
             setUserToDelete(null);
             return;
@@ -297,23 +308,17 @@ export default function UsersAdminPage() {
 
         try {
             await auth.currentUser.getIdToken(true); // Force token refresh
-        } catch (tokenError) {
-            console.error("Token refresh failed:", tokenError);
-            toast({ variant: 'destructive', title: 'Error de Sesión', description: 'No se pudo verificar tu sesión. Intenta recargar la página.' });
-            setIsDeleting(false);
-            setUserToDelete(null);
-            return;
-        }
-
-        const result = await deleteUserAction(userToDelete.uid);
-        if (result.success) {
+            const deleteUserFunc = httpsCallable(functions, 'deleteUser');
+            await deleteUserFunc({ uid: userToDelete.uid });
             toast({ title: 'Usuario Eliminado', description: `El usuario ${userToDelete.displayName} ha sido eliminado.` });
             fetchUsers();
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        } catch (error: any) {
+            console.error("Error deleting user:", error);
+            toast({ variant: 'destructive', title: 'Error al eliminar', description: getErrorMessage(error) });
+        } finally {
+            setIsDeleting(false);
+            setUserToDelete(null);
         }
-        setIsDeleting(false);
-        setUserToDelete(null);
     };
 
     return (
@@ -351,7 +356,7 @@ export default function UsersAdminPage() {
                         </TableHeader>
                         <TableBody>
                             {users.map(user => {
-                                const isCurrentlyBanned = user.isBanned && user.banExpiresAt && user.banExpiresAt.toDate() > new Date();
+                                const isCurrentlyBanned = user.isBanned && (!user.banExpiresAt || user.banExpiresAt.toDate() > new Date());
                                 const isCurrentUser = auth.currentUser?.uid === user.uid;
                                 return (
                                 <TableRow key={user.uid} className={isCurrentlyBanned ? 'bg-destructive/10' : ''}>
@@ -369,11 +374,11 @@ export default function UsersAdminPage() {
                                     <TableCell>{user.email}</TableCell>
                                     <TableCell><Badge variant="outline">{user.primaryRole}</Badge></TableCell>
                                     <TableCell>
-                                        {isCurrentlyBanned && user.banExpiresAt ? (
+                                        {isCurrentlyBanned && user.banExpiresAt && user.banExpiresAt.toDate().getFullYear() < 3000 ? (
                                             <Badge variant="destructive">
                                                 Baneado hasta {format(user.banExpiresAt.toDate(), "P", { locale: es })}
                                             </Badge>
-                                        ) : user.isBanned ? (
+                                        ) : isCurrentlyBanned ? (
                                              <Badge variant="destructive">Baneado</Badge>
                                         ) : null}
                                     </TableCell>
@@ -382,7 +387,7 @@ export default function UsersAdminPage() {
                                         {adminRole === 'admin' && (
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon">
+                                                    <Button variant="ghost" size="icon" disabled={isCurrentUser}>
                                                         <MoreHorizontal className="h-4 w-4" />
                                                     </Button>
                                                 </DropdownMenuTrigger>

@@ -1,3 +1,4 @@
+
 'use server';
 
 import { auth, db } from "@/lib/firebase";
@@ -96,7 +97,7 @@ export async function sendTeamInvite(senderId: string, teamId: string, receiverI
         }
         
         // Check for existing pending invite
-        const invitesRef = collection(db, "teamInvites");
+        const invitesRef = collection(db, "teamApplications");
         const q = query(invitesRef, where("teamId", "==", teamId), where("receiverId", "==", receiverId), where("status", "==", "pending"));
         const querySnapshot = await getDocs(q);
 
@@ -109,6 +110,7 @@ export async function sendTeamInvite(senderId: string, teamId: string, receiverI
             teamId,
             userId: receiverId,
             teamName: teamData.name,
+            teamLogoUrl: teamData.logoUrl || '',
             teamOwnerId: teamData.ownerId,
             type: 'invite', // To distinguish from an application
             status: "pending",

@@ -15,9 +15,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, MoreHorizontal, Search } from "lucide-react";
+import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, MoreHorizontal, Search, Loader2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { applyToTeam } from "./actions";
 
 // --- TYPE DEFINITIONS ---
 
@@ -116,6 +117,9 @@ export default function TeamDetailPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const teamId = typeof params.teamId === 'string' ? params.teamId : '';
 
+  const [isApplying, setIsApplying] = useState(false);
+  const [applicationStatus, setApplicationStatus] = useState<'idle' | 'applied' | 'member'>('idle');
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -149,6 +153,24 @@ export default function TeamDetailPage() {
       const teamData = { id: teamDocSnap.id, ...teamDocSnap.data() } as Team;
       setTeam(teamData);
 
+      // Check application status if user is logged in
+      if (user) {
+        if (teamData.memberIds.includes(user.uid)) {
+          setApplicationStatus('member');
+        } else {
+          const applicationsRef = collection(db, "teamApplications");
+          const q = query(applicationsRef, where("teamId", "==", teamId), where("userId", "==", user.uid), where("status", "==", "pending"));
+          const appSnapshot = await getDocs(q);
+          if (!appSnapshot.empty) {
+            setApplicationStatus('applied');
+          } else {
+            setApplicationStatus('idle');
+          }
+        }
+      } else {
+        setApplicationStatus('member'); // Treat as not-applicable for non-logged-in users
+      }
+
       // Fetch members data
       if (teamData.memberIds && teamData.memberIds.length > 0) {
         const usersRef = collection(db, "users");
@@ -164,12 +186,25 @@ export default function TeamDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [teamId, router, toast]);
+  }, [teamId, router, toast, user]);
 
   useEffect(() => {
     fetchTeamAndMembers();
   }, [fetchTeamAndMembers]);
 
+
+  const handleApply = async () => {
+    if (!user || !team) return;
+    setIsApplying(true);
+    const result = await applyToTeam(team.id, user.uid);
+    if (result.success) {
+      setApplicationStatus('applied');
+      toast({ title: "¡Solicitud Enviada!", description: "Tu solicitud para unirte al equipo ha sido enviada." });
+    } else {
+      toast({ variant: "destructive", title: "Error en la solicitud", description: result.error });
+    }
+    setIsApplying(false);
+  };
 
   if (isLoading) {
     return <TeamPageSkeleton />;
@@ -191,6 +226,8 @@ export default function TeamDetailPage() {
     profile.primaryRole === 'admin' ||
     profile.primaryRole === 'moderator'
   );
+  
+  const canApply = user && team.isRecruiting && applicationStatus === 'idle';
 
   return (
     <div className="space-y-8">
@@ -222,9 +259,6 @@ export default function TeamDetailPage() {
                  <h1 className="text-3xl md:text-4xl font-bold font-headline">{team.name}</h1>
                  <p className="text-muted-foreground mt-1 max-w-prose">{team.bio}</p>
             </div>
-            <Button onClick={() => toast({ title: "Próximamente", description: "El sistema de aplicaciones estará disponible pronto." })}>
-                Aplicar al Equipo
-            </Button>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-4">
@@ -343,10 +377,19 @@ export default function TeamDetailPage() {
                 </CardHeader>
                 <CardContent>
                     <p className="text-sm text-muted-foreground mb-4">
-                        ¿Crees que tienes lo que se necesita? ¡Contacta con el equipo!
+                        {team.isRecruiting ? '¿Crees que tienes lo que se necesita? ¡Contacta con el equipo!' : 'Este equipo no está reclutando actualmente.'}
                     </p>
-                    <Button className="w-full" onClick={() => toast({ title: "Próximamente", description: "El sistema de aplicaciones estará disponible pronto." })}>
-                        Aplicar al Equipo
+                    <Button 
+                        className="w-full" 
+                        onClick={handleApply}
+                        disabled={!canApply || isApplying}
+                    >
+                        {isApplying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isApplying ? "Enviando..." : 
+                            applicationStatus === 'applied' ? "Solicitud Enviada" : 
+                            applicationStatus === 'member' ? "Ya eres miembro" :
+                            "Aplicar al Equipo"
+                        }
                     </Button>
                 </CardContent>
             </Card>
@@ -371,5 +414,3 @@ export default function TeamDetailPage() {
     </div>
   );
 }
-
-    

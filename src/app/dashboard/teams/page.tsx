@@ -6,19 +6,30 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Image from "next/image";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { collection, query, getDocs, doc, getDoc, addDoc, orderBy } from "firebase/firestore";
+import { collection, query, getDocs, doc, getDoc, addDoc, orderBy, deleteDoc } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "@/lib/firebase";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, PlusCircle, Users, Camera, Eye } from "lucide-react";
+import { Loader2, PlusCircle, Users, Camera, Eye, Trash2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Team {
@@ -27,6 +38,7 @@ interface Team {
   logo: string;
   members: number;
   role: string;
+  ownerId: string;
 }
 
 interface UserProfile {
@@ -46,6 +58,9 @@ export default function TeamsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isManageDialogOpen, setIsManageDialogOpen] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -74,6 +89,7 @@ export default function TeamsPage() {
           logo: data.logoUrl || "https://placehold.co/64x64.png",
           members: data.memberIds?.length || 1,
           role: role,
+          ownerId: data.ownerId,
         };
       });
       setTeams(fetchedTeams);
@@ -118,13 +134,20 @@ export default function TeamsPage() {
     }
   };
 
-  const onDialogOpenChange = (open: boolean) => {
+  const onCreateDialogChange = (open: boolean) => {
     if (!open) {
       setLogoPreview(null);
       setLogoFile(null);
       form.reset();
     }
     setIsCreateDialogOpen(open);
+  };
+
+  const onManageDialogChange = (open: boolean) => {
+    setIsManageDialogOpen(open);
+    if (!open) {
+        setSelectedTeam(null);
+    }
   };
   
   async function onSubmit(data: TeamFormValues) {
@@ -151,7 +174,7 @@ export default function TeamsPage() {
 
       toast({ title: "¡Equipo Creado!", description: "Tu nuevo equipo ha sido creado con éxito." });
       await fetchTeams(user.uid);
-      onDialogOpenChange(false);
+      onCreateDialogChange(false);
     } catch (error) {
       console.error("Error creating team:", error);
       toast({ variant: "destructive", title: "Error al crear el equipo", description: "Hubo un problema al guardar tu equipo. Por favor, inténtalo de nuevo." });
@@ -159,6 +182,25 @@ export default function TeamsPage() {
       setIsSubmitting(false);
     }
   }
+
+  const handleDeleteTeam = async () => {
+    if (!user || !selectedTeam || user.uid !== selectedTeam.ownerId) {
+      toast({ variant: "destructive", title: "No autorizado", description: "No tienes permiso para eliminar este equipo." });
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await deleteDoc(doc(db, "teams", selectedTeam.id));
+      toast({ title: "Equipo eliminado", description: "El equipo ha sido eliminado con éxito." });
+      await fetchTeams(user.uid);
+      onManageDialogChange(false);
+    } catch (error) {
+      console.error("Error deleting team:", error);
+      toast({ variant: "destructive", title: "Error al eliminar", description: "No se pudo eliminar el equipo." });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const canCreateTeam = user && profile && (profile.primaryRole === 'admin' || profile.primaryRole === 'moderator');
   
@@ -170,153 +212,199 @@ export default function TeamsPage() {
   );
 
   return (
-    <Dialog open={isCreateDialogOpen} onOpenChange={onDialogOpenChange}>
-      <div className="grid gap-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold font-headline">Equipos</h1>
-            <p className="text-muted-foreground">Explora los equipos existentes o crea el tuyo.</p>
-          </div>
-          
-          <DialogTrigger asChild>
-              {isLoading ? (
-                  <Button disabled><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando...</Button>
-              ) : !canCreateTeam ? (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span tabIndex={0}>
-                        {createTeamButton}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Solo los moderadores y administradores pueden crear equipos.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : (
-                createTeamButton
-              )}
-          </DialogTrigger>
-        </div>
-
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3].map(i => (
-                <Card key={i}>
-                  <CardHeader className="flex flex-row items-center gap-4">
-                    <Skeleton className="h-16 w-16 rounded-lg" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-6 w-32" />
-                      <Skeleton className="h-4 w-20" />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-5 w-24" />
-                  </CardContent>
-                  <CardFooter>
-                    <Skeleton className="h-10 w-full" />
-                  </CardFooter>
-                </Card>
-              ))}
-          </div>
-        ) : teams.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {teams.map((team) => (
-              <Card key={team.id}>
-                <CardHeader className="flex flex-row items-center gap-4">
-                  <Image
-                    src={team.logo}
-                    alt={`${team.name} logo`}
-                    width={64}
-                    height={64}
-                    className="rounded-lg object-cover h-16 w-16"
-                    data-ai-hint="team logo"
-                  />
-                  <div>
-                    <CardTitle className="font-headline text-xl">{team.name}</CardTitle>
-                    {team.role && <CardDescription>{team.role}</CardDescription>}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <p>{team.members}/5 Miembros</p>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                    {team.role ? (
-                        <Button variant="outline" className="w-full">Gestionar Equipo</Button>
+    <div>
+        <Dialog open={isCreateDialogOpen} onOpenChange={onCreateDialogChange}>
+            <div className="grid gap-6">
+                <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold font-headline">Equipos</h1>
+                    <p className="text-muted-foreground">Explora los equipos existentes o crea el tuyo.</p>
+                </div>
+                
+                <DialogTrigger asChild>
+                    {isLoading ? (
+                        <Button disabled><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando...</Button>
+                    ) : !canCreateTeam ? (
+                        <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                            <span tabIndex={0}>
+                                {createTeamButton}
+                            </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                            <p>Solo los moderadores y administradores pueden crear equipos.</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        </TooltipProvider>
                     ) : (
-                        <Button variant="outline" className="w-full"><Eye className="mr-2 h-4 w-4" />Ver Equipo</Button>
+                        createTeamButton
                     )}
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card className="col-span-full">
-              <CardContent className="flex flex-col items-center justify-center text-center p-10 gap-4">
-                  <Users className="h-12 w-12 text-muted-foreground" />
-                  <h3 className="text-xl font-semibold">No hay equipos creados</h3>
-                  <p className="text-muted-foreground">
-                      Sé el primero en crear uno para empezar a competir.
-                  </p>
-                  <DialogTrigger asChild>
-                    {createTeamButton}
-                  </DialogTrigger>
-              </CardContent>
-          </Card>
-        )}
-      </div>
+                </DialogTrigger>
+                </div>
 
-       <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Crear un Nuevo Equipo</DialogTitle>
-              <DialogDescription>
-                  Dale un nombre y un logo a tu equipo para empezar.
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  <div className="flex flex-col items-center gap-4">
-                      <div className="relative w-fit cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                          <Avatar className="h-24 w-24">
-                              <AvatarImage src={logoPreview || undefined} alt="Team logo preview" />
-                              <AvatarFallback><Users className="h-10 w-10" /></AvatarFallback>
-                          </Avatar>
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 hover:opacity-100 transition-opacity">
-                          <Camera className="h-8 w-8 text-white"/>
-                          </div>
-                          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
-                      </div>
-                      <p className="text-sm text-muted-foreground">Sube el logo de tu equipo (opcional)</p>
-                  </div>
-                  <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                          <FormItem>
-                              <FormLabel>Nombre del Equipo</FormLabel>
-                              <FormControl>
-                              <Input placeholder="Ej: Cyber Eagles" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                          </FormItem>
-                      )}
-                  />
-                    <DialogFooter>
-                      <DialogClose asChild>
-                          <Button type="button" variant="ghost">Cancelar</Button>
-                      </DialogClose>
-                      <Button type="submit" disabled={isSubmitting}>
-                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          {isSubmitting ? "Creando..." : "Crear Equipo"}
-                      </Button>
-                  </DialogFooter>
-              </form>
-            </Form>
-      </DialogContent>
-    </Dialog>
+                {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[1, 2, 3].map(i => (
+                        <Card key={i}>
+                        <CardHeader className="flex flex-row items-center gap-4">
+                            <Skeleton className="h-16 w-16 rounded-lg" />
+                            <div className="space-y-2">
+                            <Skeleton className="h-6 w-32" />
+                            <Skeleton className="h-4 w-20" />
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <Skeleton className="h-5 w-24" />
+                        </CardContent>
+                        <CardFooter>
+                            <Skeleton className="h-10 w-full" />
+                        </CardFooter>
+                        </Card>
+                    ))}
+                </div>
+                ) : teams.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {teams.map((team) => (
+                    <Card key={team.id}>
+                        <CardHeader className="flex flex-row items-center gap-4">
+                        <Image
+                            src={team.logo}
+                            alt={`${team.name} logo`}
+                            width={64}
+                            height={64}
+                            className="rounded-lg object-cover h-16 w-16"
+                            data-ai-hint="team logo"
+                        />
+                        <div>
+                            <CardTitle className="font-headline text-xl">{team.name}</CardTitle>
+                            {team.role && <CardDescription>{team.role}</CardDescription>}
+                        </div>
+                        </CardHeader>
+                        <CardContent>
+                        <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <p>{team.members}/5 Miembros</p>
+                        </div>
+                        </CardContent>
+                        <CardFooter>
+                            {team.role ? (
+                                <Button variant="outline" className="w-full" onClick={() => { setSelectedTeam(team); setIsManageDialogOpen(true); }}>Gestionar Equipo</Button>
+                            ) : (
+                                <Button variant="outline" className="w-full"><Eye className="mr-2 h-4 w-4" />Ver Equipo</Button>
+                            )}
+                        </CardFooter>
+                    </Card>
+                    ))}
+                </div>
+                ) : (
+                <Card className="col-span-full">
+                    <CardContent className="flex flex-col items-center justify-center text-center p-10 gap-4">
+                        <Users className="h-12 w-12 text-muted-foreground" />
+                        <h3 className="text-xl font-semibold">No hay equipos creados</h3>
+                        <p className="text-muted-foreground">
+                            Sé el primero en crear uno para empezar a competir.
+                        </p>
+                        <DialogTrigger asChild>
+                            {createTeamButton}
+                        </DialogTrigger>
+                    </CardContent>
+                </Card>
+                )}
+            </div>
+
+            <DialogContent>
+                    <DialogHeader>
+                    <DialogTitle>Crear un Nuevo Equipo</DialogTitle>
+                    <DialogDescription>
+                        Dale un nombre y un logo a tu equipo para empezar.
+                    </DialogDescription>
+                    </DialogHeader>
+                    <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="relative w-fit cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                                <Avatar className="h-24 w-24">
+                                    <AvatarImage src={logoPreview || undefined} alt="Team logo preview" />
+                                    <AvatarFallback><Users className="h-10 w-10" /></AvatarFallback>
+                                </Avatar>
+                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 hover:opacity-100 transition-opacity">
+                                <Camera className="h-8 w-8 text-white"/>
+                                </div>
+                                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+                            </div>
+                            <p className="text-sm text-muted-foreground">Sube el logo de tu equipo (opcional)</p>
+                        </div>
+                        <FormField
+                            control={form.control}
+                            name="name"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Nombre del Equipo</FormLabel>
+                                    <FormControl>
+                                    <Input placeholder="Ej: Cyber Eagles" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                            <DialogFooter>
+                            <DialogClose asChild>
+                                <Button type="button" variant="ghost">Cancelar</Button>
+                            </DialogClose>
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {isSubmitting ? "Creando..." : "Crear Equipo"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                    </Form>
+            </DialogContent>
+        </Dialog>
+        
+        <Dialog open={isManageDialogOpen} onOpenChange={onManageDialogChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Gestionar Equipo: {selectedTeam?.name}</DialogTitle>
+                    <DialogDescription>
+                    Aquí puedes administrar los miembros de tu equipo y la configuración.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <p className="text-muted-foreground">La gestión de miembros estará disponible próximamente.</p>
+                </div>
+                <DialogFooter className="sm:justify-between flex-wrap gap-2">
+                    {user?.uid === selectedTeam?.ownerId && (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                            <Button variant="destructive">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Eliminar Equipo
+                            </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                Esta acción no se puede deshacer. Esto eliminará permanentemente el equipo y todos sus datos.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteTeam} disabled={isDeleting}>
+                                {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Eliminar
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
+                    <DialogClose asChild>
+                    <Button type="button" variant="secondary">Cerrar</Button>
+                    </DialogClose>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    </div>
   );
 }

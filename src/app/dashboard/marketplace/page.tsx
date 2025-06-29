@@ -304,11 +304,19 @@ export default function MarketplacePage() {
                                                     <p className="text-sm text-muted-foreground line-clamp-3">
                                                         {team.bio || 'Este equipo no tiene una biografía.'}
                                                     </p>
-                                                     <div className="flex flex-wrap gap-2">
-                                                        {team.seekingRoles?.map(role => (
-                                                            <Badge key={role} variant="default"><Target className="mr-1 h-3 w-3" />{role}</Badge>
-                                                        ))}
-                                                    </div>
+                                                    {team.seekingRoles && team.seekingRoles.length > 0 && (
+                                                        <div>
+                                                            <h5 className="mb-2 text-sm font-semibold flex items-center gap-1.5">
+                                                                <Target className="h-4 w-4" />
+                                                                Buscando Roles
+                                                            </h5>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {team.seekingRoles.map(role => (
+                                                                    <Badge key={role} variant="default">{role}</Badge>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                     <div className="flex items-center pt-2">
                                                         <Button asChild variant="link" className="p-0 h-auto">
                                                             <Link href={`/dashboard/teams/${team.id}`}>

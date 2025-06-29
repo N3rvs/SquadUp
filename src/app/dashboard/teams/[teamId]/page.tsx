@@ -10,6 +10,9 @@ import { doc, getDoc, collection, query, where, getDocs, type DocumentData } fro
 import { httpsCallable, FunctionsError } from "firebase/functions";
 import { auth, db, functions } from "@/lib/firebase";
 import { getCountryCode } from "@/lib/countries";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -20,11 +23,13 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, MoreHorizontal, Search, Loader2, Crown, Trash2, Edit } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { applyToTeam } from "./actions";
+import { applyToTeam, updateMemberGameRoles } from "./actions";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Checkbox } from "@/components/ui/checkbox";
+import { valorantRoles } from "@/lib/valorant";
 
 
 // --- TYPE DEFINITIONS ---
@@ -57,6 +62,12 @@ interface TeamMember extends DocumentData {
 interface UserProfile {
   primaryRole?: 'player' | 'moderator' | 'admin';
 }
+
+const rolesFormSchema = z.object({
+  roles: z.array(z.string()).refine((value) => value.length > 0, {
+    message: "Debes seleccionar al menos un rol.",
+  }),
+});
 
 function getYoutubeEmbedUrl(url?: string): string | null {
     if (!url) return null;
@@ -139,8 +150,21 @@ export default function TeamDetailPage() {
   const [memberToKick, setMemberToKick] = useState<TeamMember | null>(null);
   const [isKicking, setIsKicking] = useState(false);
   const [memberToEdit, setMemberToEdit] = useState<TeamMember | null>(null);
-  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
-  const [selectedRole, setSelectedRole] = useState('player');
+
+  const rolesForm = useForm<z.infer<typeof rolesFormSchema>>({
+    resolver: zodResolver(rolesFormSchema),
+    defaultValues: {
+      roles: [],
+    },
+  });
+
+  useEffect(() => {
+    if (memberToEdit) {
+      rolesForm.reset({
+        roles: memberToEdit.valorantRoles || [],
+      });
+    }
+  }, [memberToEdit, rolesForm]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -243,21 +267,17 @@ export default function TeamDetailPage() {
     }
   };
 
-  const handleUpdateRole = async () => {
-    if (!memberToEdit || !team || !auth.currentUser) return;
-    setIsUpdatingRole(true);
-    try {
-        await auth.currentUser.getIdToken(true);
-        // This function would need to be created in Cloud Functions, with proper permission checks.
-        const setTeamMemberRoleFunc = httpsCallable(functions, 'setTeamMemberRole');
-        await setTeamMemberRoleFunc({ userId: memberToEdit.uid, role: selectedRole });
-        toast({ title: "Rol actualizado", description: `El rol de ${memberToEdit.displayName} es ahora ${selectedRole}.` });
-        setMemberToEdit(null);
-        fetchTeamAndMembers();
-    } catch (error: any) {
-        toast({ variant: "destructive", title: "Error al actualizar rol", description: getErrorMessage(error) });
-    } finally {
-        setIsUpdatingRole(false);
+  const handleUpdateRoles = async (data: z.infer<typeof rolesFormSchema>) => {
+    if (!memberToEdit || !team || !user) return;
+    
+    const result = await updateMemberGameRoles(user.uid, team.id, memberToEdit.uid, data.roles);
+
+    if (result.success) {
+      toast({ title: "Roles actualizados", description: `Los roles de juego de ${memberToEdit.displayName} han sido actualizados.` });
+      setMemberToEdit(null);
+      fetchTeamAndMembers();
+    } else {
+      toast({ variant: "destructive", title: "Error al actualizar roles", description: result.error });
     }
   };
 
@@ -353,8 +373,7 @@ export default function TeamDetailPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Jugador</TableHead>
-                                    <TableHead>Roles</TableHead>
-                                    <TableHead>Rol Principal</TableHead>
+                                    <TableHead>Roles de Juego</TableHead>
                                     {isManager && <TableHead className="text-right">Acciones</TableHead>}
                                 </TableRow>
                             </TableHeader>
@@ -393,9 +412,6 @@ export default function TeamDetailPage() {
                                                 ))}
                                             </div>
                                         </TableCell>
-                                        <TableCell>
-                                            {member.primaryRole && <Badge variant="secondary">{member.primaryRole}</Badge>}
-                                        </TableCell>
                                         {isManager && (
                                             <TableCell className="text-right">
                                                 {user?.uid !== member.uid && team.ownerId !== member.uid && (
@@ -407,9 +423,9 @@ export default function TeamDetailPage() {
                                                             </Button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem onClick={() => { setMemberToEdit(member); setSelectedRole(member.primaryRole || 'player'); }}>
+                                                            <DropdownMenuItem onClick={() => setMemberToEdit(member)}>
                                                                 <Edit className="mr-2 h-4 w-4" />
-                                                                Cambiar Rol
+                                                                Cambiar Rol de Juego
                                                             </DropdownMenuItem>
                                                             <DropdownMenuItem className="text-destructive" onClick={() => setMemberToKick(member)}>
                                                                 <Trash2 className="mr-2 h-4 w-4" />
@@ -511,29 +527,57 @@ export default function TeamDetailPage() {
         <Dialog open={!!memberToEdit} onOpenChange={(open) => !open && setMemberToEdit(null)}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Cambiar Rol de {memberToEdit?.displayName}</DialogTitle>
+                    <DialogTitle>Cambiar Roles de Juego de {memberToEdit?.displayName}</DialogTitle>
                     <DialogDescription>
-                        Selecciona el nuevo rol para el miembro del equipo. Este cambio afectará sus permisos globales.
+                        Selecciona los roles que este jugador desempeñará en el equipo.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
-                    <Select value={selectedRole} onValueChange={setSelectedRole}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Selecciona un rol" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="player">Player</SelectItem>
-                            <SelectItem value="coach">Coach</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <DialogFooter>
-                    <Button variant="ghost" onClick={() => setMemberToEdit(null)}>Cancelar</Button>
-                    <Button onClick={handleUpdateRole} disabled={isUpdatingRole}>
-                        {isUpdatingRole && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Guardar Cambios
-                    </Button>
-                </DialogFooter>
+                <Form {...rolesForm}>
+                    <form onSubmit={rolesForm.handleSubmit(handleUpdateRoles)} className="space-y-6 pt-4">
+                        <FormField
+                            control={rolesForm.control}
+                            name="roles"
+                            render={() => (
+                                <FormItem>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    {valorantRoles.map((role) => (
+                                    <FormField
+                                        key={role}
+                                        control={rolesForm.control}
+                                        name="roles"
+                                        render={({ field }) => {
+                                        return (
+                                            <FormItem key={role} className="flex flex-row items-start space-x-3 space-y-0">
+                                                <FormControl>
+                                                    <Checkbox
+                                                        checked={field.value?.includes(role)}
+                                                        onCheckedChange={(checked) => {
+                                                            return checked
+                                                            ? field.onChange([...field.value, role])
+                                                            : field.onChange(field.value?.filter((value) => value !== role));
+                                                        }}
+                                                    />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">{role}</FormLabel>
+                                            </FormItem>
+                                        );
+                                        }}
+                                    />
+                                    ))}
+                                </div>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={() => setMemberToEdit(null)}>Cancelar</Button>
+                            <Button type="submit" disabled={rolesForm.formState.isSubmitting}>
+                                {rolesForm.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                                Guardar Cambios
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
             </DialogContent>
         </Dialog>
     </div>

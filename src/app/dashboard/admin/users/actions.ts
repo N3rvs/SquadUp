@@ -45,34 +45,30 @@ export async function updateUserAction(data: { uid: string, role?: string, banEx
         return { success: false, error: "UID de usuario no proporcionado." };
     }
 
-    const payload: { uid: string, role?: string, banExpiresAt?: string | null } = { uid };
-    if (role) {
-        payload.role = role;
-    }
-    if (typeof banExpiresAt !== 'undefined') {
-        payload.banExpiresAt = banExpiresAt;
-    }
-
     try {
-        // Call the function to update Auth claims and handle ban status in Auth
-        const updateUserFunc = httpsCallable(functions, 'setUserRole');
-        await updateUserFunc(payload);
-
-        // Also update the Firestore document to reflect changes immediately in the UI
-        const userDocRef = doc(db, 'users', uid);
         const dataToUpdate: { [key: string]: any } = {};
 
+        // Update role claim via Cloud Function
         if (role) {
-            dataToUpdate.primaryRole = role;
+            const setUserRoleFunc = httpsCallable(functions, 'setUserRole');
+            await setUserRoleFunc({ uid, role });
+            dataToUpdate.primaryRole = role; // Also update Firestore for UI
         }
         
+        // Update ban status via Cloud Function
         if (typeof banExpiresAt !== 'undefined') {
-            dataToUpdate.isBanned = banExpiresAt !== null;
+            const isBanned = banExpiresAt !== null;
+            const banUserFunc = httpsCallable(functions, 'banUser');
+            await banUserFunc({ uid, isBanned });
+            
+            // Also update Firestore for UI (temp bans, banned screen)
+            dataToUpdate.isBanned = isBanned;
             dataToUpdate.banExpiresAt = banExpiresAt ? new Date(banExpiresAt) : null;
         }
 
+        // Update Firestore document
         if (Object.keys(dataToUpdate).length > 0) {
-            await updateDoc(userDocRef, dataToUpdate);
+            await updateDoc(doc(db, 'users', uid), dataToUpdate);
         }
 
         return { success: true };

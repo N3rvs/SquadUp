@@ -14,7 +14,7 @@ function getErrorMessage(error: any): string {
             case 'permission-denied':
                 return "No tienes los permisos necesarios para realizar esta acción.";
             case 'not-found':
-                return "La operación solicitada no fue encontrada en el servidor.";
+                return "La operación solicitada no fue encontrada en el servidor. Verifica que la función esté desplegada en la región correcta.";
             case 'invalid-argument':
                 return "Los datos enviados son incorrectos. Por favor, revisa la información.";
             case 'already-exists':
@@ -49,13 +49,16 @@ export async function getAdminTournaments(): Promise<{ success: boolean; tournam
 
 export async function updateTournamentStatusAction(tournamentId: string, status: 'Open' | 'Rejected'): Promise<{ success: boolean; error?: string }> {
     try {
-        if (status === 'Open') {
-            const approveTournamentFunc = httpsCallable(functions, 'approveTournament');
-            await approveTournamentFunc({ tournamentId });
-        } else {
-            const tournamentRef = doc(db, 'tournaments', tournamentId);
-            await updateDoc(tournamentRef, { status: 'Rejected' });
-        }
+        // According to the provided backend function, we should call 'approveTournament' for both cases.
+        const approveTournamentFunc = httpsCallable(functions, 'approveTournament');
+        const approved = status === 'Open';
+        await approveTournamentFunc({ tournamentId, approved });
+
+        // The backend function updates a field `approved`, but the UI relies on `status`.
+        // To make the UI work without changing the backend, we update the `status` field here.
+        const tournamentRef = doc(db, 'tournaments', tournamentId);
+        await updateDoc(tournamentRef, { status: status });
+
         revalidatePath('/dashboard/admin/tournaments');
         return { success: true };
     } catch (error: any) {

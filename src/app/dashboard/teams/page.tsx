@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useForm, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -15,7 +16,6 @@ import {
   getDoc,
   addDoc,
   updateDoc,
-  deleteDoc,
   Timestamp,
   orderBy,
 } from "firebase/firestore";
@@ -25,13 +25,12 @@ import { auth, db, storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, PlusCircle, Users, Camera, Eye, Trash2, Edit, Briefcase, ShieldCheck, Upload } from "lucide-react";
+import { Loader2, PlusCircle, Users, Camera, Briefcase, ShieldCheck, Upload } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -81,7 +80,6 @@ function TeamFormFields({
   handleImageChange,
   logoPreview,
   bannerPreview,
-  isReadOnly,
 }: {
   control: Control<TeamFormValues>;
   logoInputRef: React.RefObject<HTMLInputElement>;
@@ -89,29 +87,26 @@ function TeamFormFields({
   handleImageChange: (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => void;
   logoPreview: string | null;
   bannerPreview: string | null;
-  isReadOnly: boolean;
 }) {
   return (
     <div className="space-y-6 pr-2">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
         <div>
           <FormLabel>Logo del Equipo</FormLabel>
-          <div className={`relative mt-2 w-fit mx-auto sm:mx-0 ${!isReadOnly && 'cursor-pointer'}`} onClick={() => !isReadOnly && logoInputRef.current?.click()}>
+          <div className="relative mt-2 w-fit mx-auto sm:mx-0 cursor-pointer" onClick={() => logoInputRef.current?.click()}>
               <Avatar className="h-24 w-24">
                   <AvatarImage src={logoPreview || undefined} alt="Team logo preview" />
                   <AvatarFallback><Users className="h-10 w-10" /></AvatarFallback>
               </Avatar>
-              {!isReadOnly && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 hover:opacity-100 transition-opacity">
-                    <Camera className="h-8 w-8 text-white"/>
-                </div>
-              )}
-              <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleImageChange(e, 'logo')} disabled={isReadOnly} />
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 hover:opacity-100 transition-opacity">
+                  <Camera className="h-8 w-8 text-white"/>
+              </div>
+              <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleImageChange(e, 'logo')} />
           </div>
         </div>
         <div>
           <FormLabel>Banner del Equipo</FormLabel>
-          <div className={`relative mt-2 aspect-video w-full rounded-md border border-dashed flex items-center justify-center ${!isReadOnly && 'cursor-pointer'}`} onClick={() => !isReadOnly && bannerInputRef.current?.click()}>
+          <div className="relative mt-2 aspect-video w-full rounded-md border border-dashed flex items-center justify-center cursor-pointer" onClick={() => bannerInputRef.current?.click()}>
             {bannerPreview ? (
               <Image src={bannerPreview} fill alt="Banner preview" className="rounded-md object-cover" />
             ) : (
@@ -120,41 +115,37 @@ function TeamFormFields({
                 <p className="text-xs">Click para subir (16:9)</p>
               </div>
             )}
-             <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleImageChange(e, 'banner')} disabled={isReadOnly} />
+             <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleImageChange(e, 'banner')} />
           </div>
         </div>
       </div>
       <FormField control={control} name="name" render={({ field }) => (
-        <FormItem><FormLabel>Nombre del Equipo</FormLabel><FormControl><Input placeholder="Ej: Cyber Eagles" {...field} readOnly={isReadOnly} /></FormControl><FormMessage /></FormItem>
+        <FormItem><FormLabel>Nombre del Equipo</FormLabel><FormControl><Input placeholder="Ej: Cyber Eagles" {...field} /></FormControl><FormMessage /></FormItem>
       )}/>
       <FormField control={control} name="bio" render={({ field }) => (
-        <FormItem><FormLabel>Biografía del Equipo</FormLabel><FormControl><Textarea placeholder="Nuestra misión, estilo de juego..." {...field} readOnly={isReadOnly} /></FormControl><FormMessage /></FormItem>
+        <FormItem><FormLabel>Biografía del Equipo</FormLabel><FormControl><Textarea placeholder="Nuestra misión, estilo de juego..." {...field} /></FormControl><FormMessage /></FormItem>
       )}/>
       <FormField control={control} name="videoUrl" render={({ field }) => (
-        <FormItem><FormLabel>Video de Presentación (URL)</FormLabel><FormControl><Input placeholder="https://youtube.com/watch?v=..." {...field} readOnly={isReadOnly} /></FormControl><FormMessage /></FormItem>
+        <FormItem><FormLabel>Video de Presentación (URL)</FormLabel><FormControl><Input placeholder="https://youtube.com/watch?v=..." {...field} /></FormControl><FormMessage /></FormItem>
       )}/>
       <div className="grid grid-cols-2 gap-4">
         <FormField control={control} name="minRank" render={({ field }) => (
-          <FormItem><FormLabel>Rango Mínimo</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona un rango" /></SelectTrigger></FormControl><SelectContent>{valorantRanks.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+          <FormItem><FormLabel>Rango Mínimo</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona un rango" /></SelectTrigger></FormControl><SelectContent>{valorantRanks.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
         )}/>
         <FormField control={control} name="maxRank" render={({ field }) => (
-          <FormItem><FormLabel>Rango Máximo</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona un rango" /></SelectTrigger></FormControl><SelectContent>{valorantRanks.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+          <FormItem><FormLabel>Rango Máximo</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona un rango" /></SelectTrigger></FormControl><SelectContent>{valorantRanks.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
         )}/>
       </div>
       <FormField control={control} name="seekingCoach" render={({ field }) => (
-        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Buscando Coach</FormLabel><FormDescription>Activa si buscas un coach para tu equipo.</FormDescription></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} disabled={isReadOnly} /></FormControl></FormItem>
+        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Buscando Coach</FormLabel><FormDescription>Activa si buscas un coach para tu equipo.</FormDescription></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
       )}/>
     </div>
   );
 }
 
-function TeamCard({ team, user, profile, onManageClick }: { team: Team, user: User | null, profile: UserProfile | null, onManageClick: (team: Team) => void }) {
-    const isOwner = user?.uid === team.ownerId;
-    const isAdmin = profile?.primaryRole === 'admin' || profile?.primaryRole === 'moderator';
-    const canManage = isOwner || isAdmin;
-
+function TeamCard({ team }: { team: Team }) {
     return (
-        <Card className="flex flex-col overflow-hidden">
+        <Card className="flex flex-col overflow-hidden transition-all hover:shadow-lg hover:-translate-y-1 cursor-pointer h-full">
             <div className="relative h-36 w-full">
             <Image
                 src={team.bannerUrl || 'https://placehold.co/400x150.png'}
@@ -172,7 +163,7 @@ function TeamCard({ team, user, profile, onManageClick }: { team: Team, user: Us
             </div>
             <CardHeader className="pt-12">
             <CardTitle className="font-headline text-xl truncate">{team.name}</CardTitle>
-            <CardDescription className="line-clamp-2 h-10">{team.bio}</CardDescription>
+            <CardDescription className="line-clamp-2 h-10">{team.bio || 'Este equipo aún no tiene una biografía.'}</CardDescription>
             </CardHeader>
             <CardContent className="flex-grow space-y-2">
             <div className="flex items-center gap-2 text-sm">
@@ -187,12 +178,6 @@ function TeamCard({ team, user, profile, onManageClick }: { team: Team, user: Us
                 <Badge variant="secondary"><Briefcase className="mr-1 h-3 w-3" /> Buscando Coach</Badge>
             )}
             </CardContent>
-            <CardFooter>
-            <Button variant="outline" className="w-full" onClick={() => onManageClick(team)}>
-                {canManage ? <Edit className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
-                {canManage ? "Gestionar Equipo" : "Ver Equipo"}
-            </Button>
-            </CardFooter>
         </Card>
     );
 }
@@ -231,12 +216,7 @@ export default function TeamsPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [dialogState, setDialogState] = useState<{
-    mode: 'create' | 'manage' | null;
-    team: Team | null;
-    isOpen: boolean;
-  }>({ mode: null, team: null, isOpen: false });
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   const { toast } = useToast();
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -314,24 +294,6 @@ export default function TeamsPage() {
     setBannerPreview(null);
   }, [form]);
 
-  const handleOpenDialog = useCallback((mode: 'create' | 'manage', team: Team | null = null) => {
-    resetFormAndPreviews();
-    if (mode === 'manage' && team) {
-      form.reset({
-        ...team,
-        bio: team.bio ?? '',
-        videoUrl: team.videoUrl ?? '',
-        seekingCoach: team.seekingCoach ?? false,
-      });
-      setLogoPreview(team.logoUrl);
-      setBannerPreview(team.bannerUrl);
-    }
-    setDialogState({ mode, team, isOpen: true });
-  }, [resetFormAndPreviews, form]);
-
-  const handleCloseDialog = useCallback(() => {
-    setDialogState({ mode: null, team: null, isOpen: false });
-  }, []);
 
   const uploadImage = useCallback(async (file: File, path: string): Promise<string> => {
     const fileRef = storageRef(storage, path);
@@ -344,61 +306,34 @@ export default function TeamsPage() {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      if (dialogState.mode === 'create') {
-        const newTeamRef = await addDoc(collection(db, "teams"), {
-            ...data,
-            ownerId: user.uid,
-            memberIds: [user.uid],
-            createdAt: Timestamp.now(),
-            logoUrl: '',
-            bannerUrl: '',
-        });
-        const teamId = newTeamRef.id;
-        let updateData: { logoUrl?: string; bannerUrl?: string } = {};
-        if (logoFile) updateData.logoUrl = await uploadImage(logoFile, `team-logos/${teamId}/logo`);
-        if (bannerFile) updateData.bannerUrl = await uploadImage(bannerFile, `team-banners/${teamId}/banner`);
-        if (Object.keys(updateData).length > 0) await updateDoc(doc(db, "teams", teamId), updateData);
-        toast({ title: "¡Equipo Creado!" });
-
-      } else if (dialogState.mode === 'manage' && dialogState.team) {
-        const teamId = dialogState.team.id;
-        let updateData: any = { ...data };
-        if (logoFile) updateData.logoUrl = await uploadImage(logoFile, `team-logos/${teamId}/logo`);
-        if (bannerFile) updateData.bannerUrl = await uploadImage(bannerFile, `team-banners/${teamId}/banner`);
-        await updateDoc(doc(db, "teams", teamId), updateData);
-        toast({ title: "¡Equipo Actualizado!" });
-      }
+      const newTeamRef = await addDoc(collection(db, "teams"), {
+          ...data,
+          ownerId: user.uid,
+          memberIds: [user.uid],
+          createdAt: Timestamp.now(),
+          logoUrl: '',
+          bannerUrl: '',
+      });
+      const teamId = newTeamRef.id;
+      let updateData: { logoUrl?: string; bannerUrl?: string } = {};
+      if (logoFile) updateData.logoUrl = await uploadImage(logoFile, `team-logos/${teamId}/logo`);
+      if (bannerFile) updateData.bannerUrl = await uploadImage(bannerFile, `team-banners/${teamId}/banner`);
+      if (Object.keys(updateData).length > 0) await updateDoc(doc(db, "teams", teamId), updateData);
+      
+      toast({ title: "¡Equipo Creado!" });
       await fetchTeams();
-      handleCloseDialog();
+      setIsCreateDialogOpen(false);
     } catch (error) {
       console.error("Error submitting form:", error);
       toast({ variant: "destructive", title: "Error", description: "Hubo un problema al guardar." });
     } finally {
       setIsSubmitting(false);
     }
-  }, [user, dialogState, logoFile, bannerFile, uploadImage, toast, fetchTeams, handleCloseDialog]);
+  }, [user, logoFile, bannerFile, uploadImage, toast, fetchTeams]);
 
-  const handleDeleteTeam = useCallback(async () => {
-    if (!dialogState.team) return;
-    setIsSubmitting(true);
-    try {
-        await deleteDoc(doc(db, "teams", dialogState.team.id));
-        toast({ title: "Equipo eliminado" });
-        await fetchTeams();
-        handleCloseDialog();
-    } catch (error) {
-        console.error("Error deleting team:", error);
-        toast({ variant: "destructive", title: "Error al eliminar" });
-    } finally {
-        setIsSubmitting(false);
-    }
-  }, [dialogState.team, toast, fetchTeams, handleCloseDialog]);
 
   const isPrivilegedUser = profile?.primaryRole === 'admin' || profile?.primaryRole === 'moderator';
   const myTeams = teams.filter(team => user && team.memberIds.includes(user.uid));
-
-  const isOwner = dialogState.team && user ? user.uid === dialogState.team.ownerId : false;
-  const canManageSelectedTeam = dialogState.team && user && profile && (isOwner || isPrivilegedUser);
   const canCreateTeam = isPrivilegedUser;
 
   return (
@@ -409,10 +344,39 @@ export default function TeamsPage() {
             <h1 className="text-3xl font-bold font-headline">Equipos</h1>
             <p className="text-muted-foreground">Explora los equipos existentes o únete a uno.</p>
           </div>
-          <Button onClick={() => handleOpenDialog('create')} disabled={!canCreateTeam}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Crear Equipo
-          </Button>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+                <Button disabled={!canCreateTeam}>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Crear Equipo
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Crear Nuevo Equipo</DialogTitle>
+                <DialogDescription>Dale una identidad a tu equipo.</DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+                  <TeamFormFields 
+                      control={form.control}
+                      logoInputRef={logoInputRef}
+                      bannerInputRef={bannerInputRef}
+                      handleImageChange={handleImageChange}
+                      logoPreview={logoPreview}
+                      bannerPreview={bannerPreview}
+                  />
+                  <DialogFooter className="pt-4">
+                      <DialogClose asChild><Button type="button" variant="ghost">Cancelar</Button></DialogClose>
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                        Crear Equipo
+                      </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <Tabs defaultValue="explorar" className="w-full">
@@ -423,65 +387,27 @@ export default function TeamsPage() {
           <TabsContent value="explorar" className="pt-4">
             {isLoading ? <LoadingSkeleton /> : teams.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {teams.map(team => <TeamCard key={team.id} team={team} user={user} profile={profile} onManageClick={() => handleOpenDialog('manage', team)} />)}
+                    {teams.map(team => (
+                        <Link href={`/dashboard/teams/${team.id}`} key={team.id}>
+                            <TeamCard team={team} />
+                        </Link>
+                    ))}
                 </div>
             ) : <Card><CardContent className="text-center p-10"><Users className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">No hay equipos creados</h3></CardContent></Card>}
           </TabsContent>
           <TabsContent value="mis-equipos" className="pt-4">
           {isLoading ? <LoadingSkeleton /> : myTeams.length > 0 ? (
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {myTeams.map(team => <TeamCard key={team.id} team={team} user={user} profile={profile} onManageClick={() => handleOpenDialog('manage', team)} />)}
+                    {myTeams.map(team => (
+                        <Link href={`/dashboard/teams/${team.id}`} key={team.id}>
+                           <TeamCard team={team} />
+                        </Link>
+                    ))}
                 </div>
             ) : <Card><CardContent className="text-center p-10"><Users className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">No perteneces a ningún equipo</h3></CardContent></Card>}
           </TabsContent>
         </Tabs>
       </div>
-      
-      <Dialog open={dialogState.isOpen} onOpenChange={(isOpen) => !isOpen && handleCloseDialog()}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{dialogState.mode === 'create' ? 'Crear Nuevo Equipo' : canManageSelectedTeam ? `Gestionar: ${dialogState.team?.name}` : `Viendo: ${dialogState.team?.name}`}</DialogTitle>
-            <DialogDescription>{dialogState.mode === 'create' ? 'Dale una identidad a tu equipo.' : 'Aquí puedes ver o editar los detalles del equipo.'}</DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
-              <TeamFormFields 
-                  control={form.control}
-                  logoInputRef={logoInputRef}
-                  bannerInputRef={bannerInputRef}
-                  handleImageChange={handleImageChange}
-                  logoPreview={logoPreview}
-                  bannerPreview={bannerPreview}
-                  isReadOnly={!canManageSelectedTeam && dialogState.mode === 'manage'}
-              />
-              <DialogFooter className="sm:justify-between flex-wrap gap-2 pt-4">
-                {canManageSelectedTeam ? (
-                    <>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="destructive"><Trash2 className="mr-2 h-4 w-4" />Eliminar</Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader><AlertDialogTitle>¿Estás seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción eliminará el equipo permanentemente.</AlertDialogDescription></AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleDeleteTeam} disabled={isSubmitting}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}Eliminar</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                    <div className="flex gap-2">
-                        <Button type="button" variant="ghost" onClick={handleCloseDialog}>Cancelar</Button>
-                        <Button type="submit" disabled={isSubmitting}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}{dialogState.mode === 'create' ? 'Crear Equipo' : 'Guardar Cambios'}</Button>
-                    </div>
-                    </>
-                ) : (
-                    <Button type="button" variant="outline" onClick={handleCloseDialog}>Cerrar</Button>
-                )}
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

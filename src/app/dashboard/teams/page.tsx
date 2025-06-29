@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useForm, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -496,5 +497,3 @@ export default function TeamsPage() {
     </div>
   );
 }
-
-    

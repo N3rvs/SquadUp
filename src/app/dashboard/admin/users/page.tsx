@@ -273,7 +273,9 @@ export default function UsersAdminPage() {
                                                 <AvatarImage src={user.avatarUrl} />
                                                 <AvatarFallback>{user.displayName.substring(0, 2)}</AvatarFallback>
                                             </Avatar>
-                                            <span className="font-medium">{user.displayName}</span>
+                                            <Link href={`/dashboard/profile/${user.uid}`} className="font-medium hover:underline">
+                                                {user.displayName}
+                                            </Link>
                                         </div>
                                     </TableCell>
                                     <TableCell>{user.email}</TableCell>

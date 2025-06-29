@@ -122,6 +122,7 @@ const tournamentFormSchema = z.object({
 type TournamentFormValues = z.infer<typeof tournamentFormSchema>;
 
 const premierRanks = [
+  "Cualquier Rango",
   "Gold - Platinum",
   "Diamond - Ascendant",
   "Ascendant - Immortal",

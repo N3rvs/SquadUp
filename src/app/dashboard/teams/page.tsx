@@ -1,13 +1,13 @@
 
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
-import { useForm } from "react-hook-form";
-import type { Control } from "react-hook-form";
+import { useEffect, useState, useRef, useCallback, type FC } from "react";
+import { useForm, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Image from "next/image";
-import { onAuthStateChanged, User } from "firebase/auth";
+import type { User } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, getDocs, doc, getDoc, addDoc, orderBy, deleteDoc, updateDoc, Timestamp } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "@/lib/firebase";
@@ -31,7 +31,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, PlusCircle, Users, Camera, Eye, Trash2, Edit, Briefcase, ShieldCheck, Upload } from "lucide-react";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -91,7 +90,7 @@ interface TeamFormFieldsProps {
   isReadOnly: boolean;
 }
 
-const TeamFormFields: React.FC<TeamFormFieldsProps> = ({
+const TeamFormFields = ({
   control,
   logoInputRef,
   bannerInputRef,
@@ -99,7 +98,7 @@ const TeamFormFields: React.FC<TeamFormFieldsProps> = ({
   logoPreview,
   bannerPreview,
   isReadOnly,
-}) => {
+}: TeamFormFieldsProps) => {
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
@@ -155,7 +154,7 @@ const TeamFormFields: React.FC<TeamFormFieldsProps> = ({
       )}/>
     </>
   );
-}
+};
 
 interface TeamGridProps {
   teamList: Team[];
@@ -165,7 +164,7 @@ interface TeamGridProps {
   onManageDialogChange: (open: boolean) => void;
 }
 
-const TeamGrid: React.FC<TeamGridProps> = ({ teamList, user, profile, setSelectedTeam, onManageDialogChange }) => {
+const TeamGrid = ({ teamList, user, profile, setSelectedTeam, onManageDialogChange }: TeamGridProps) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {teamList.map((team) => {
@@ -215,9 +214,9 @@ const TeamGrid: React.FC<TeamGridProps> = ({ teamList, user, profile, setSelecte
       })}
     </div>
   );
-}
+};
 
-const LoadingSkeleton: React.FC = () => {
+const LoadingSkeleton = () => {
   return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {[1, 2, 3].map(i => (
@@ -237,7 +236,7 @@ const LoadingSkeleton: React.FC = () => {
       ))}
       </div>
   );
-}
+};
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -485,8 +484,11 @@ export default function TeamsPage() {
   };
 
   const myTeams = teams.filter((team) => !!team.role);
-  const canCreateTeam = !!(user && profile && (profile.primaryRole === 'admin' || profile.primaryRole === 'moderator'));
-  const canManageSelectedTeam = !!(selectedTeam && user && profile && (user.uid === selectedTeam.ownerId || profile.primaryRole === 'admin' || profile.primaryRole === 'moderator'));
+  
+  const isPrivilegedUser = profile?.primaryRole === 'admin' || profile?.primaryRole === 'moderator';
+  const canCreateTeam = !!(user && profile && isPrivilegedUser);
+  const isOwner = selectedTeam && user ? user.uid === selectedTeam.ownerId : false;
+  const canManageSelectedTeam = !!(selectedTeam && user && profile && (isOwner || isPrivilegedUser));
 
   return (
     <div>

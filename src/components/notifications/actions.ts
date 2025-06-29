@@ -39,26 +39,17 @@ export async function getPendingApplications(userId: string): Promise<{ success:
             return { success: true, applications: [] };
         }
 
+        // Fetch user data directly using getDoc for better performance and to avoid potential security rule issues on list operations.
+        const userPromises = applicantIds.map(id => getDoc(doc(db, "users", id)));
+        const userDocSnapshots = await Promise.all(userPromises);
+        
         const usersData = new Map();
-        const usersRef = collection(db, "users");
-        
-        // Chunk the applicantIds to avoid Firestore 'in' query limit (max 30).
-        const chunks: string[][] = [];
-        for (let i = 0; i < applicantIds.length; i += 30) {
-            chunks.push(applicantIds.slice(i, i + 30));
-        }
-
-        const userFetchPromises = chunks.map(chunk => 
-            getDocs(query(usersRef, where("uid", "in", chunk)))
-        );
-        
-        const userSnapshots = await Promise.all(userFetchPromises);
-
-        userSnapshots.forEach(snapshot => {
-            snapshot.docs.forEach(doc => {
-                usersData.set(doc.id, doc.data());
-            });
+        userDocSnapshots.forEach(docSnap => {
+            if (docSnap.exists()) {
+                usersData.set(docSnap.id, docSnap.data());
+            }
         });
+
 
         const applications: ApplicationWithUser[] = querySnapshot.docs.map(doc => {
             const appData = doc.data();

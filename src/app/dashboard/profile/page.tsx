@@ -233,7 +233,7 @@ export default function ProfilePage() {
         <Card>
           <CardContent className="pt-6 text-center flex flex-col items-center">
             <Avatar className="h-24 w-24 mb-4">
-              <AvatarImage src={profileData.avatarUrl} alt={profileData.displayName} />
+              <AvatarImage src={profileData.avatarUrl || undefined} alt={profileData.displayName} />
               <AvatarFallback>{profileData.displayName?.substring(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
             <h2 className="text-2xl font-bold font-headline">{profileData.displayName}</h2>
@@ -260,7 +260,7 @@ export default function ProfilePage() {
 
                 <div className="relative mx-auto w-fit cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                     <Avatar className="h-24 w-24">
-                        <AvatarImage src={avatarPreview || profileData.avatarUrl} alt={profileData.displayName} />
+                        <AvatarImage src={avatarPreview || profileData.avatarUrl || undefined} alt={profileData.displayName} />
                         <AvatarFallback>{profileData.displayName?.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 hover:opacity-100 transition-opacity">

@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { auth, db } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import {
   Popover,
@@ -58,6 +58,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { SupportForm } from "@/components/support-form";
 import type { SecurityRole } from "@/hooks/useAuthRole";
+import { BannedScreen } from "@/components/BannedScreen";
 
 function Notifications() {
     const notifications = {
@@ -115,6 +116,15 @@ function Notifications() {
     );
 }
 
+interface UserProfile {
+    displayName: string;
+    email: string;
+    avatarUrl: string;
+    uid: string;
+    isBanned?: boolean;
+    banExpiresAt?: Timestamp;
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -124,15 +134,10 @@ export default function DashboardLayout({
   const router = useRouter();
   const { toast } = useToast();
 
-  const [userProfile, setUserProfile] = React.useState<{
-    displayName: string;
-    email: string;
-    avatarUrl: string;
-    uid: string;
-  } | null>(null);
-  const [userRole, setUserRole] = React.useState<SecurityRole | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = React.useState(true);
-  const [status, setStatus] = React.useState<'disponible' | 'ausente' | 'ocupado'>('disponible');
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userRole, setUserRole] = useState<SecurityRole | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [status, setStatus] = useState<'disponible' | 'ausente' | 'ocupado'>('disponible');
 
 
   useEffect(() => {
@@ -155,11 +160,11 @@ export default function DashboardLayout({
                 displayName: data.displayName || 'Usuario',
                 email: user.email || 'usuario@example.com',
                 avatarUrl: data.avatarUrl || '',
+                isBanned: data.isBanned || false,
+                banExpiresAt: data.banExpiresAt || null,
               });
             } else {
                 // This case might happen for a newly signed-up user whose doc hasn't been created yet.
-                // Or if a user document is missing for some reason.
-                // We create a default profile here.
                 setUserProfile({
                     uid: user.uid,
                     displayName: user.displayName || 'Usuario',
@@ -169,8 +174,6 @@ export default function DashboardLayout({
             }
         } catch (error) {
             console.error("Error fetching user data:", error);
-            // If fetching fails, we can still show a degraded experience
-            // using the basic info from the auth user object and a default role.
              setUserRole('player');
              setUserProfile({
               uid: user.uid,
@@ -226,6 +229,10 @@ export default function DashboardLayout({
     ausente: { text: "Ausente", color: "text-yellow-500" },
     ocupado: { text: "Ocupado", color: "text-red-500" },
   };
+
+  if (userProfile?.isBanned && userProfile.banExpiresAt && userProfile.banExpiresAt.toDate() > new Date()) {
+    return <BannedScreen banExpiresAt={userProfile.banExpiresAt.toDate().toISOString()} />;
+  }
 
   return (
     <div className="flex min-h-screen w-full">

@@ -9,16 +9,15 @@ export const setUserRole = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError("permission-denied", "No autorizado");
   }
 
-  const { uid, role, isBanned } = data;
+  const { uid, role, banExpiresAt } = data; // banExpiresAt is ISO string or null
 
   if (!uid) {
     throw new functions.https.HttpsError("invalid-argument", "Datos inválidos: UID de usuario requerido.");
   }
 
   try {
-    const firestoreUpdates: { primaryRole?: string; isBanned?: boolean } = {};
-    const authUpdates: { disabled?: boolean } = {};
-
+    const firestoreUpdates: { primaryRole?: string; isBanned?: boolean; banExpiresAt?: admin.firestore.Timestamp | null } = {};
+    
     // Handle role update
     if (role) {
       if (!["admin", "moderator", "player", "founder", "coach"].includes(role)) {
@@ -28,15 +27,24 @@ export const setUserRole = functions.https.onCall(async (data, context) => {
       firestoreUpdates.primaryRole = role;
     }
 
-    // Handle ban status update
-    if (typeof isBanned === 'boolean') {
-        authUpdates.disabled = isBanned;
-        firestoreUpdates.isBanned = isBanned;
+    // Handle ban status update if banExpiresAt is provided
+    if (typeof data.banExpiresAt !== 'undefined') {
+        if (data.banExpiresAt === null) {
+            // Unban user
+            firestoreUpdates.isBanned = false;
+            firestoreUpdates.banExpiresAt = null;
+        } else {
+            const banDate = new Date(data.banExpiresAt);
+            if (isNaN(banDate.getTime())) {
+                throw new functions.https.HttpsError("invalid-argument", "Fecha de baneo inválida.");
+            }
+            // Ban user until the date
+            firestoreUpdates.isBanned = true;
+            firestoreUpdates.banExpiresAt = admin.firestore.Timestamp.fromDate(banDate);
+        }
     }
 
-    if (Object.keys(authUpdates).length > 0) {
-        await admin.auth().updateUser(uid, authUpdates);
-    }
+    // We are not disabling the user in Firebase Auth. The ban is enforced by the application logic.
 
     if (Object.keys(firestoreUpdates).length > 0) {
       await admin.firestore().collection("users").doc(uid).update(firestoreUpdates);

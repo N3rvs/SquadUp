@@ -1,12 +1,16 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { addDays } from 'date-fns';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import {
   Table,
   TableBody,
@@ -51,8 +55,6 @@ import { useAuthRole } from '@/hooks/useAuthRole';
 import { Card, CardContent } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-
 
 type UserData = {
     uid: string;
@@ -61,14 +63,23 @@ type UserData = {
     avatarUrl?: string;
     primaryRole?: string;
     isBanned?: boolean;
+    banExpiresAt?: Timestamp | null;
     createdAt: string;
 };
 
 const userRoles = ['admin', 'moderator', 'player', 'founder', 'coach'];
+const banOptions = {
+    'none': 'No Baneado',
+    '1day': 'Banear 24 horas',
+    '7days': 'Banear 7 días',
+    '30days': 'Banear 30 días',
+    'permanent': 'Baneo Permanente',
+};
+type BanOptionKey = keyof typeof banOptions;
 
 const editUserFormSchema = z.object({
   role: z.string().refine(val => userRoles.includes(val)),
-  isBanned: z.boolean(),
+  banOption: z.custom<BanOptionKey>(val => typeof val === 'string' && Object.keys(banOptions).includes(val)),
 });
 
 function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: UserData | null, open: boolean, onOpenChange: (open: boolean) => void, onUserUpdate: () => void }) {
@@ -79,15 +90,32 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
         resolver: zodResolver(editUserFormSchema),
         defaultValues: {
             role: 'player',
-            isBanned: false,
+            banOption: 'none',
         }
     });
 
     useEffect(() => {
         if (user) {
+            let currentBanOption: BanOptionKey = 'none';
+            if (user.isBanned) {
+                if (user.banExpiresAt) {
+                    const expiry = user.banExpiresAt.toDate();
+                    // Check if it's a "permanent" ban (year 3000)
+                    if (expiry.getFullYear() >= 3000) {
+                        currentBanOption = 'permanent';
+                    } else if (expiry > new Date()) {
+                        // For simplicity, we don't try to reverse-engineer the exact option
+                        // If it's a temporary ban, the admin can choose to unban or set a new duration
+                        currentBanOption = 'permanent'; // represent any active ban this way
+                    }
+                } else {
+                     currentBanOption = 'permanent';
+                }
+            }
+
             form.reset({
                 role: user.primaryRole || 'player',
-                isBanned: user.isBanned || false,
+                banOption: currentBanOption,
             });
         }
     }, [user, form]);
@@ -96,10 +124,29 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
 
     const onSubmit = async (data: z.infer<typeof editUserFormSchema>) => {
         setIsSaving(true);
+        let banExpiresAt: string | null;
+
+        switch (data.banOption) {
+            case '1day':
+                banExpiresAt = addDays(new Date(), 1).toISOString();
+                break;
+            case '7days':
+                banExpiresAt = addDays(new Date(), 7).toISOString();
+                break;
+            case '30days':
+                banExpiresAt = addDays(new Date(), 30).toISOString();
+                break;
+            case 'permanent':
+                banExpiresAt = new Date('3000-01-01').toISOString();
+                break;
+            default: // 'none'
+                banExpiresAt = null;
+        }
+
         const result = await updateUserAction({
             uid: user.uid,
             role: data.role,
-            isBanned: data.isBanned,
+            banExpiresAt: banExpiresAt,
         });
 
         if (result.success) {
@@ -146,21 +193,24 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
                         />
                          <FormField
                             control={form.control}
-                            name="isBanned"
+                            name="banOption"
                             render={({ field }) => (
-                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                    <div className="space-y-0.5">
-                                        <FormLabel className="flex items-center gap-2"><ShieldAlert className="h-4 w-4" /> Baneado</FormLabel>
-                                        <FormDescription>
-                                           Activar para deshabilitar la cuenta del usuario.
-                                        </FormDescription>
-                                    </div>
-                                    <FormControl>
-                                        <Switch
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                        />
-                                    </FormControl>
+                                <FormItem>
+                                    <FormLabel className="flex items-center gap-2"><ShieldAlert className="h-4 w-4" />Estado de Baneo</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecciona un estado de baneo" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {Object.entries(banOptions).map(([key, value]) => (
+                                                <SelectItem key={key} value={key}>{value}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormDescription>El baneo se aplicará inmediatamente.</FormDescription>
+                                    <FormMessage />
                                 </FormItem>
                             )}
                         />
@@ -211,6 +261,7 @@ export default function UsersAdminPage() {
 
     useEffect(() => {
         fetchUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     
     const [isDeleting, setIsDeleting] = useState(false);
@@ -265,8 +316,10 @@ export default function UsersAdminPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {users.map(user => (
-                                <TableRow key={user.uid} className={user.isBanned ? 'bg-destructive/10' : ''}>
+                            {users.map(user => {
+                                const isCurrentlyBanned = user.isBanned && user.banExpiresAt && user.banExpiresAt.toDate() > new Date();
+                                return (
+                                <TableRow key={user.uid} className={isCurrentlyBanned ? 'bg-destructive/10' : ''}>
                                     <TableCell>
                                         <div className="flex items-center gap-3">
                                             <Avatar className="h-8 w-8">
@@ -281,7 +334,13 @@ export default function UsersAdminPage() {
                                     <TableCell>{user.email}</TableCell>
                                     <TableCell><Badge variant="outline">{user.primaryRole}</Badge></TableCell>
                                     <TableCell>
-                                        {user.isBanned && <Badge variant="destructive">Baneado</Badge>}
+                                        {isCurrentlyBanned && user.banExpiresAt ? (
+                                            <Badge variant="destructive">
+                                                Baneado hasta {format(user.banExpiresAt.toDate(), "P", { locale: es })}
+                                            </Badge>
+                                        ) : user.isBanned ? (
+                                             <Badge variant="destructive">Baneado</Badge>
+                                        ) : null}
                                     </TableCell>
                                     <TableCell>{user.createdAt}</TableCell>
                                     <TableCell className="text-right">
@@ -306,7 +365,7 @@ export default function UsersAdminPage() {
                                         )}
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                            )})}
                         </TableBody>
                     </Table>
                     )}

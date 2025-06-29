@@ -1,3 +1,4 @@
+
 'use server';
 
 import { functions } from "@/lib/firebase";
@@ -24,16 +25,24 @@ export async function deleteUserAction(uid: string): Promise<{ success: boolean;
 }
 
 
-export async function updateUserAction(data: { uid: string, role: string, isBanned: boolean }): Promise<{ success: boolean; error?: string }> {
-    const { uid, role, isBanned } = data;
+export async function updateUserAction(data: { uid: string, role?: string, banExpiresAt?: string | null }): Promise<{ success: boolean; error?: string }> {
+    const { uid, role, banExpiresAt } = data;
     if (!uid) {
         return { success: false, error: "UID de usuario no proporcionado." };
     }
 
+    const payload: { uid: string, role?: string, banExpiresAt?: string | null } = { uid };
+    if (role) {
+        payload.role = role;
+    }
+    // Check if banExpiresAt is part of the data object to decide if we should send it
+    if (typeof banExpiresAt !== 'undefined') {
+        payload.banExpiresAt = banExpiresAt;
+    }
+
     try {
-        // This function now handles role and ban status updates
         const updateUserFunc = httpsCallable(functions, 'setUserRole');
-        await updateUserFunc({ uid, role, isBanned });
+        await updateUserFunc(payload);
         return { success: true };
     } catch (error: any) {
         console.error("Error updating user:", error);

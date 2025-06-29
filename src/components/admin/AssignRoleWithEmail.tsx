@@ -9,11 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Search } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export function AssignRoleWithEmail() {
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [uid, setUid] = useState("");
+  const [currentRole, setCurrentRole] = useState("");
   const [role, setRole] = useState("player");
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -21,6 +23,7 @@ export function AssignRoleWithEmail() {
   const handleSearch = async () => {
     setSearching(true);
     setUid("");
+    setCurrentRole("");
     try {
       const q = query(collection(db, "users"), where("email", "==", email));
       const querySnapshot = await getDocs(q);
@@ -28,9 +31,12 @@ export function AssignRoleWithEmail() {
       if (querySnapshot.empty) {
         toast({ variant: "destructive", title: "Usuario no encontrado", description: "Verifica el email." });
       } else {
-        const doc = querySnapshot.docs[0];
-        setUid(doc.id);
-        toast({ title: "Usuario encontrado", description: `UID: ${doc.id}` });
+        const userDoc = querySnapshot.docs[0];
+        setUid(userDoc.id);
+        const userRole = userDoc.data().primaryRole || 'player';
+        setCurrentRole(userRole);
+        setRole(userRole);
+        toast({ title: "Usuario encontrado", description: `UID: ${userDoc.id}` });
       }
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error al buscar", description: error.message });
@@ -47,6 +53,7 @@ export function AssignRoleWithEmail() {
       const assignRole = httpsCallable(functions, "setUserRole");
       await assignRole({ uid, role });
       toast({ title: "Rol asignado", description: `El rol '${role}' fue asignado a ${email}` });
+      setCurrentRole(role);
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error al asignar", description: err.message });
     } finally {
@@ -65,7 +72,9 @@ export function AssignRoleWithEmail() {
 
       {uid && (
         <div className="space-y-4 pt-2">
-          <div className="text-sm text-muted-foreground">UID: <span className="font-mono bg-muted p-1 rounded">{uid}</span></div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+             Rol Actual: <Badge variant="secondary">{currentRole}</Badge>
+           </div>
 
           <Select value={role} onValueChange={setRole}>
             <SelectTrigger>
@@ -80,8 +89,8 @@ export function AssignRoleWithEmail() {
             </SelectContent>
           </Select>
 
-          <Button onClick={handleAssignRole} disabled={loading} className="w-full">
-            {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Asignando...</> : "Asignar Rol"}
+          <Button onClick={handleAssignRole} disabled={loading || role === currentRole} className="w-full">
+            {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Actualizando...</> : "Actualizar Rol"}
           </Button>
         </div>
       )}

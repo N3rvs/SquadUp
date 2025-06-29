@@ -171,7 +171,8 @@ export default function ProfilePage() {
     });
 
     return () => unsubscribe();
-  }, [form, router, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {

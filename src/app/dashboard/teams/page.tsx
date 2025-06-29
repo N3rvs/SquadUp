@@ -45,13 +45,13 @@ interface Team {
   name: string;
   logoUrl: string;
   bannerUrl: string;
-  bio: string;
+  bio?: string;
   ownerId: string;
   memberIds: string[];
   minRank: string;
   maxRank: string;
-  seekingCoach: boolean;
-  videoUrl: string;
+  seekingCoach?: boolean;
+  videoUrl?: string;
   createdAt: Timestamp;
 }
 
@@ -317,7 +317,12 @@ export default function TeamsPage() {
   const handleOpenDialog = useCallback((mode: 'create' | 'manage', team: Team | null = null) => {
     resetFormAndPreviews();
     if (mode === 'manage' && team) {
-      form.reset(team);
+      form.reset({
+        ...team,
+        bio: team.bio ?? '',
+        videoUrl: team.videoUrl ?? '',
+        seekingCoach: team.seekingCoach ?? false,
+      });
       setLogoPreview(team.logoUrl);
       setBannerPreview(team.bannerUrl);
     }

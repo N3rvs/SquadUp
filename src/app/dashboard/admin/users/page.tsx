@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { collection, getDocs, orderBy, query, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -318,6 +318,7 @@ export default function UsersAdminPage() {
                         <TableBody>
                             {users.map(user => {
                                 const isCurrentlyBanned = user.isBanned && user.banExpiresAt && user.banExpiresAt.toDate() > new Date();
+                                const isCurrentUser = auth.currentUser?.uid === user.uid;
                                 return (
                                 <TableRow key={user.uid} className={isCurrentlyBanned ? 'bg-destructive/10' : ''}>
                                     <TableCell>
@@ -356,7 +357,7 @@ export default function UsersAdminPage() {
                                                         <Edit className="mr-2 h-4 w-4"/>
                                                         Editar Usuario
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem className="text-destructive" onSelect={() => setUserToDelete(user)}>
+                                                    <DropdownMenuItem className="text-destructive" onSelect={() => setUserToDelete(user)} disabled={isCurrentUser}>
                                                         <Trash2 className="mr-2 h-4 w-4"/>
                                                         Eliminar Usuario
                                                     </DropdownMenuItem>

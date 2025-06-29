@@ -8,17 +8,19 @@ import { db } from "@/lib/firebase";
 import { countries as allCountries, getCountryCode } from "@/lib/countries";
 import { valorantRanks as allValorantRanks } from "@/lib/valorant";
 
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { TeamCard, type Team } from "@/components/team-card";
-import { Gamepad2, Globe, Search, User, Users } from "lucide-react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target } from "lucide-react";
+import Image from "next/image";
+import type { Team } from "@/components/team-card";
 
 // --- DATA & TYPE DEFINITIONS ---
 
@@ -29,6 +31,7 @@ interface Player {
   valorantRoles: string[];
   valorantRank: string;
   country: string;
+  bio?: string;
 }
 
 const valorantRanks = ["All", ...allValorantRanks];
@@ -36,69 +39,42 @@ const countries = ["All", ...allCountries];
 
 // --- COMPONENTS ---
 
-function PlayerCard({ player }: { player: Player }) {
-    const countryCode = getCountryCode(player.country);
-    return (
-        <Card className="overflow-hidden transition-all hover:shadow-lg hover:-translate-y-1 h-full">
-            <CardHeader className="p-0">
-                <div className="flex items-center gap-4 p-4">
-                     <Avatar className="h-16 w-16 border-2 border-primary">
-                        <AvatarImage src={player.avatarUrl || undefined} alt={player.displayName} />
-                        <AvatarFallback>{player.displayName?.substring(0, 2).toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                    <div className="w-full truncate">
-                        <CardTitle className="font-headline text-xl truncate">{player.displayName}</CardTitle>
-                        <CardDescription className="flex items-center gap-2">
-                             {countryCode ? ( <Image src={`https://flagsapi.com/${countryCode}/flat/16.png`} alt={player.country} width={16} height={16} /> ) : ( <Globe className="h-4 w-4" /> )}
-                             {player.country}
-                        </CardDescription>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-                <Badge variant="secondary" className="w-full justify-center">{player.valorantRank || 'Unranked'}</Badge>
-                <div className="flex flex-wrap gap-2 justify-center">
-                    {player.valorantRoles?.map(role => (
-                        <Badge key={role} variant="outline"><Gamepad2 className="mr-1 h-3 w-3" />{role}</Badge>
-                    ))}
-                </div>
-            </CardContent>
-             <CardFooter>
-                <Button asChild className="w-full" variant="outline">
-                    <Link href={`/dashboard/profile/${player.uid}`}>
-                        <User className="mr-2 h-4 w-4"/> View Profile
-                    </Link>
-                </Button>
-            </CardFooter>
-        </Card>
-    );
-}
-
 function LoadingSkeleton() {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[...Array(6)].map((_, i) => (
-          <Card key={i} className="overflow-hidden">
-            <CardHeader className="flex flex-row items-center gap-4">
-              <Skeleton className="h-16 w-16 rounded-full" />
-              <div className="space-y-2 w-full">
-                <Skeleton className="h-6 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Skeleton className="h-6 w-full" />
-              <div className="flex justify-center gap-2">
-                 <Skeleton className="h-5 w-20" />
-                 <Skeleton className="h-5 w-20" />
-              </div>
+        <Card>
+            <CardContent className="p-0">
+                 <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead><Skeleton className="h-5 w-24" /></TableHead>
+                            <TableHead><Skeleton className="h-5 w-24" /></TableHead>
+                            <TableHead><Skeleton className="h-5 w-24" /></TableHead>
+                            <TableHead><Skeleton className="h-5 w-24" /></TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {[...Array(5)].map((_, i) => (
+                        <TableRow key={i}>
+                            <TableCell>
+                                <div className="flex items-center gap-4">
+                                    <Skeleton className="h-10 w-10 rounded-full" />
+                                    <Skeleton className="h-5 w-32" />
+                                </div>
+                            </TableCell>
+                            <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                            <TableCell>
+                                <div className="flex gap-2">
+                                <Skeleton className="h-5 w-16" />
+                                <Skeleton className="h-5 w-16" />
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
             </CardContent>
-            <CardFooter>
-              <Skeleton className="h-10 w-full" />
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+        </Card>
     );
 }
 
@@ -193,24 +169,151 @@ export default function MarketplacePage() {
                 </TabsList>
                 <TabsContent value="players" className="pt-4">
                     {isLoading ? <LoadingSkeleton /> : players.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {players.map(player => (
-                               <PlayerCard key={player.uid} player={player} />
-                            ))}
-                        </div>
+                        <Card>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Jugador</TableHead>
+                                <TableHead>País</TableHead>
+                                <TableHead>Rango</TableHead>
+                                <TableHead>Roles</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {players.map((player) => {
+                                const countryCode = getCountryCode(player.country);
+                                return (
+                                <HoverCard key={player.uid}>
+                                    <HoverCardTrigger asChild>
+                                        <TableRow className="cursor-pointer">
+                                            <TableCell>
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar className="h-10 w-10 border">
+                                                        <AvatarImage src={player.avatarUrl} alt={player.displayName} />
+                                                        <AvatarFallback>{player.displayName.substring(0,2)}</AvatarFallback>
+                                                    </Avatar>
+                                                    <span className="font-medium">{player.displayName}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-2">
+                                                    {countryCode && <Image src={`https://flagsapi.com/${countryCode}/flat/16.png`} alt={player.country} width={16} height={16} />}
+                                                    {player.country}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell><Badge variant="outline">{player.valorantRank}</Badge></TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {player.valorantRoles?.map(role => <Badge key={role} variant="secondary">{role}</Badge>)}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    </HoverCardTrigger>
+                                    <HoverCardContent className="w-80">
+                                        <div className="flex justify-between space-x-4">
+                                        <Avatar>
+                                            <AvatarImage src={player.avatarUrl} />
+                                            <AvatarFallback>{player.displayName.substring(0,2)}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="space-y-1">
+                                            <h4 className="text-sm font-semibold">{player.displayName}</h4>
+                                            <p className="text-sm text-muted-foreground line-clamp-3">
+                                                {player.bio || 'Este jugador no tiene una biografía.'}
+                                            </p>
+                                            <div className="flex items-center pt-2">
+                                                <Button asChild variant="link" className="p-0 h-auto">
+                                                    <Link href={`/dashboard/profile/${player.uid}`}>
+                                                        Ver Perfil
+                                                    </Link>
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        </div>
+                                    </HoverCardContent>
+                                </HoverCard>
+                                )
+                              })}
+                            </TableBody>
+                          </Table>
+                        </Card>
                     ) : (
                         <Card><CardContent className="text-center p-10"><User className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">No Players Found</h3><p className="text-muted-foreground">Try adjusting your filters or check back later.</p></CardContent></Card>
                     )}
                 </TabsContent>
                 <TabsContent value="teams" className="pt-4">
                      {isLoading ? <LoadingSkeleton /> : filteredTeams.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {filteredTeams.map(team => (
-                                <Link href={`/dashboard/teams/${team.id}`} key={team.id}>
-                                    <TeamCard team={team} />
-                                </Link>
-                            ))}
-                        </div>
+                        <Card>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Equipo</TableHead>
+                                        <TableHead>País</TableHead>
+                                        <TableHead>Rango Requerido</TableHead>
+                                        <TableHead>Miembros</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {filteredTeams.map((team) => {
+                                      const countryCode = getCountryCode(team.country);
+                                      return (
+                                        <HoverCard key={team.id}>
+                                            <HoverCardTrigger asChild>
+                                                <TableRow className="cursor-pointer">
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-3">
+                                                            <Avatar className="h-10 w-10 border">
+                                                                <AvatarImage src={team.logoUrl} alt={team.name} />
+                                                                <AvatarFallback>{team.name.substring(0,2)}</AvatarFallback>
+                                                            </Avatar>
+                                                            <span className="font-medium">{team.name}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-2">
+                                                            {countryCode && <Image src={`https://flagsapi.com/${countryCode}/flat/16.png`} alt={team.country} width={16} height={16} />}
+                                                            {team.country}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-1">
+                                                            <Badge variant="outline">{team.minRank}</Badge> - <Badge variant="outline">{team.maxRank}</Badge>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>{team.memberIds.length} / 5</TableCell>
+                                                </TableRow>
+                                            </HoverCardTrigger>
+                                            <HoverCardContent className="w-80">
+                                                <div className="flex flex-col gap-4">
+                                                    <div className="flex items-center gap-4">
+                                                        <Avatar className="h-12 w-12">
+                                                            <AvatarImage src={team.logoUrl} />
+                                                            <AvatarFallback>{team.name.substring(0,2)}</AvatarFallback>
+                                                        </Avatar>
+                                                        <h4 className="text-sm font-semibold">{team.name}</h4>
+                                                    </div>
+                                                    <p className="text-sm text-muted-foreground line-clamp-3">
+                                                        {team.bio || 'Este equipo no tiene una biografía.'}
+                                                    </p>
+                                                     <div className="flex flex-wrap gap-2">
+                                                        {team.seekingRoles?.map(role => (
+                                                            <Badge key={role} variant="default"><Target className="mr-1 h-3 w-3" />{role}</Badge>
+                                                        ))}
+                                                    </div>
+                                                    <div className="flex items-center pt-2">
+                                                        <Button asChild variant="link" className="p-0 h-auto">
+                                                            <Link href={`/dashboard/teams/${team.id}`}>
+                                                                Ver Equipo
+                                                            </Link>
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </HoverCardContent>
+                                        </HoverCard>
+                                      )
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </Card>
                     ) : (
                        <Card><CardContent className="text-center p-10"><Users className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">No Teams Found</h3><p className="text-muted-foreground">Try adjusting your filters or check back later.</p></CardContent></Card>
                     )}

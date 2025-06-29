@@ -622,7 +622,7 @@ export default function TeamsPage() {
                 const myTeam = myTeams[0];
                 const countryCode = getCountryCode(myTeam.country);
                 return (
-                  <div className="max-w-2xl">
+                  <div className="max-w-2xl mx-auto">
                     <Card className="overflow-hidden">
                       <div className="relative">
                         <div className="relative h-48 w-full bg-muted">
@@ -706,3 +706,6 @@ export default function TeamsPage() {
   );
 }
 
+
+
+    

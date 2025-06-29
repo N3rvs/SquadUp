@@ -15,7 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target } from "lucide-react";
+import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, MoreHorizontal } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 // --- TYPE DEFINITIONS ---
 
@@ -40,6 +42,10 @@ interface TeamMember extends DocumentData {
     displayName: string;
     avatarUrl: string;
     valorantRoles: string[];
+}
+
+interface UserProfile {
+  primaryRole?: 'player' | 'moderator' | 'admin';
 }
 
 const countryNameToCode: { [key: string]: string } = {
@@ -67,25 +73,6 @@ function getYoutubeEmbedUrl(url?: string): string | null {
 }
 
 // --- HELPER COMPONENTS ---
-
-function TeamMemberCard({ member }: { member: TeamMember }) {
-    return (
-        <Card>
-            <CardContent className="pt-6 flex flex-col items-center text-center">
-                <Avatar className="h-20 w-20 mb-4">
-                    <AvatarImage src={member.avatarUrl || `https://placehold.co/128x128.png`} alt={member.displayName} data-ai-hint="valorant agent" />
-                    <AvatarFallback>{member.displayName?.substring(0, 2).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <h3 className="font-semibold">{member.displayName}</h3>
-                <div className="flex flex-wrap justify-center gap-1 mt-1">
-                    {member.valorantRoles?.map(role => (
-                        <Badge key={role} variant="outline" className="text-xs">{role}</Badge>
-                    ))}
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
 
 function TeamPageSkeleton() {
     return (
@@ -125,11 +112,21 @@ export default function TeamDetailPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const teamId = typeof params.teamId === 'string' ? params.teamId : '';
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        const userDocRef = doc(db, "users", currentUser.uid);
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+          setProfile(docSnap.data() as UserProfile);
+        }
+      } else {
+        setProfile(null);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -188,6 +185,11 @@ export default function TeamDetailPage() {
 
   const countryCode = getCountryCode(team.country);
   const embedUrl = getYoutubeEmbedUrl(team.videoUrl);
+  const isManager = user && team && profile && (
+    user.uid === team.ownerId ||
+    profile.primaryRole === 'admin' ||
+    profile.primaryRole === 'moderator'
+  );
 
   return (
     <div className="space-y-8">
@@ -246,6 +248,71 @@ export default function TeamDetailPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-8">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Miembros del Equipo</CardTitle>
+                    <CardDescription>Conoce a los jugadores que forman parte de {team.name}.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {members.length > 0 ? (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Jugador</TableHead>
+                                    <TableHead>Roles</TableHead>
+                                    {isManager && <TableHead className="text-right">Acciones</TableHead>}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {members.map(member => (
+                                    <TableRow key={member.uid}>
+                                        <TableCell>
+                                            <div className="flex items-center gap-4">
+                                                <Avatar>
+                                                    <AvatarImage src={member.avatarUrl || undefined} alt={member.displayName} />
+                                                    <AvatarFallback>{member.displayName?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                                </Avatar>
+                                                <span className="font-medium">{member.displayName}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-wrap gap-1">
+                                                {member.valorantRoles?.map(role => (
+                                                    <Badge key={role} variant="outline">{role}</Badge>
+                                                ))}
+                                            </div>
+                                        </TableCell>
+                                        {isManager && (
+                                            <TableCell className="text-right">
+                                                {user?.uid !== member.uid && ( // Prevent actions on self
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon">
+                                                                <MoreHorizontal className="h-4 w-4" />
+                                                                <span className="sr-only">Abrir menú</span>
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end">
+                                                            <DropdownMenuItem onClick={() => toast({ title: "Próximamente", description: "La función de cambiar rol estará disponible pronto." })}>
+                                                                Cambiar Rol
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem className="text-destructive" onClick={() => toast({ title: "Próximamente", description: "La función de expulsar estará disponible pronto." })}>
+                                                                Expulsar
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                )}
+                                            </TableCell>
+                                        )}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    ) : (
+                        <p className="text-muted-foreground text-center py-8">No se encontraron miembros para este equipo.</p>
+                    )}
+                </CardContent>
+            </Card>
             {embedUrl && (
                 <Card className="overflow-hidden">
                     <CardContent className="p-0">
@@ -263,25 +330,21 @@ export default function TeamDetailPage() {
                     </CardContent>
                 </Card>
             )}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Miembros del Equipo</CardTitle>
-                    <CardDescription>Conoce a los jugadores que forman parte de {team.name}.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {members.length > 0 ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {members.map(member => (
-                            <TeamMemberCard key={member.uid} member={member} />
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-muted-foreground text-center py-8">No se encontraron miembros para este equipo.</p>
-                    )}
-                </CardContent>
-            </Card>
         </div>
         <div className="md:col-span-1 space-y-8">
+            <Card>
+                <CardHeader>
+                    <CardTitle>¿Quieres unirte?</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        ¿Crees que tienes lo que se necesita? ¡Contacta con el equipo!
+                    </p>
+                    <Button className="w-full" onClick={() => toast({ title: "Próximamente", description: "El sistema de aplicaciones estará disponible pronto." })}>
+                        Aplicar al Equipo
+                    </Button>
+                </CardContent>
+            </Card>
             {team.seekingRoles && team.seekingRoles.length > 0 && (
                 <Card>
                     <CardHeader>
@@ -303,3 +366,4 @@ export default function TeamDetailPage() {
     </div>
   );
 }
+

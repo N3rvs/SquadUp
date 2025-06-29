@@ -8,7 +8,7 @@ import { db } from "@/lib/firebase";
 import { countries as allCountries, getCountryCode } from "@/lib/countries";
 import { valorantRanks as allValorantRanks } from "@/lib/valorant";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { TeamCard, type Team } from "@/components/team-card";
 import { Gamepad2, Globe, Search, User, Users } from "lucide-react";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
 
 // --- DATA & TYPE DEFINITIONS ---
 

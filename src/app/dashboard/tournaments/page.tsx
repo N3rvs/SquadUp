@@ -72,10 +72,15 @@ import {
   Shield,
   Loader2,
   ListTree,
+  Globe,
+  Link as LinkIcon,
+  Swords,
 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 
 interface UserProfile {
+  primaryRole?: 'player' | 'moderator' | 'admin';
   twitchUrl?: string;
   youtubeUrl?: string;
 }
@@ -149,7 +154,9 @@ export default function TournamentsPage() {
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const { toast } = useToast();
 
   const form = useForm<TournamentFormValues>({
@@ -250,7 +257,7 @@ export default function TournamentsPage() {
       });
 
       form.reset();
-      setIsDialogOpen(false);
+      setIsCreateDialogOpen(false);
     } catch (error) {
       console.error("Error creating tournament: ", error);
       toast({
@@ -263,8 +270,21 @@ export default function TournamentsPage() {
     }
   }
 
+  const handleRandomPairing = () => {
+    toast({
+      title: "Próximamente",
+      description: "La generación de emparejamientos estará disponible pronto."
+    });
+  };
+
   const hasStreamingLink = !!(profile?.twitchUrl || profile?.youtubeUrl);
   const canCreateTournament = user && !isProfileLoading && hasStreamingLink;
+  
+  const canManageTournament = user && profile && selectedTournament && (
+    profile.primaryRole === 'admin' ||
+    profile.primaryRole === 'moderator' ||
+    user.uid === selectedTournament.creatorId
+  );
 
   const triggerButton = (
     <Button disabled={!canCreateTournament}>
@@ -280,7 +300,7 @@ export default function TournamentsPage() {
           <h1 className="text-3xl font-bold font-headline">Torneos de la Comunidad</h1>
           <p className="text-muted-foreground">Encuentra tu próximo desafío y escala en la clasificación.</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             {isProfileLoading ? (
               <Button disabled><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando...</Button>
@@ -545,7 +565,10 @@ export default function TournamentsPage() {
                  </div>
               </CardContent>
               <CardFooter>
-                <Button variant="outline" className="w-full">
+                <Button variant="outline" className="w-full" onClick={() => {
+                  setSelectedTournament(tournament);
+                  setIsDetailModalOpen(true);
+                }}>
                   <Trophy className="mr-2 h-4 w-4" /> Ver Detalles
                 </Button>
               </CardFooter>
@@ -562,6 +585,57 @@ export default function TournamentsPage() {
                 </p>
             </CardContent>
         </Card>
+      )}
+
+      {selectedTournament && (
+        <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
+            <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle className="font-headline text-2xl">{selectedTournament.name}</DialogTitle>
+                    <DialogDescription>
+                      {selectedTournament.description}
+                    </DialogDescription>
+                </DialogHeader>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                  <div className="space-y-4">
+                    <h4 className="font-semibold">Detalles del Torneo</h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="flex items-center gap-2 text-muted-foreground"><Globe className="h-4 w-4 text-primary" /> Región: <span className="font-medium text-foreground">{selectedTournament.region}</span></div>
+                        <div className="flex items-center gap-2 text-muted-foreground"><Shield className="h-4 w-4 text-primary" /> Rango: <span className="font-medium text-foreground">{selectedTournament.premierRank}</span></div>
+                        <div className="flex items-center gap-2 text-muted-foreground"><DollarSign className="h-4 w-4 text-primary" /> Premio: <span className="font-medium text-foreground">{selectedTournament.prizePool}</span></div>
+                        <div className="flex items-center gap-2 text-muted-foreground"><CalendarIcon className="h-4 w-4 text-primary" /> Fecha: <span className="font-medium text-foreground">{selectedTournament.startDate}</span></div>
+                        <div className="flex items-center gap-2 text-muted-foreground"><Users className="h-4 w-4 text-primary" /> Plazas: <span className="font-medium text-foreground">{selectedTournament.slots.current}/{selectedTournament.slots.total}</span></div>
+                        <div className="flex items-center gap-2 text-muted-foreground"><ListTree className="h-4 w-4 text-primary" /> Formato: <span className="font-medium text-foreground">{selectedTournament.format}</span></div>
+                    </div>
+                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <LinkIcon className="h-4 w-4 text-primary" /> Streaming: <a href={selectedTournament.streamUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-foreground underline hover:text-primary">{selectedTournament.streamUrl}</a>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                     <h4 className="font-semibold">Equipos Inscritos ({selectedTournament.slots.current})</h4>
+                     <div className="border rounded-lg p-4 h-48 overflow-y-auto">
+                        {selectedTournament.slots.current > 0 ? (
+                            <p className="text-muted-foreground">Lista de equipos próximamente...</p>
+                        ) : (
+                            <p className="text-muted-foreground text-center pt-12">Aún no hay equipos inscritos.</p>
+                        )}
+                     </div>
+                  </div>
+                </div>
+
+                <Separator />
+                
+                <DialogFooter className="pt-4">
+                    <Button variant="secondary">Inscribir mi Equipo</Button>
+                    {canManageTournament && (
+                        <Button onClick={handleRandomPairing}>
+                            <Swords className="mr-2 h-4 w-4" /> Generar Emparejamientos Aleatorios
+                        </Button>
+                    )}
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
       )}
     </div>
   );

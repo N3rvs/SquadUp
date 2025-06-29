@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -288,7 +289,7 @@ export default function TeamsPage() {
                         </div>
                         </CardContent>
                         <CardFooter>
-                            {team.role ? (
+                            {team.role || (profile?.primaryRole === 'admin') ? (
                                 <Button variant="outline" className="w-full" onClick={() => { setSelectedTeam(team); setIsManageDialogOpen(true); }}>Gestionar Equipo</Button>
                             ) : (
                                 <Button variant="outline" className="w-full"><Eye className="mr-2 h-4 w-4" />Ver Equipo</Button>

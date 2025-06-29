@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { httpsCallable } from "firebase/functions";
 import { getDocs, query, where, collection } from "firebase/firestore";
-import { functions, db } from "@/lib/firebase";
+import { functions, db, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -47,9 +47,14 @@ export function AssignRoleWithEmail() {
 
   const handleAssignRole = async () => {
     if (!uid) return;
+    if (!auth.currentUser) {
+        toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'Debes iniciar sesión para realizar esta acción.' });
+        return;
+    }
 
     setLoading(true);
     try {
+      await auth.currentUser.getIdToken(true); // Force token refresh
       const assignRole = httpsCallable(functions, "setUserRole");
       await assignRole({ uid, role });
       toast({ title: "Rol asignado", description: `El rol '${role}' fue asignado a ${email}` });

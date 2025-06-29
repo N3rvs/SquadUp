@@ -8,7 +8,7 @@ import * as z from "zod";
 import { format } from "date-fns";
 import { es } from 'date-fns/locale';
 import { auth, db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, query, orderBy, Timestamp } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, orderBy, Timestamp, where, doc, getDoc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -57,6 +58,12 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   PlusCircle,
   Users,
   Trophy,
@@ -64,15 +71,20 @@ import {
   DollarSign,
   Shield,
   Loader2,
+  ListTree,
 } from "lucide-react";
 
 
-// Define a more detailed structure for tournaments
+interface UserProfile {
+  twitchUrl?: string;
+  youtubeUrl?: string;
+}
+
 interface Tournament {
   id: string;
   name: string;
   premierRank: string;
-  status: 'Open' | 'In Progress' | 'Finished';
+  status: 'Pending' | 'Open' | 'In Progress' | 'Finished';
   region: string;
   prizePool: string;
   slots: {
@@ -81,10 +93,16 @@ interface Tournament {
   };
   startDate: string;
   creatorId: string;
+  description: string;
+  streamUrl: string;
+  format: string;
 }
 
 const tournamentFormSchema = z.object({
   name: z.string().min(5, { message: "El nombre debe tener al menos 5 caracteres." }).max(50, { message: "El nombre no puede tener más de 50 caracteres."}),
+  description: z.string().min(10, { message: "La descripción debe tener al menos 10 caracteres." }).max(200, { message: "La descripción no puede tener más de 200 caracteres."}),
+  streamUrl: z.string().url({ message: "Por favor, introduce una URL válida de Twitch, Kick o YouTube." }),
+  format: z.string({ required_error: "Debes seleccionar un formato." }),
   premierRank: z.string({ required_error: "Debes seleccionar un rango." }),
   region: z.string({ required_error: "Debes seleccionar una región." }),
   prizePool: z.string().min(1, { message: "El premio no puede estar vacío." }).max(50, { message: "La descripción del premio es muy larga."}),
@@ -101,10 +119,18 @@ const premierRanks = [
   "Immortal+",
 ];
 
+const tournamentFormats = [
+    { value: 'masters', label: 'Estilo Masters (Round Robin + Eliminación)' },
+    { value: 'knockout', label: 'Eliminación directa (Knockout)' },
+    { value: 'classic', label: 'Bracket clásico (Octavos, Cuartos, etc.)' },
+];
+
 const regions = ["EMEA"];
 
 const getStatusVariant = (status: Tournament['status']) => {
   switch (status) {
+    case 'Pending':
+      return 'destructive';
     case 'Open':
       return 'secondary';
     case 'In Progress':
@@ -118,6 +144,8 @@ const getStatusVariant = (status: Tournament['status']) => {
 
 export default function TournamentsPage() {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -128,6 +156,9 @@ export default function TournamentsPage() {
     resolver: zodResolver(tournamentFormSchema),
     defaultValues: {
       name: "",
+      description: "",
+      streamUrl: "",
+      format: "",
       premierRank: "",
       region: "EMEA",
       prizePool: "",
@@ -138,7 +169,7 @@ export default function TournamentsPage() {
   const fetchTournaments = async () => {
     setIsPageLoading(true);
     try {
-      const q = query(collection(db, "tournaments"), orderBy("startDate", "asc"));
+      const q = query(collection(db, "tournaments"), where("status", "==", "Open"), orderBy("startDate", "asc"));
       const querySnapshot = await getDocs(q);
       const fetchedTournaments = querySnapshot.docs.map(doc => {
         const data = doc.data();
@@ -159,6 +190,9 @@ export default function TournamentsPage() {
           },
           startDate: format(startDate, "PP", { locale: es }),
           creatorId: data.creatorId,
+          description: data.description,
+          streamUrl: data.streamUrl,
+          format: tournamentFormats.find(f => f.value === data.format)?.label || data.format,
         } as Tournament;
       });
       setTournaments(fetchedTournaments);
@@ -175,8 +209,20 @@ export default function TournamentsPage() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+       if (currentUser) {
+        setIsProfileLoading(true);
+        const userDocRef = doc(db, "users", currentUser.uid);
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+          setProfile(docSnap.data() as UserProfile);
+        }
+        setIsProfileLoading(false);
+      } else {
+        setProfile(null);
+        setIsProfileLoading(false);
+      }
       fetchTournaments();
     });
     return () => unsubscribe();
@@ -192,20 +238,19 @@ export default function TournamentsPage() {
       await addDoc(collection(db, "tournaments"), {
         ...data,
         creatorId: user.uid,
-        status: 'Open',
+        status: 'Pending',
         registeredTeams: [],
         createdAt: new Date(),
         startDate: Timestamp.fromDate(data.startDate),
       });
 
       toast({
-        title: "¡Torneo Creado!",
-        description: "Tu evento ha sido publicado con éxito.",
+        title: "¡Torneo enviado a revisión!",
+        description: "Tu evento será revisado por un moderador antes de ser publicado.",
       });
 
       form.reset();
       setIsDialogOpen(false);
-      await fetchTournaments(); // Refresh the list
     } catch (error) {
       console.error("Error creating tournament: ", error);
       toast({
@@ -218,6 +263,16 @@ export default function TournamentsPage() {
     }
   }
 
+  const hasStreamingLink = !!(profile?.twitchUrl || profile?.youtubeUrl);
+  const canCreateTournament = user && !isProfileLoading && hasStreamingLink;
+
+  const triggerButton = (
+    <Button disabled={!canCreateTournament}>
+      <PlusCircle className="mr-2 h-4 w-4" />
+      Crear Evento
+    </Button>
+  );
+
   return (
     <div className="grid gap-8">
       <div className="flex items-center justify-between">
@@ -227,20 +282,42 @@ export default function TournamentsPage() {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button disabled={!user}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Crear Evento
-            </Button>
+            {isProfileLoading ? (
+              <Button disabled><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando...</Button>
+            ) : !user ? (
+               <Button disabled>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Crear Evento
+                </Button>
+            ) : hasStreamingLink ? (
+              triggerButton
+            ) : (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0}>
+                      <Button disabled>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Crear Evento
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Debes añadir un enlace de streaming en tu perfil para crear un torneo.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[625px]">
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Crear un Nuevo Torneo</DialogTitle>
               <DialogDescription>
-                Completa los detalles de tu evento. Será revisado por un moderador si es necesario.
+                Completa los detalles de tu evento. Será revisado por un moderador para su aprobación.
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pr-2">
                 <FormField
                   control={form.control}
                   name="name"
@@ -252,7 +329,53 @@ export default function TournamentsPage() {
                     </FormItem>
                   )}
                 />
+                 <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Descripción</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Temática, premios, reglas especiales..." {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Esta información será visible para los moderadores durante la revisión.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="streamUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Enlace del Streaming</FormLabel>
+                      <FormControl><Input placeholder="https://twitch.tv/yourchannel" {...field} /></FormControl>
+                      <FormDescription>
+                        El torneo debe ser transmitido en vivo.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   <FormField
+                    control={form.control}
+                    name="format"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Formato del Torneo</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl><SelectTrigger><SelectValue placeholder="Selecciona un formato" /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            {tournamentFormats.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <FormField
                     control={form.control}
                     name="premierRank"
@@ -269,7 +392,9 @@ export default function TournamentsPage() {
                       </FormItem>
                     )}
                   />
-                   <FormField
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
                     control={form.control}
                     name="region"
                     render={({ field }) => (
@@ -285,8 +410,6 @@ export default function TournamentsPage() {
                       </FormItem>
                     )}
                   />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="prizePool"
@@ -298,6 +421,8 @@ export default function TournamentsPage() {
                       </FormItem>
                     )}
                   />
+                </div>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="totalSlots"
@@ -309,47 +434,47 @@ export default function TournamentsPage() {
                       </FormItem>
                     )}
                   />
+                  <FormField
+                    control={form.control}
+                    name="startDate"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Fecha de inicio</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant={"outline"}
+                                className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                              >
+                                {field.value ? (format(field.value, "PPP", { locale: es })) : (<span>Selecciona una fecha</span>)}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              disabled={(date) => date < new Date() || date < new Date("1900-01-01")}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-                <FormField
-                  control={form.control}
-                  name="startDate"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Fecha de inicio</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                            >
-                              {field.value ? (format(field.value, "PPP", { locale: es })) : (<span>Selecciona una fecha</span>)}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) => date < new Date() || date < new Date("1900-01-01")}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
 
-                <DialogFooter>
+                <DialogFooter className="pt-4">
                   <DialogClose asChild>
                     <Button type="button" variant="ghost">Cancelar</Button>
                   </DialogClose>
                   <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isSubmitting ? "Creando..." : "Crear Torneo"}
+                    {isSubmitting ? "Enviando..." : "Enviar a Revisión"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -400,27 +525,28 @@ export default function TournamentsPage() {
                     <CardTitle className="font-headline text-xl leading-tight">{tournament.name}</CardTitle>
                     <Badge variant={getStatusVariant(tournament.status)}>{tournament.status}</Badge>
                 </div>
-                <CardDescription className="flex items-center gap-2 pt-2">
-                  <Shield className="h-4 w-4" /> Rango: {tournament.premierRank}
+                <CardDescription className="flex flex-col gap-2 pt-2">
+                  <span className="flex items-center gap-2"><Shield className="h-4 w-4" /> Rango: {tournament.premierRank}</span>
+                  <span className="flex items-center gap-2"><ListTree className="h-4 w-4" /> Formato: {tournament.format}</span>
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex-1 space-y-3">
                  <div className="text-sm text-muted-foreground flex items-center gap-2">
                    <DollarSign className="h-4 w-4 text-primary" />
-                   <span>Prize Pool: <span className="font-semibold text-foreground">{tournament.prizePool}</span></span>
+                   <span>Premio: <span className="font-semibold text-foreground">{tournament.prizePool}</span></span>
                  </div>
                  <div className="text-sm text-muted-foreground flex items-center gap-2">
                    <CalendarIcon className="h-4 w-4 text-primary" />
-                   <span>Starts: <span className="font-semibold text-foreground">{tournament.startDate}</span></span>
+                   <span>Empieza: <span className="font-semibold text-foreground">{tournament.startDate}</span></span>
                  </div>
                  <div className="text-sm text-muted-foreground flex items-center gap-2">
                    <Users className="h-4 w-4 text-primary" />
-                   <span>Slots: <span className="font-semibold text-foreground">{tournament.slots.current}/{tournament.slots.total}</span></span>
+                   <span>Plazas: <span className="font-semibold text-foreground">{tournament.slots.current}/{tournament.slots.total}</span></span>
                  </div>
               </CardContent>
               <CardFooter>
                 <Button variant="outline" className="w-full">
-                  <Trophy className="mr-2 h-4 w-4" /> View Details
+                  <Trophy className="mr-2 h-4 w-4" /> Ver Detalles
                 </Button>
               </CardFooter>
             </Card>
@@ -432,7 +558,7 @@ export default function TournamentsPage() {
                 <Trophy className="h-12 w-12 text-muted-foreground" />
                 <h3 className="text-xl font-semibold">No Hay Torneos Disponibles</h3>
                 <p className="text-muted-foreground">
-                    Aún no se han creado torneos. ¡Sé el primero en organizar uno!
+                    Aún no se han publicado torneos. ¡Vuelve a comprobarlo más tarde!
                 </p>
             </CardContent>
         </Card>

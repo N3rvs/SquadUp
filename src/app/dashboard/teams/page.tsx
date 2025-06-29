@@ -65,17 +65,6 @@ const teamFormSchema = z.object({
   maxRank: z.string({ required_error: "Debes seleccionar un rango máximo." }),
   seekingCoach: z.boolean().default(false).optional(),
   videoUrl: z.string().url("Por favor, introduce una URL de YouTube o similar válida.").optional().or(z.literal('')),
-}).refine(data => {
-    if (data.minRank && data.maxRank) {
-        const minIndex = valorantRanks.indexOf(data.minRank);
-        const maxIndex = valorantRanks.indexOf(data.maxRank);
-        if (minIndex === -1 || maxIndex === -1) return true;
-        return minIndex <= maxIndex;
-    }
-    return true;
-}, {
-    message: "El rango mínimo no puede ser superior al máximo.",
-    path: ["minRank"],
 });
 
 type TeamFormValues = z.infer<typeof teamFormSchema>;
@@ -593,7 +582,7 @@ export default function TeamsPage() {
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                       <AlertDialogHeader><AlertDialogTitle>¿Estás seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Esto eliminará permanentemente el equipo.</AlertDialogDescription></AlertDialogHeader>
-                      <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeleteTeam} disabled={isDeleting}>{isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Eliminar</AlertDialogAction></AlertDialogFooter>
+                      <AlertDialogFooter><AlertDialogCancel>Cancelar</Button></AlertDialogCancel><AlertDialogAction onClick={handleDeleteTeam} disabled={isDeleting}>{isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Eliminar</AlertDialogAction></AlertDialogFooter>
                       </AlertDialogContent>
                   </AlertDialog>
                   <div className="flex gap-2">

@@ -7,7 +7,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs, type DocumentData } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { httpsCallable, FunctionsError } from "firebase/functions";
+import { auth, db, functions } from "@/lib/firebase";
 import { getCountryCode } from "@/lib/countries";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,11 +17,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, MoreHorizontal, Search, Loader2, Crown } from "lucide-react";
+import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, MoreHorizontal, Search, Loader2, Crown, Trash2, Edit } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { applyToTeam } from "./actions";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 // --- TYPE DEFINITIONS ---
 
@@ -46,6 +51,7 @@ interface TeamMember extends DocumentData {
     displayName: string;
     avatarUrl: string;
     valorantRoles: string[];
+    primaryRole?: string;
 }
 
 interface UserProfile {
@@ -95,6 +101,24 @@ function TeamPageSkeleton() {
     );
 }
 
+function getErrorMessage(error: any): string {
+    if (error instanceof FunctionsError) {
+        switch (error.code) {
+            case 'unauthenticated':
+                return "No estás autenticado. Por favor, inicia sesión de nuevo.";
+            case 'permission-denied':
+                return "No tienes los permisos necesarios para realizar esta acción.";
+            case 'not-found':
+                return "El recurso solicitado no fue encontrado. Verifica la información.";
+            case 'invalid-argument':
+                return "Los datos enviados son incorrectos. Por favor, revisa la información.";
+            default:
+                return `Ocurrió un error con la función: ${error.message}`;
+        }
+    }
+    return "Ocurrió un error desconocido al contactar con el servidor.";
+}
+
 // --- MAIN COMPONENT ---
 
 export default function TeamDetailPage() {
@@ -111,6 +135,12 @@ export default function TeamDetailPage() {
   const [isApplying, setIsApplying] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState<'idle' | 'applied' | 'member'>('idle');
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+
+  const [memberToKick, setMemberToKick] = useState<TeamMember | null>(null);
+  const [isKicking, setIsKicking] = useState(false);
+  const [memberToEdit, setMemberToEdit] = useState<TeamMember | null>(null);
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [selectedRole, setSelectedRole] = useState('player');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -131,10 +161,12 @@ export default function TeamDetailPage() {
   const fetchTeamAndMembers = useCallback(async () => {
     if (!teamId) return;
     setIsLoading(true);
-    setIsCheckingStatus(true);
+    // Only check application status if a user might be logged in
+    if (user !== undefined) {
+        setIsCheckingStatus(true);
+    }
 
     try {
-      // Fetch team data
       const teamDocRef = doc(db, "teams", teamId);
       const teamDocSnap = await getDoc(teamDocRef);
 
@@ -146,7 +178,6 @@ export default function TeamDetailPage() {
       const teamData = { id: teamDocSnap.id, ...teamDocSnap.data() } as Team;
       setTeam(teamData);
 
-      // Check application status if user is logged in
       if (user) {
         if (teamData.memberIds.includes(user.uid)) {
           setApplicationStatus('member');
@@ -154,17 +185,12 @@ export default function TeamDetailPage() {
           const applicationsRef = collection(db, "teamApplications");
           const q = query(applicationsRef, where("teamId", "==", teamId), where("userId", "==", user.uid), where("status", "==", "pending"));
           const appSnapshot = await getDocs(q);
-          if (!appSnapshot.empty) {
-            setApplicationStatus('applied');
-          } else {
-            setApplicationStatus('idle');
-          }
+          setApplicationStatus(!appSnapshot.empty ? 'applied' : 'idle');
         }
       } else {
-        setApplicationStatus('idle'); // A non-logged in user is 'idle', not a 'member'
+        setApplicationStatus('idle');
       }
 
-      // Fetch members data
       if (teamData.memberIds && teamData.memberIds.length > 0) {
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("uid", "in", teamData.memberIds));
@@ -199,6 +225,41 @@ export default function TeamDetailPage() {
     }
     setIsApplying(false);
   };
+  
+  const handleKickMember = async () => {
+    if (!memberToKick || !team || !auth.currentUser) return;
+    setIsKicking(true);
+    try {
+        await auth.currentUser.getIdToken(true);
+        const kickTeamMemberFunc = httpsCallable(functions, 'kickTeamMember');
+        await kickTeamMemberFunc({ teamId: team.id, memberId: memberToKick.uid });
+        toast({ title: "Miembro expulsado", description: `${memberToKick.displayName} ha sido eliminado del equipo.` });
+        setMemberToKick(null);
+        fetchTeamAndMembers();
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Error al expulsar", description: getErrorMessage(error) });
+    } finally {
+        setIsKicking(false);
+    }
+  };
+
+  const handleUpdateRole = async () => {
+    if (!memberToEdit || !team || !auth.currentUser) return;
+    setIsUpdatingRole(true);
+    try {
+        await auth.currentUser.getIdToken(true);
+        // This function would need to be created in Cloud Functions, with proper permission checks.
+        const setTeamMemberRoleFunc = httpsCallable(functions, 'setTeamMemberRole');
+        await setTeamMemberRoleFunc({ userId: memberToEdit.uid, role: selectedRole });
+        toast({ title: "Rol actualizado", description: `El rol de ${memberToEdit.displayName} es ahora ${selectedRole}.` });
+        setMemberToEdit(null);
+        fetchTeamAndMembers();
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Error al actualizar rol", description: getErrorMessage(error) });
+    } finally {
+        setIsUpdatingRole(false);
+    }
+  };
 
   if (isLoading) {
     return <TeamPageSkeleton />;
@@ -227,7 +288,7 @@ export default function TeamDetailPage() {
     <div className="space-y-8">
        <Button variant="outline" onClick={() => router.back()}>
         <ArrowLeft className="mr-2 h-4 w-4" />
-        Volver a Equipos
+        Volver
       </Button>
       <div className="relative">
         <div className="relative h-48 md:h-64 w-full overflow-hidden rounded-lg">
@@ -293,6 +354,7 @@ export default function TeamDetailPage() {
                                 <TableRow>
                                     <TableHead>Jugador</TableHead>
                                     <TableHead>Roles</TableHead>
+                                    <TableHead>Rol Principal</TableHead>
                                     {isManager && <TableHead className="text-right">Acciones</TableHead>}
                                 </TableRow>
                             </TableHeader>
@@ -331,9 +393,12 @@ export default function TeamDetailPage() {
                                                 ))}
                                             </div>
                                         </TableCell>
+                                        <TableCell>
+                                            {member.primaryRole && <Badge variant="secondary">{member.primaryRole}</Badge>}
+                                        </TableCell>
                                         {isManager && (
                                             <TableCell className="text-right">
-                                                {user?.uid !== member.uid && ( // Prevent actions on self
+                                                {user?.uid !== member.uid && team.ownerId !== member.uid && (
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
                                                             <Button variant="ghost" size="icon">
@@ -342,10 +407,12 @@ export default function TeamDetailPage() {
                                                             </Button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem onClick={() => toast({ title: "Próximamente", description: "La función de cambiar rol estará disponible pronto." })}>
+                                                            <DropdownMenuItem onClick={() => { setMemberToEdit(member); setSelectedRole(member.primaryRole || 'player'); }}>
+                                                                <Edit className="mr-2 h-4 w-4" />
                                                                 Cambiar Rol
                                                             </DropdownMenuItem>
-                                                            <DropdownMenuItem className="text-destructive" onClick={() => toast({ title: "Próximamente", description: "La función de expulsar estará disponible pronto." })}>
+                                                            <DropdownMenuItem className="text-destructive" onClick={() => setMemberToKick(member)}>
+                                                                <Trash2 className="mr-2 h-4 w-4" />
                                                                 Expulsar
                                                             </DropdownMenuItem>
                                                         </DropdownMenuContent>
@@ -387,7 +454,7 @@ export default function TeamDetailPage() {
                 </CardHeader>
                 <CardContent>
                     <p className="text-sm text-muted-foreground mb-4">
-                        {team.isRecruiting ? '¿Crees que tienes lo que se necesita? ¡Contacta con el equipo!' : 'Este equipo no está reclutando actualmente.'}
+                        {team.isRecruiting ? '¿Crees que tienes lo que se necesita? ¡Envía tu solicitud!' : 'Este equipo no está reclutando actualmente.'}
                     </p>
                     <Button 
                         className="w-full" 
@@ -422,6 +489,53 @@ export default function TeamDetailPage() {
             )}
         </div>
       </div>
+
+       <AlertDialog open={!!memberToKick} onOpenChange={(open) => !open && setMemberToKick(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Estás seguro de que quieres expulsar a {memberToKick?.displayName}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Esta acción no se puede deshacer. El jugador será eliminado permanentemente del equipo.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleKickMember} disabled={isKicking} className="bg-destructive hover:bg-destructive/90">
+                        {isKicking && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Sí, expulsar
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        <Dialog open={!!memberToEdit} onOpenChange={(open) => !open && setMemberToEdit(null)}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Cambiar Rol de {memberToEdit?.displayName}</DialogTitle>
+                    <DialogDescription>
+                        Selecciona el nuevo rol para el miembro del equipo. Este cambio afectará sus permisos globales.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <Select value={selectedRole} onValueChange={setSelectedRole}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Selecciona un rol" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="player">Player</SelectItem>
+                            <SelectItem value="coach">Coach</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => setMemberToEdit(null)}>Cancelar</Button>
+                    <Button onClick={handleUpdateRole} disabled={isUpdatingRole}>
+                        {isUpdatingRole && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                        Guardar Cambios
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </div>
   );
 }

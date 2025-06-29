@@ -31,6 +31,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -47,6 +55,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { SupportForm } from "@/components/support-form";
 
 function Notifications() {
     const notifications = {
@@ -311,10 +320,23 @@ export default function DashboardLayout({
                         </DropdownMenuSubContent>
                     </DropdownMenuPortal>
                 </DropdownMenuSub>
-                 <DropdownMenuItem>
-                  <LifeBuoy className="mr-2 h-4 w-4" />
-                  <span>Soporte</span>
-                </DropdownMenuItem>
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                          <LifeBuoy className="mr-2 h-4 w-4" />
+                          <span>Soporte</span>
+                        </DropdownMenuItem>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Contactar a Soporte</DialogTitle>
+                            <DialogDescription>
+                                Describe tu problema y nuestra IA te ayudará a categorizarlo para una respuesta más rápida.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <SupportForm />
+                    </DialogContent>
+                </Dialog>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />

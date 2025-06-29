@@ -1,8 +1,9 @@
 
 'use server';
 
-import { functions } from "@/lib/firebase";
+import { functions, db } from "@/lib/firebase";
 import { httpsCallable, FunctionsError } from "firebase/functions";
+import { doc, updateDoc } from "firebase/firestore";
 
 function getErrorMessage(error: any): string {
     if (error instanceof FunctionsError) {
@@ -53,8 +54,27 @@ export async function updateUserAction(data: { uid: string, role?: string, banEx
     }
 
     try {
+        // Call the function to update Auth claims and handle ban status in Auth
         const updateUserFunc = httpsCallable(functions, 'setUserRole');
         await updateUserFunc(payload);
+
+        // Also update the Firestore document to reflect changes immediately in the UI
+        const userDocRef = doc(db, 'users', uid);
+        const dataToUpdate: { [key: string]: any } = {};
+
+        if (role) {
+            dataToUpdate.primaryRole = role;
+        }
+        
+        if (typeof banExpiresAt !== 'undefined') {
+            dataToUpdate.isBanned = banExpiresAt !== null;
+            dataToUpdate.banExpiresAt = banExpiresAt ? new Date(banExpiresAt) : null;
+        }
+
+        if (Object.keys(dataToUpdate).length > 0) {
+            await updateDoc(userDocRef, dataToUpdate);
+        }
+
         return { success: true };
     } catch (error: any) {
         console.error("Error updating user:", error);

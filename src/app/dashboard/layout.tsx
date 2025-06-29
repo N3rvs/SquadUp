@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
 import {
   User,
   Users,
@@ -15,11 +16,14 @@ import {
   Bell,
   Settings,
   LifeBuoy,
+  Circle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import {
   Popover,
@@ -33,10 +37,16 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 function Notifications() {
     const notifications = {
@@ -149,6 +159,42 @@ export default function DashboardLayout({
   const router = useRouter();
   const { toast } = useToast();
 
+  const [userProfile, setUserProfile] = React.useState<{
+    displayName: string;
+    email: string;
+    avatarUrl: string;
+  } | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = React.useState(true);
+  const [status, setStatus] = React.useState<'disponible' | 'ausente' | 'ocupado'>('disponible');
+
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDocRef = doc(db, "users", user.uid);
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setUserProfile({
+            displayName: data.displayName || 'Usuario',
+            email: user.email || 'usuario@example.com',
+            avatarUrl: data.avatarUrl || '',
+          });
+        } else {
+            setUserProfile({
+                displayName: user.displayName || 'Usuario',
+                email: user.email || 'usuario@example.com',
+                avatarUrl: user.photoURL || '',
+            });
+        }
+      } else {
+        router.push("/login");
+      }
+      setIsLoadingProfile(false);
+    });
+    return () => unsubscribe();
+  }, [router]);
+
   const navItems = [
     { href: "/dashboard/profile", icon: User, label: "Perfil" },
     { href: "/dashboard/teams", icon: Users, label: "Equipos" },
@@ -174,6 +220,12 @@ export default function DashboardLayout({
         description: "An error occurred during logout. Please try again.",
       });
     }
+  };
+
+  const statusInfo = {
+    disponible: { text: "Disponible", color: "text-green-500" },
+    ausente: { text: "Ausente", color: "text-yellow-500" },
+    ocupado: { text: "Ocupado", color: "text-red-500" },
   };
 
   return (
@@ -217,30 +269,48 @@ export default function DashboardLayout({
                   variant="ghost"
                   className="relative h-9 w-9 rounded-full"
                 >
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src="https://placehold.co/40x40.png" alt="@user" data-ai-hint="male avatar" />
-                    <AvatarFallback>U</AvatarFallback>
-                  </Avatar>
+                    {isLoadingProfile ? (
+                        <Skeleton className="h-9 w-9 rounded-full" />
+                    ) : (
+                        <Avatar className="h-9 w-9">
+                            <AvatarImage src={userProfile?.avatarUrl} alt={userProfile?.displayName || ''} />
+                            <AvatarFallback>{userProfile?.displayName?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                        </Avatar>
+                    )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">Usuario</p>
+                    <p className="text-sm font-medium leading-none">{userProfile?.displayName || 'Usuario'}</p>
                     <p className="text-xs leading-none text-muted-foreground">
-                      usuario@example.com
+                      {userProfile?.email || 'cargando...'}
                     </p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Perfil</span>
-                </DropdownMenuItem>
-                 <DropdownMenuItem>
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Ajustes</span>
-                </DropdownMenuItem>
+                <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                        <Circle className={cn("mr-2 h-3 w-3 fill-current", statusInfo[status].color)} />
+                        <span>{statusInfo[status].text}</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                        <DropdownMenuSubContent>
+                            <DropdownMenuItem onClick={() => setStatus('disponible')}>
+                                <Circle className="mr-2 h-3 w-3 text-green-500 fill-current" />
+                                <span>Disponible</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatus('ausente')}>
+                                <Circle className="mr-2 h-3 w-3 text-yellow-500 fill-current" />
+                                <span>Ausente</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatus('ocupado')}>
+                                <Circle className="mr-2 h-3 w-3 text-red-500 fill-current" />
+                                <span>Ocupado</span>
+                            </DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                </DropdownMenuSub>
                  <DropdownMenuItem>
                   <LifeBuoy className="mr-2 h-4 w-4" />
                   <span>Soporte</span>

@@ -3,35 +3,8 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { useRouter, usePathname } from 'next/navigation';
-import { Loader2, Shield, Users, Trophy, Mail } from 'lucide-react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-
-function AdminNav() {
-    const pathname = usePathname();
-    const navItems = [
-        { href: "/dashboard/admin", label: "Dashboard", icon: Shield },
-        { href: "/dashboard/admin/users", label: "Usuarios", icon: Users },
-        { href: "/dashboard/admin/tournaments", label: "Torneos", icon: Trophy },
-        { href: "/dashboard/admin/support", label: "Soporte", icon: Mail },
-    ];
-
-    return (
-        <nav className="grid items-start gap-2">
-            {navItems.map((item, index) => (
-                <Link key={index} href={item.href}>
-                    <Button variant={pathname === item.href ? 'secondary' : 'ghost'} className="w-full justify-start">
-                         <item.icon className="mr-2 h-4 w-4" />
-                        {item.label}
-                    </Button>
-                </Link>
-            ))}
-        </nav>
-    );
-}
-
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -76,20 +49,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="grid min-h-[calc(100vh_-_theme(spacing.16))] w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr] gap-6">
-      <div className="hidden border-r bg-muted/40 md:block">
-        <div className="flex h-full max-h-screen flex-col gap-2">
-          <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-            <h2 className="text-lg font-semibold">Panel de Admin</h2>
-          </div>
-          <div className="flex-1 p-4">
-            <AdminNav />
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-col">
+    <div className="w-full">
         {children}
-      </div>
     </div>
   );
 }

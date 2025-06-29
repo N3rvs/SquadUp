@@ -2,7 +2,8 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useForm, type Control } from "react-hook-form";
+import { useForm } from "react-hook-form";
+import type { Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Image from "next/image";
@@ -30,7 +31,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, PlusCircle, Users, Camera, Eye, Trash2, Edit, Briefcase, ShieldCheck, Upload } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -80,6 +81,16 @@ const teamFormSchema = z.object({
 
 type TeamFormValues = z.infer<typeof teamFormSchema>;
 
+interface TeamFormFieldsProps {
+  control: Control<TeamFormValues>;
+  logoInputRef: React.RefObject<HTMLInputElement>;
+  bannerInputRef: React.RefObject<HTMLInputElement>;
+  handleImageChange: (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => void;
+  logoPreview: string | null;
+  bannerPreview: string | null;
+  isReadOnly: boolean;
+}
+
 function TeamFormFields({
   control,
   logoInputRef,
@@ -88,15 +99,7 @@ function TeamFormFields({
   logoPreview,
   bannerPreview,
   isReadOnly,
-}: {
-  control: Control<TeamFormValues>;
-  logoInputRef: React.RefObject<HTMLInputElement>;
-  bannerInputRef: React.RefObject<HTMLInputElement>;
-  handleImageChange: (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => void;
-  logoPreview: string | null;
-  bannerPreview: string | null;
-  isReadOnly: boolean;
-}) {
+}: TeamFormFieldsProps) {
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
@@ -154,13 +157,15 @@ function TeamFormFields({
   );
 }
 
-function TeamGrid({ teamList, user, profile, setSelectedTeam, onManageDialogChange }: { 
-    teamList: Team[],
-    user: User | null;
-    profile: UserProfile | null;
-    setSelectedTeam: (team: Team) => void;
-    onManageDialogChange: (open: boolean) => void;
-}) {
+interface TeamGridProps {
+  teamList: Team[];
+  user: User | null;
+  profile: UserProfile | null;
+  setSelectedTeam: (team: Team) => void;
+  onManageDialogChange: (open: boolean) => void;
+}
+
+function TeamGrid({ teamList, user, profile, setSelectedTeam, onManageDialogChange }: TeamGridProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {teamList.map((team) => {
@@ -483,68 +488,6 @@ export default function TeamsPage() {
   const canCreateTeam = !!(user && profile && (profile.primaryRole === 'admin' || profile.primaryRole === 'moderator'));
   const canManageSelectedTeam = !!(selectedTeam && user && profile && (user.uid === selectedTeam.ownerId || profile.primaryRole === 'admin' || profile.primaryRole === 'moderator'));
 
-  const renderCreateButton = () => {
-    if (isLoading) {
-      return (
-        <Button disabled>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando...
-        </Button>
-      );
-    }
-    if (canCreateTeam) {
-      return (
-        <Dialog open={isCreateDialogOpen} onOpenChange={onCreateDialogChange}>
-          <DialogTrigger asChild>
-            <Button>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Crear Equipo
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>Crear un Nuevo Equipo</DialogTitle><DialogDescription>Dale una identidad a tu equipo para empezar a competir.</DialogDescription></DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleCreateTeam)} className="space-y-6 pr-2">
-                <TeamFormFields 
-                    control={form.control}
-                    logoInputRef={logoInputRef}
-                    bannerInputRef={bannerInputRef}
-                    handleImageChange={handleImageChange}
-                    logoPreview={logoPreview}
-                    bannerPreview={bannerPreview}
-                    isReadOnly={false}
-                />
-                <DialogFooter>
-                  <DialogClose asChild><Button type="button" variant="ghost">Cancelar</Button></DialogClose>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isSubmitting ? "Creando..." : "Crear Equipo"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
-      );
-    }
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span tabIndex={0}>
-              <Button disabled>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Crear Equipo
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Solo los moderadores y administradores pueden crear equipos.</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  };
-  
   return (
     <div>
       <div className="grid gap-6">
@@ -553,7 +496,50 @@ export default function TeamsPage() {
             <h1 className="text-3xl font-bold font-headline">Equipos</h1>
             <p className="text-muted-foreground">Explora los equipos existentes o únete a uno.</p>
           </div>
-          {renderCreateButton()}
+          <div>
+            {isLoading ? (
+              <Button disabled>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cargando...
+              </Button>
+            ) : canCreateTeam ? (
+              <Dialog open={isCreateDialogOpen} onOpenChange={onCreateDialogChange}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Crear Equipo
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader><DialogTitle>Crear un Nuevo Equipo</DialogTitle><DialogDescription>Dale una identidad a tu equipo para empezar a competir.</DialogDescription></DialogHeader>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleCreateTeam)} className="space-y-6 pr-2">
+                      <TeamFormFields 
+                          control={form.control}
+                          logoInputRef={logoInputRef}
+                          bannerInputRef={bannerInputRef}
+                          handleImageChange={handleImageChange}
+                          logoPreview={logoPreview}
+                          bannerPreview={bannerPreview}
+                          isReadOnly={false}
+                      />
+                      <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="ghost">Cancelar</Button></DialogClose>
+                        <Button type="submit" disabled={isSubmitting}>
+                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          {isSubmitting ? "Creando..." : "Crear Equipo"}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
+            ) : (
+                <Button disabled>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Crear Equipo
+                </Button>
+            )}
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -565,7 +551,7 @@ export default function TeamsPage() {
             {isLoading ? <LoadingSkeleton /> : (teams.length > 0 ? <TeamGrid teamList={teams} user={user} profile={profile} setSelectedTeam={setSelectedTeam} onManageDialogChange={onManageDialogChange} /> : <Card className="col-span-full"><CardContent className="flex flex-col items-center justify-center text-center p-10 gap-4"><Users className="h-12 w-12 text-muted-foreground" /><h3 className="text-xl font-semibold">No hay equipos creados</h3><p className="text-muted-foreground">Sé el primero en crear uno para empezar a competir.</p></CardContent></Card>))}
           </TabsContent>
           <TabsContent value="mis-equipos" className="pt-4">
-            {isLoading ? <LoadingSkeleton /> : (myTeams.length > 0 ? <TeamGrid teamList={myTeams} user={user} profile={profile} setSelectedTeam={setSelectedTeam} onManageDialogChange={onManageDialogChange} /> : <Card className="col-span-full"><CardContent className="flex flex-col items-center justify-center text-center p-10 gap-4"><Users className="h-12 w-12 text-muted-foreground" /><h3 className="text-xl font-semibold">No perteneces a ningún equipo</h3><p className="text-muted-foreground">Explora los equipos existentes o crea uno si tienes permisos.</p></CardContent></Card>)}
+            {isLoading ? <LoadingSkeleton /> : (myTeams.length > 0 ? <TeamGrid teamList={myTeams} user={user} profile={profile} setSelectedTeam={setSelectedTeam} onManageDialogChange={onManageDialogChange} /> : <Card className="col-span-full"><CardContent className="flex flex-col items-center justify-center text-center p-10 gap-4"><Users className="h-12 w-12 text-muted-foreground" /><h3 className="text-xl font-semibold">No perteneces a ningún equipo</h3><p className="text-muted-foreground">Explora los equipos existentes o crea uno si tienes permisos.</p></CardContent></Card>))}
           </TabsContent>
         </Tabs>
       </div>

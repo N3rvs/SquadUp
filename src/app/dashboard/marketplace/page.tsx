@@ -4,9 +4,11 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { collection, query, where, getDocs, DocumentData } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { countries as allCountries, getCountryCode } from "@/lib/countries";
 import { valorantRanks as allValorantRanks } from "@/lib/valorant";
+import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
+import { useAuthRole } from "@/hooks/useAuthRole";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -18,7 +20,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target, UserPlus, Briefcase } from "lucide-react";
 import Image from "next/image";
 import type { Team } from "@/components/team-card";
 
@@ -51,6 +54,7 @@ function LoadingSkeleton() {
                             <TableHead><Skeleton className="h-5 w-24" /></TableHead>
                             <TableHead><Skeleton className="h-5 w-24" /></TableHead>
                             <TableHead><Skeleton className="h-5 w-24" /></TableHead>
+                            <TableHead><Skeleton className="h-5 w-24" /></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -70,6 +74,7 @@ function LoadingSkeleton() {
                                 <Skeleton className="h-5 w-16" />
                                 </div>
                             </TableCell>
+                             <TableCell><Skeleton className="h-8 w-20" /></TableCell>
                         </TableRow>
                         ))}
                     </TableBody>
@@ -90,6 +95,15 @@ export default function MarketplacePage() {
     const [rankFilter, setRankFilter] = useState('All');
     const [countryFilter, setCountryFilter] = useState('All');
     const { toast } = useToast();
+    const { role } = useAuthRole();
+    const [user, setUser] = useState<FirebaseUser | null>(null);
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+        });
+        return () => unsubscribe();
+    }, []);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -136,6 +150,8 @@ export default function MarketplacePage() {
         });
     }, [teams, rankFilter]);
 
+    const isTeamManager = role === 'admin' || role === 'moderator' || role === 'founder';
+
     return (
         <div className="flex flex-col gap-8">
             <div>
@@ -178,6 +194,7 @@ export default function MarketplacePage() {
                                 <TableHead>País</TableHead>
                                 <TableHead>Rango</TableHead>
                                 <TableHead>Roles</TableHead>
+                                <TableHead className="text-right">Acciones</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -230,6 +247,39 @@ export default function MarketplacePage() {
                                         <div className="flex flex-wrap gap-1">
                                             {player.valorantRoles?.map(role => <Badge key={role} variant="secondary">{role}</Badge>)}
                                         </div>
+                                    </TableCell>
+                                     <TableCell className="text-right">
+                                        {user && user.uid !== player.uid && (
+                                            <div className="flex items-center justify-end gap-1">
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button variant="ghost" size="icon" onClick={() => toast({ title: 'Próximamente', description: 'La función para añadir amigos estará disponible pronto.' })}>
+                                                                <UserPlus className="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Añadir Amigo</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+
+                                                {isTeamManager && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button variant="ghost" size="icon" onClick={() => toast({ title: 'Próximamente', description: 'La función para invitar al equipo estará disponible pronto.' })}>
+                                                                    <Briefcase className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>Invitar al Equipo</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
+                                            </div>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                                 )

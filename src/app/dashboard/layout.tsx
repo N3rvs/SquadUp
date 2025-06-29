@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -12,12 +13,124 @@ import {
   LogOut,
   BrainCircuit,
   MessageSquare,
+  Bell,
+  Settings,
+  LifeBuoy,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+
+function Notifications() {
+    const notifications = {
+        all: [
+            { type: 'request', user: 'xGhozt', action: 'sent a request to join', team: 'Cyber Eagles', avatarHint: 'male avatar' },
+            { type: 'message', user: 'Team: Shadow Wolves', text: 'Confirming our scrim for tomorrow at 8 PM.', avatarHint: 'wolf logo' },
+            { type: 'friend', user: 'JaneDoe', action: 'accepted your friend request.', avatarHint: 'female avatar' },
+        ],
+        messages: [
+            { type: 'message', user: 'Team: Shadow Wolves', text: 'Confirming our scrim for tomorrow at 8 PM.', avatarHint: 'wolf logo' },
+        ],
+        requests: [
+            { type: 'request', user: 'xGhozt', action: 'sent a request to join', team: 'Cyber Eagles', avatarHint: 'male avatar' },
+            { type: 'friend', user: 'Blaze', action: 'sent you a friend request.', avatarHint: 'phoenix logo' },
+        ]
+    };
+
+    return (
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative shrink-0">
+                    <Bell className="h-5 w-5" />
+                    <Badge className="absolute -top-1 -right-1 h-4 w-4 justify-center p-0">{notifications.all.length}</Badge>
+                    <span className="sr-only">Open notifications</span>
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" align="end">
+                 <Tabs defaultValue="all" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="all">All</TabsTrigger>
+                        <TabsTrigger value="messages">Messages</TabsTrigger>
+                        <TabsTrigger value="requests">Requests</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="all" className="max-h-96 overflow-y-auto">
+                        <div className="space-y-4 pt-4">
+                            {notifications.all.map((n, i) => (
+                                <div key={i} className="flex items-start gap-3">
+                                    <Avatar className="h-8 w-8 shrink-0">
+                                        <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={n.avatarHint} />
+                                        <AvatarFallback>{n.user.substring(0, 2)}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="text-sm">
+                                        <p><span className="font-semibold">{n.user}</span> {n.action || n.text} <span className="font-semibold">{n.team || ''}</span></p>
+                                        {(n.type === 'request' || n.type === 'friend') && (
+                                            <div className="mt-2 flex gap-2">
+                                                <Button size="sm" className="h-7">Accept</Button>
+                                                <Button size="sm" variant="outline" className="h-7">Decline</Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </TabsContent>
+                    <TabsContent value="messages" className="max-h-96 overflow-y-auto">
+                        <div className="space-y-4 pt-4">
+                            {notifications.messages.map((n, i) => (
+                                <div key={i} className="flex items-start gap-3">
+                                    <Avatar className="h-8 w-8 shrink-0">
+                                        <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={n.avatarHint} />
+                                        <AvatarFallback>{n.user.substring(0, 2)}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="text-sm">
+                                        <p><span className="font-semibold">{n.user}</span> {n.text}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </TabsContent>
+                    <TabsContent value="requests" className="max-h-96 overflow-y-auto">
+                         <div className="space-y-4 pt-4">
+                            {notifications.requests.map((n, i) => (
+                                <div key={i} className="flex items-start gap-3">
+                                    <Avatar className="h-8 w-8 shrink-0">
+                                        <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={n.avatarHint} />
+                                        <AvatarFallback>{n.user.substring(0, 2)}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="text-sm">
+                                        <p><span className="font-semibold">{n.user}</span> {n.action} <span className="font-semibold">{n.team || ''}</span></p>
+                                        <div className="mt-2 flex gap-2">
+                                            <Button size="sm" className="h-7">Accept</Button>
+                                            <Button size="sm" variant="outline" className="h-7">Decline</Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </TabsContent>
+                </Tabs>
+            </PopoverContent>
+        </Popover>
+    );
+}
 
 export default function DashboardLayout({
   children,
@@ -89,6 +202,51 @@ export default function DashboardLayout({
         </div>
       </aside>
       <div className="flex flex-col flex-1">
+        <header className="flex h-16 items-center justify-end gap-4 border-b bg-card px-6">
+            <Notifications />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="relative h-9 w-9 rounded-full"
+                >
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage src="https://placehold.co/40x40.png" alt="@user" data-ai-hint="male avatar" />
+                    <AvatarFallback>U</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">Usuario</p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      usuario@example.com
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Perfil</span>
+                </DropdownMenuItem>
+                 <DropdownMenuItem>
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Ajustes</span>
+                </DropdownMenuItem>
+                 <DropdownMenuItem>
+                  <LifeBuoy className="mr-2 h-4 w-4" />
+                  <span>Soporte</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Cerrar sesión</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+        </header>
+
         <main className="flex-1 p-6 md:p-8">{children}</main>
       </div>
     </div>

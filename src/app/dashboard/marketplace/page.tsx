@@ -184,54 +184,54 @@ export default function MarketplacePage() {
                               {players.map((player) => {
                                 const countryCode = getCountryCode(player.country);
                                 return (
-                                <HoverCard key={player.uid}>
-                                    <HoverCardTrigger asChild>
-                                        <TableRow className="cursor-pointer">
-                                            <TableCell>
-                                                <div className="flex items-center gap-3">
-                                                    <Avatar className="h-10 w-10 border">
-                                                        <AvatarImage src={player.avatarUrl} alt={player.displayName} />
-                                                        <AvatarFallback>{player.displayName.substring(0,2)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <span className="font-medium">{player.displayName}</span>
+                                <TableRow key={player.uid}>
+                                    <TableCell>
+                                      <HoverCard>
+                                        <HoverCardTrigger asChild>
+                                          <div className="flex items-center gap-3 cursor-pointer">
+                                              <Avatar className="h-10 w-10 border">
+                                                  <AvatarImage src={player.avatarUrl} alt={player.displayName} />
+                                                  <AvatarFallback>{player.displayName.substring(0,2)}</AvatarFallback>
+                                              </Avatar>
+                                              <span className="font-medium">{player.displayName}</span>
+                                          </div>
+                                        </HoverCardTrigger>
+                                        <HoverCardContent className="w-80" align="start">
+                                            <div className="flex justify-between space-x-4">
+                                            <Avatar>
+                                                <AvatarImage src={player.avatarUrl} />
+                                                <AvatarFallback>{player.displayName.substring(0,2)}</AvatarFallback>
+                                            </Avatar>
+                                            <div className="space-y-1">
+                                                <h4 className="text-sm font-semibold">{player.displayName}</h4>
+                                                <p className="text-sm text-muted-foreground line-clamp-3">
+                                                    {player.bio || 'Este jugador no tiene una biografía.'}
+                                                </p>
+                                                <div className="flex items-center pt-2">
+                                                    <Button asChild variant="link" className="p-0 h-auto">
+                                                        <Link href={`/dashboard/profile/${player.uid}`}>
+                                                            Ver Perfil
+                                                        </Link>
+                                                    </Button>
                                                 </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-2">
-                                                    {countryCode && <Image src={`https://flagsapi.com/${countryCode}/flat/16.png`} alt={player.country} width={16} height={16} />}
-                                                    {player.country}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell><Badge variant="outline">{player.valorantRank}</Badge></TableCell>
-                                            <TableCell>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {player.valorantRoles?.map(role => <Badge key={role} variant="secondary">{role}</Badge>)}
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    </HoverCardTrigger>
-                                    <HoverCardContent className="w-80" align="start">
-                                        <div className="flex justify-between space-x-4">
-                                        <Avatar>
-                                            <AvatarImage src={player.avatarUrl} />
-                                            <AvatarFallback>{player.displayName.substring(0,2)}</AvatarFallback>
-                                        </Avatar>
-                                        <div className="space-y-1">
-                                            <h4 className="text-sm font-semibold">{player.displayName}</h4>
-                                            <p className="text-sm text-muted-foreground line-clamp-3">
-                                                {player.bio || 'Este jugador no tiene una biografía.'}
-                                            </p>
-                                            <div className="flex items-center pt-2">
-                                                <Button asChild variant="link" className="p-0 h-auto">
-                                                    <Link href={`/dashboard/profile/${player.uid}`}>
-                                                        Ver Perfil
-                                                    </Link>
-                                                </Button>
                                             </div>
+                                            </div>
+                                        </HoverCardContent>
+                                      </HoverCard>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center gap-2">
+                                            {countryCode && <Image src={`https://flagsapi.com/${countryCode}/flat/16.png`} alt={player.country} width={16} height={16} />}
+                                            {player.country}
                                         </div>
+                                    </TableCell>
+                                    <TableCell><Badge variant="outline">{player.valorantRank}</Badge></TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-wrap gap-1">
+                                            {player.valorantRoles?.map(role => <Badge key={role} variant="secondary">{role}</Badge>)}
                                         </div>
-                                    </HoverCardContent>
-                                </HoverCard>
+                                    </TableCell>
+                                </TableRow>
                                 )
                               })}
                             </TableBody>
@@ -257,76 +257,76 @@ export default function MarketplacePage() {
                                     {filteredTeams.map((team) => {
                                       const countryCode = getCountryCode(team.country);
                                       return (
-                                        <HoverCard key={team.id}>
-                                            <HoverCardTrigger asChild>
-                                                <TableRow className="cursor-pointer">
-                                                    <TableCell>
-                                                        <div className="flex items-center gap-3">
-                                                            <Avatar className="h-10 w-10 border">
-                                                                <AvatarImage src={team.logoUrl} alt={team.name} />
-                                                                <AvatarFallback>{team.name.substring(0,2)}</AvatarFallback>
-                                                            </Avatar>
-                                                            <span className="font-medium">{team.name}</span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="flex items-center gap-2">
-                                                            {countryCode && <Image src={`https://flagsapi.com/${countryCode}/flat/16.png`} alt={team.country} width={16} height={16} />}
-                                                            {team.country}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="flex items-center gap-1">
-                                                            <Badge variant="outline">{team.minRank}</Badge> - <Badge variant="outline">{team.maxRank}</Badge>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>{team.memberIds.length} / 5</TableCell>
-                                                </TableRow>
-                                            </HoverCardTrigger>
-                                            <HoverCardContent className="w-80 p-0" align="start">
+                                        <TableRow key={team.id}>
+                                          <TableCell>
+                                            <HoverCard>
+                                              <HoverCardTrigger asChild>
+                                                <div className="flex items-center gap-3 cursor-pointer">
+                                                  <Avatar className="h-10 w-10 border">
+                                                    <AvatarImage src={team.logoUrl} alt={team.name} />
+                                                    <AvatarFallback>{team.name.substring(0,2)}</AvatarFallback>
+                                                  </Avatar>
+                                                  <span className="font-medium">{team.name}</span>
+                                                </div>
+                                              </HoverCardTrigger>
+                                              <HoverCardContent className="w-80 p-0" align="start">
                                                 <div className="relative h-24 w-full">
-                                                    <Image
-                                                        src={team.bannerUrl || 'https://placehold.co/320x96.png'}
-                                                        alt={`${team.name} banner`}
-                                                        fill
-                                                        className="object-cover rounded-t-lg"
-                                                        data-ai-hint="team banner abstract"
-                                                    />
+                                                  <Image
+                                                    src={team.bannerUrl || 'https://placehold.co/320x96.png'}
+                                                    alt={`${team.name} banner`}
+                                                    fill
+                                                    className="object-cover rounded-t-lg"
+                                                    data-ai-hint="team banner abstract"
+                                                  />
                                                 </div>
                                                 <div className="p-4 flex flex-col gap-4">
-                                                    <div className="flex items-center gap-4">
-                                                        <Avatar className="h-12 w-12">
-                                                            <AvatarImage src={team.logoUrl} />
-                                                            <AvatarFallback>{team.name.substring(0,2)}</AvatarFallback>
-                                                        </Avatar>
-                                                        <h4 className="text-sm font-semibold">{team.name}</h4>
+                                                  <div className="flex items-center gap-4">
+                                                    <Avatar className="h-12 w-12">
+                                                      <AvatarImage src={team.logoUrl} />
+                                                      <AvatarFallback>{team.name.substring(0,2)}</AvatarFallback>
+                                                    </Avatar>
+                                                    <h4 className="text-sm font-semibold">{team.name}</h4>
+                                                  </div>
+                                                  <p className="text-sm text-muted-foreground line-clamp-3">
+                                                    {team.bio || 'Este equipo no tiene una biografía.'}
+                                                  </p>
+                                                  {team.seekingRoles && team.seekingRoles.length > 0 && (
+                                                    <div>
+                                                      <h5 className="mb-2 text-sm font-semibold flex items-center gap-1.5">
+                                                        <Target className="h-4 w-4" />
+                                                        Buscando Roles
+                                                      </h5>
+                                                      <div className="flex flex-wrap gap-1">
+                                                        {team.seekingRoles.map(role => (
+                                                          <Badge key={role} variant="default">{role}</Badge>
+                                                        ))}
+                                                      </div>
                                                     </div>
-                                                    <p className="text-sm text-muted-foreground line-clamp-3">
-                                                        {team.bio || 'Este equipo no tiene una biografía.'}
-                                                    </p>
-                                                    {team.seekingRoles && team.seekingRoles.length > 0 && (
-                                                        <div>
-                                                            <h5 className="mb-2 text-sm font-semibold flex items-center gap-1.5">
-                                                                <Target className="h-4 w-4" />
-                                                                Buscando Roles
-                                                            </h5>
-                                                            <div className="flex flex-wrap gap-1">
-                                                                {team.seekingRoles.map(role => (
-                                                                    <Badge key={role} variant="default">{role}</Badge>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    <div className="flex items-center pt-2">
-                                                        <Button asChild variant="link" className="p-0 h-auto">
-                                                            <Link href={`/dashboard/teams/${team.id}`}>
-                                                                Ver Equipo
-                                                            </Link>
-                                                        </Button>
-                                                    </div>
+                                                  )}
+                                                  <div className="flex items-center pt-2">
+                                                    <Button asChild variant="link" className="p-0 h-auto">
+                                                      <Link href={`/dashboard/teams/${team.id}`}>
+                                                        Ver Equipo
+                                                      </Link>
+                                                    </Button>
+                                                  </div>
                                                 </div>
-                                            </HoverCardContent>
-                                        </HoverCard>
+                                              </HoverCardContent>
+                                            </HoverCard>
+                                          </TableCell>
+                                          <TableCell>
+                                            <div className="flex items-center gap-2">
+                                              {countryCode && <Image src={`https://flagsapi.com/${countryCode}/flat/16.png`} alt={team.country} width={16} height={16} />}
+                                              {team.country}
+                                            </div>
+                                          </TableCell>
+                                          <TableCell>
+                                            <div className="flex items-center gap-1">
+                                              <Badge variant="outline">{team.minRank}</Badge> - <Badge variant="outline">{team.maxRank}</Badge>
+                                            </div>
+                                          </TableCell>
+                                          <TableCell>{team.memberIds.length} / 5</TableCell>
+                                        </TableRow>
                                       )
                                     })}
                                 </TableBody>

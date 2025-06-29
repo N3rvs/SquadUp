@@ -157,7 +157,7 @@ function TeamCard({ team, user, profile, onManageClick }: { team: Team, user: Us
         <Card className="flex flex-col overflow-hidden">
             <div className="relative h-36 w-full">
             <Image
-                src={team.bannerUrl}
+                src={team.bannerUrl || 'https://placehold.co/400x150.png'}
                 alt={`${team.name} banner`}
                 fill
                 className="w-full h-full object-cover"
@@ -165,7 +165,7 @@ function TeamCard({ team, user, profile, onManageClick }: { team: Team, user: Us
             />
             <div className="absolute -bottom-8 left-4">
                 <Avatar className="h-16 w-16 border-4 border-card bg-card">
-                <AvatarImage src={team.logoUrl} alt={`${team.name} logo`} data-ai-hint="team logo" />
+                <AvatarImage src={team.logoUrl || 'https://placehold.co/128x128.png'} alt={`${team.name} logo`} data-ai-hint="team logo" />
                 <AvatarFallback>{team.name.substring(0, 2)}</AvatarFallback>
                 </Avatar>
             </div>

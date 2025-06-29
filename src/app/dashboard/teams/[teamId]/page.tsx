@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, MoreHorizontal, Search } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -31,6 +31,7 @@ interface Team {
   memberIds: string[];
   minRank: string;
   maxRank: string;
+  isRecruiting?: boolean;
   seekingCoach?: boolean;
   seekingRoles?: string[];
   videoUrl?: string;
@@ -221,6 +222,9 @@ export default function TeamDetailPage() {
                  <h1 className="text-3xl md:text-4xl font-bold font-headline">{team.name}</h1>
                  <p className="text-muted-foreground mt-1 max-w-prose">{team.bio}</p>
             </div>
+            <Button onClick={() => toast({ title: "Próximamente", description: "El sistema de aplicaciones estará disponible pronto." })}>
+                Aplicar al Equipo
+            </Button>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-4">
@@ -242,6 +246,7 @@ export default function TeamDetailPage() {
                     {team.country}
                 </Badge>
             )}
+            {team.isRecruiting && <Badge variant="default" className="text-sm py-1 px-3"><Search className="mr-2 h-4 w-4" /> Reclutando</Badge>}
             {team.seekingCoach && <Badge variant="secondary" className="text-sm py-1 px-3"><Briefcase className="mr-2 h-4 w-4 text-primary" /> Buscando Coach</Badge>}
         </div>
       </div>
@@ -367,3 +372,4 @@ export default function TeamDetailPage() {
   );
 }
 
+    

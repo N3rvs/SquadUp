@@ -2,7 +2,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useForm, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -37,6 +36,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TeamCard, type Team } from "@/components/team-card";
 
 // --- DATA & TYPE DEFINITIONS ---
 
@@ -46,39 +46,11 @@ const countries = [
   "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon", "Cape Verde", "Central African Republic", "Chad", "Comoros", "Congo, Democratic Republic of the", "Congo, Republic of the", "Cote d'Ivoire", "Djibouti", "Equatorial Guinea", "Eritrea", "Eswatini", "Ethiopia", "Gabon", "Gambia", "Ghana", "Guinea", "Guinea-Bissau", "Kenya", "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritania", "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria", "Rwanda", "Sao Tome and Principe", "Senegal", "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan", "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"
 ].sort();
 
-const countryNameToCode: { [key: string]: string } = {
-    "Albania": "AL", "Andorra": "AD", "Austria": "AT", "Belarus": "BY", "Belgium": "BE", "Bosnia and Herzegovina": "BA", "Bulgaria": "BG", "Croatia": "HR", "Cyprus": "CY", "Czech Republic": "CZ", "Denmark": "DK", "Estonia": "EE", "Finland": "FI", "France": "FR", "Germany": "DE", "Greece": "GR", "Hungary": "HU", "Iceland": "IS", "Ireland": "IE", "Italy": "IT", "Latvia": "LV", "Liechtenstein": "LI", "Lithuania": "LT", "Luxembourg": "LU", "Malta": "MT", "Moldova": "MD", "Monaco": "MC", "Montenegro": "ME", "Netherlands": "NL", "North Macedonia": "MK", "Norway": "NO", "Poland": "PL", "Portugal": "PT", "Romania": "RO", "Russia": "RU", "San Marino": "SM", "Serbia": "RS", "Slovakia": "SK", "Slovenia": "SI", "Spain": "ES", "Sweden": "SE", "Switzerland": "CH", "Ukraine": "UA", "United Kingdom": "GB", "Vatican City": "VA",
-    "Bahrain": "BH", "Egypt": "EG", "Iran": "IR", "Iraq": "IQ", "Israel": "IL", "Jordan": "JO", "Kuwait": "KW", "Lebanon": "LB", "Oman": "OM", "Palestine": "PS", "Qatar": "QA", "Saudi Arabia": "SA", "Syria": "SY", "Turkey": "TR", "United Arab Emirates": "AE", "Yemen": "YE",
-    "Algeria": "DZ", "Angola": "AO", "Benin": "BJ", "Botswana": "BW", "Burkina Faso": "BF", "Burundi": "BI", "Cameroon": "CM", "Cape Verde": "CV", "Central African Republic": "CF", "Chad": "TD", "Comoros": "KM", "Congo, Democratic Republic of the": "CD", "Congo, Republic of the": "CG", "Cote d'Ivoire": "CI", "Djibouti": "DJ", "Equatorial Guinea": "GQ", "Eritrea": "ER", "Eswatini": "SZ", "Ethiopia": "ET", "Gabon": "GA", "Gambia": "GM", "Ghana": "GH", "Guinea": "GN", "Guinea-Bissau": "GW", "Kenya": "KE", "Lesotho": "LS", "Liberia": "LR", "Libya": "LY", "Madagascar": "MG", "Malawi": "MW", "Mali": "ML", "Mauritania": "MR", "Mauritius": "MU", "Morocco": "MA", "Mozambique": "MZ", "Namibia": "NA", "Niger": "NE", "Nigeria": "NG", "Rwanda": "RW", "Sao Tome and Principe": "ST", "Senegal": "SN", "Seychelles": "SC", "Sierra Leone": "SL", "Somalia": "SO", "South Africa": "ZA", "South Sudan": "SS", "Sudan": "SD", "Tanzania": "TZ", "Togo": "TG", "Tunisia": "TN", "Uganda": "UG", "Zambia": "ZM", "Zimbabwe": "ZW",
-};
-
-function getCountryCode(countryName?: string): string | null {
-  if (!countryName) return null;
-  return countryNameToCode[countryName] || null;
-}
-
-interface Team {
-  id: string;
-  name: string;
-  logoUrl: string;
-  bannerUrl: string;
-  bio?: string;
-  ownerId: string;
-  memberIds: string[];
-  minRank: string;
-  maxRank: string;
-  country: string;
-  seekingCoach?: boolean;
-  seekingRoles?: string[];
-  videoUrl?: string;
-  createdAt: Timestamp;
-}
-
 interface UserProfile {
   primaryRole?: 'player' | 'moderator' | 'admin';
 }
 
-const valorantRanks = ["Cualquiera", "Hierro", "Bronce", "Plata", "Oro", "Platino", "Diamante", "Ascendente", "Inmortal", "Radiante"];
+const valorantRanks = ["Any", "Iron", "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Ascendant", "Immortal", "Radiant"];
 const valorantRoles = ["Duelist", "Controller", "Initiator", "Sentinel", "Flex"];
 
 const teamFormSchema = z.object({
@@ -88,6 +60,7 @@ const teamFormSchema = z.object({
   maxRank: z.string({ required_error: "Debes seleccionar un rango máximo." }),
   country: z.string({ required_error: "Debes seleccionar un país." }),
   seekingCoach: z.boolean().default(false).optional(),
+  isRecruiting: z.boolean().default(false).optional(),
   seekingRoles: z.array(z.string()).optional(),
   videoUrl: z.string().url("Por favor, introduce una URL de YouTube o similar válida.").optional().or(z.literal('')),
 });
@@ -212,75 +185,16 @@ function TeamFormFields({
         )}
       />
 
-      <FormField control={control} name="seekingCoach" render={({ field }) => (
-        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Buscando Coach</FormLabel><FormDescription>Activa si buscas un coach para tu equipo.</FormDescription></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
-      )}/>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField control={control} name="isRecruiting" render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Buscando Miembros</FormLabel><FormDescription>Activa para aparecer en el marketplace.</FormDescription></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
+            )}/>
+            <FormField control={control} name="seekingCoach" render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Buscando Coach</FormLabel><FormDescription>Activa si buscas un coach.</FormDescription></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
+            )}/>
+        </div>
     </div>
   );
-}
-
-function TeamCard({ team }: { team: Team }) {
-    const countryCode = getCountryCode(team.country);
-    return (
-        <Card className="flex flex-col overflow-hidden transition-all hover:shadow-lg hover:-translate-y-1 cursor-pointer h-full">
-            <div className="relative h-36 w-full">
-            <Image
-                src={team.bannerUrl || 'https://placehold.co/400x150.png'}
-                alt={`${team.name} banner`}
-                fill
-                className="w-full h-full object-cover"
-                data-ai-hint="team banner"
-            />
-            <div className="absolute -bottom-8 left-4">
-                <Avatar className="h-16 w-16 border-4 border-card bg-card">
-                <AvatarImage src={team.logoUrl || 'https://placehold.co/128x128.png'} alt={`${team.name} logo`} data-ai-hint="team logo" />
-                <AvatarFallback>{team.name.substring(0, 2)}</AvatarFallback>
-                </Avatar>
-            </div>
-            </div>
-            <CardHeader className="pt-12">
-            <CardTitle className="font-headline text-xl truncate">{team.name}</CardTitle>
-            <CardDescription className="line-clamp-2 h-10">{team.bio || 'Este equipo aún no tiene una biografía.'}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex-grow space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
-                    <span>Rango: {team.minRank} - {team.maxRank}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                    <Users className="h-4 w-4 text-primary" />
-                    <span>{team.memberIds.length}/5 Miembros</span>
-                </div>
-                {team.country && (
-                    <div className="flex items-center gap-2 text-sm">
-                        {countryCode ? (
-                            <Image 
-                                src={`https://flagsapi.com/${countryCode}/flat/16.png`} 
-                                alt={team.country}
-                                width={16}
-                                height={16}
-                                className="rounded-sm" 
-                            />
-                        ) : (
-                            <Globe className="h-4 w-4 text-primary" />
-                        )}
-                        <span>{team.country}</span>
-                    </div>
-                )}
-                {team.seekingCoach && (
-                    <Badge variant="secondary"><Briefcase className="mr-1 h-3 w-3" /> Buscando Coach</Badge>
-                )}
-                {team.seekingRoles && team.seekingRoles.length > 0 && (
-                    <div className="flex items-center gap-2 text-sm pt-1">
-                        <Target className="h-4 w-4 text-primary" />
-                        <div className="flex flex-wrap gap-1">
-                          {team.seekingRoles.map(role => <Badge key={role} variant="outline">{role}</Badge>)}
-                        </div>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    );
 }
 
 function LoadingSkeleton() {
@@ -333,10 +247,11 @@ export default function TeamsPage() {
     defaultValues: {
       name: "",
       bio: "",
-      minRank: "Cualquiera",
-      maxRank: "Radiante",
+      minRank: "Any",
+      maxRank: "Radiant",
       country: "Spain",
       seekingCoach: false,
+      isRecruiting: false,
       seekingRoles: [],
       videoUrl: ""
     },
@@ -391,7 +306,7 @@ export default function TeamsPage() {
   }, [toast]);
 
   const resetFormAndPreviews = useCallback(() => {
-    form.reset({ name: "", bio: "", minRank: "Cualquiera", maxRank: "Radiante", seekingCoach: false, seekingRoles: [], videoUrl: "", country: "Spain" });
+    form.reset({ name: "", bio: "", minRank: "Any", maxRank: "Radiant", seekingCoach: false, isRecruiting: false, seekingRoles: [], videoUrl: "", country: "Spain" });
     setLogoFile(null);
     setLogoPreview(null);
     setBannerFile(null);
@@ -414,6 +329,7 @@ export default function TeamsPage() {
       maxRank: team.maxRank,
       country: team.country,
       seekingCoach: team.seekingCoach || false,
+      isRecruiting: team.isRecruiting || false,
       seekingRoles: team.seekingRoles || [],
       videoUrl: team.videoUrl || '',
     });
@@ -535,7 +451,7 @@ export default function TeamsPage() {
         <Tabs defaultValue="explorar" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="explorar">Explorar Equipos</TabsTrigger>
-            <TabsTrigger value="mis-equipos">Mi Equipo</TabsTrigger>
+            <TabsTrigger value="mi-equipo">Mi Equipo</TabsTrigger>
           </TabsList>
           <TabsContent value="explorar" className="pt-4">
             {isLoading ? <LoadingSkeleton /> : teams.length > 0 ? (
@@ -548,7 +464,7 @@ export default function TeamsPage() {
                 </div>
             ) : <Card><CardContent className="text-center p-10"><Users className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">No hay equipos creados</h3></CardContent></Card>}
           </TabsContent>
-          <TabsContent value="mis-equipos" className="pt-4">
+          <TabsContent value="mi-equipo" className="pt-4">
           {isLoading ? <LoadingSkeleton /> : myTeams.length > 0 ? (
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {myTeams.map(team => (
@@ -580,3 +496,5 @@ export default function TeamsPage() {
     </div>
   );
 }
+
+    

@@ -82,6 +82,8 @@ export default function SignUpPage() {
         primaryRole: "player",
         isBanned: false,
         valorantRoles: ["Flex"],
+        valorantRank: "Unranked",
+        lookingForTeam: false,
         bio: "",
         country: "United Kingdom",
         twitchUrl: "",

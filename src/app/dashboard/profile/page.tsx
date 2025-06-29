@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, MessageCircle, Camera, Loader2, User, ShieldCheck, Crown, Users } from "lucide-react";
+import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, MessageCircle, Camera, Loader2, User, ShieldCheck, Crown, Users, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { auth, db, storage } from "@/lib/firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -25,12 +25,14 @@ import { onAuthStateChanged } from "firebase/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 
 
 const profileFormSchema = z.object({
   displayName: z.string().min(2, "Display name must be at least 2 characters.").max(30, "Display name must not be longer than 30 characters."),
   bio: z.string().max(160, "Bio must not be longer than 160 characters.").optional(),
   valorantRoles: z.array(z.string()).min(1, "Debes seleccionar al menos un rol.").max(3, "Puedes seleccionar un máximo de 3 roles."),
+  valorantRank: z.string().optional(),
   country: z.string({
     required_error: "Please select a country.",
   }),
@@ -39,6 +41,7 @@ const profileFormSchema = z.object({
   youtubeUrl: z.string().url("Please enter a valid URL.").optional().or(z.literal('')),
   discord: z.string().optional(),
   avatarUrl: z.string().url().optional().or(z.literal('')),
+  lookingForTeam: z.boolean().optional().default(false),
 });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
@@ -53,14 +56,11 @@ type UserProfileData = Omit<ProfileFormValues, 'valorantRoles'> & {
   valorantRole?: string; // For backwards compatibility
 };
 
-
+const valorantRanks = ["Unranked", "Iron", "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Ascendant", "Immortal", "Radiant"];
 const valorantRoles = ["Duelist", "Controller", "Initiator", "Sentinel", "Flex"];
 const countries = [
-  // Europe
   "Albania", "Andorra", "Austria", "Belarus", "Belgium", "Bosnia and Herzegovina", "Bulgaria", "Croatia", "Cyprus", "Czech Republic", "Denmark", "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy", "Latvia", "Liechtenstein", "Lithuania", "Luxembourg", "Malta", "Moldova", "Monaco", "Montenegro", "Netherlands", "North Macedonia", "Norway", "Poland", "Portugal", "Romania", "Russia", "San Marino", "Serbia", "Slovakia", "Slovenia", "Spain", "Sweden", "Switzerland", "Ukraine", "United Kingdom", "Vatican City",
-  // Middle East
   "Bahrain", "Egypt", "Iran", "Iraq", "Israel", "Jordan", "Kuwait", "Lebanon", "Oman", "Palestine", "Qatar", "Saudi Arabia", "Syria", "Turkey", "United Arab Emirates", "Yemen",
-  // Africa
   "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon", "Cape Verde", "Central African Republic", "Chad", "Comoros", "Congo, Democratic Republic of the", "Congo, Republic of the", "Cote d'Ivoire", "Djibouti", "Equatorial Guinea", "Eritrea", "Eswatini", "Ethiopia", "Gabon", "Gambia", "Ghana", "Guinea", "Guinea-Bissau", "Kenya", "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritania", "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria", "Rwanda", "Sao Tome and Principe", "Senegal", "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan", "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"
 ].sort();
 
@@ -92,12 +92,14 @@ export default function ProfilePage() {
       displayName: "",
       bio: "",
       valorantRoles: [],
+      valorantRank: "Unranked",
       country: "",
       twitchUrl: "",
       twitterUrl: "",
       youtubeUrl: "",
       discord: "",
       avatarUrl: "",
+      lookingForTeam: false,
     },
     mode: "onChange",
   });
@@ -128,6 +130,7 @@ export default function ProfilePage() {
             primaryRole: "player",
             isBanned: false,
             valorantRoles: ["Flex"],
+            valorantRank: "Unranked",
             bio: "",
             country: "United Kingdom",
             twitchUrl: "",
@@ -136,6 +139,7 @@ export default function ProfilePage() {
             discord: "",
             avatarUrl: user.photoURL || "",
             createdAt: new Date().toISOString(),
+            lookingForTeam: false,
           };
           await setDoc(userDocRef, defaultData);
           dataToSet = defaultData;
@@ -149,6 +153,8 @@ export default function ProfilePage() {
           twitterUrl: dataToSet.twitterUrl || '',
           youtubeUrl: dataToSet.youtubeUrl || '',
           discord: dataToSet.discord || '',
+          valorantRank: dataToSet.valorantRank || 'Unranked',
+          lookingForTeam: dataToSet.lookingForTeam || false,
         });
         
         // --- Fetch user's team ---
@@ -197,6 +203,8 @@ export default function ProfilePage() {
           twitterUrl: profileData.twitterUrl || '',
           youtubeUrl: profileData.youtubeUrl || '',
           discord: profileData.discord || '',
+          valorantRank: profileData.valorantRank || 'Unranked',
+          lookingForTeam: profileData.lookingForTeam || false,
         });
       }
     }
@@ -225,7 +233,7 @@ export default function ProfilePage() {
       };
 
       const userDocRef = doc(db, 'users', uid);
-      await updateDoc(userDocRef, dataToSave);
+      await updateDoc(userDocRef, dataToSave as any);
       
       const newProfileData = { ...profileData, ...dataToSave } as UserProfileData;
       setProfileData(newProfileData);
@@ -321,6 +329,9 @@ export default function ProfilePage() {
             </div>
             <p className="text-sm text-muted-foreground mt-2">{profileData.bio}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {profileData.lookingForTeam && (
+                    <Badge variant="default"><Search className="mr-1 h-3 w-3" /> Looking for Team</Badge>
+                )}
                 {userTeam && (
                     <Link href={`/dashboard/teams/${userTeam.id}`}>
                         <Badge variant="default" className="cursor-pointer">
@@ -329,6 +340,7 @@ export default function ProfilePage() {
                         </Badge>
                     </Link>
                 )}
+                <Badge variant="outline">{profileData.valorantRank || 'Unranked'}</Badge>
                 {profileData.valorantRoles?.map(role => (
                    <Badge key={role} variant="secondary"><Gamepad2 className="mr-1 h-3 w-3" />{role}</Badge>
                 ))}
@@ -462,30 +474,77 @@ export default function ProfilePage() {
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="country"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Country</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select your country" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {countries.map(country => (
-                                <SelectItem key={country} value={country}>
-                                  {country}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                            control={form.control}
+                            name="valorantRank"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Valorant Rank</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select your rank" />
+                                    </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                    {valorantRanks.map(rank => (
+                                        <SelectItem key={rank} value={rank}>
+                                        {rank}
+                                        </SelectItem>
+                                    ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="country"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Country</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select your country" />
+                                    </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                    {countries.map(country => (
+                                        <SelectItem key={country} value={country}>
+                                        {country}
+                                        </SelectItem>
+                                    ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+
+                     <FormField
+                        control={form.control}
+                        name="lookingForTeam"
+                        render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                <div className="space-y-0.5">
+                                    <FormLabel>Looking for a Team?</FormLabel>
+                                    <FormDescription>
+                                       Enable this to appear in the player marketplace.
+                                    </FormDescription>
+                                </div>
+                                <FormControl>
+                                    <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                    />
+                                </FormControl>
+                            </FormItem>
+                        )}
+                        />
                     
                     <div className="space-y-4">
                       <h3 className="text-sm font-medium">Social Links</h3>

@@ -12,10 +12,9 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, Briefcase, MessageCircle, CheckCircle, Camera, Loader2, User, Shield, ShieldCheck } from "lucide-react";
+import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, MessageCircle, Camera, Loader2, User, Shield, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { auth, db, storage } from "@/lib/firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -38,7 +37,6 @@ const profileFormSchema = z.object({
   twitterUrl: z.string().url("Please enter a valid URL.").optional().or(z.literal('')),
   youtubeUrl: z.string().url("Please enter a valid URL.").optional().or(z.literal('')),
   discord: z.string().optional(),
-  availableForRecruitment: z.boolean().default(false),
   avatarUrl: z.string().url().optional().or(z.literal('')),
 });
 
@@ -79,7 +77,6 @@ export default function ProfilePage() {
       twitterUrl: "",
       youtubeUrl: "",
       discord: "",
-      availableForRecruitment: false,
       avatarUrl: "",
     },
     mode: "onChange",
@@ -110,7 +107,6 @@ export default function ProfilePage() {
             twitterUrl: "",
             youtubeUrl: "",
             discord: "",
-            availableForRecruitment: false,
             avatarUrl: user.photoURL || "",
             createdAt: new Date().toISOString(),
           };
@@ -447,29 +443,6 @@ export default function ProfilePage() {
                           )}
                         />
                     </div>
-
-                    <FormField
-                      control={form.control}
-                      name="availableForRecruitment"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">
-                              Active in Player Market
-                            </FormLabel>
-                            <FormDescription>
-                              Enable this to let teams know you are looking for a squad.
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
                     
                     <DialogFooter>
                       <DialogClose asChild>
@@ -517,31 +490,6 @@ export default function ProfilePage() {
       </div>
 
       <div className="lg:col-span-2 space-y-8">
-        <Card>
-            <CardHeader>
-                <CardTitle>Recruitment Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-                {profileData.availableForRecruitment ? (
-                    <div className="flex items-center gap-3 p-4 bg-secondary rounded-lg">
-                        <CheckCircle className="h-6 w-6 text-green-500"/>
-                        <div>
-                            <p className="font-semibold">Available for Recruitment</p>
-                            <p className="text-sm text-muted-foreground">You are listed in the player market and can receive team invites.</p>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-3 p-4 bg-secondary rounded-lg">
-                        <Briefcase className="h-6 w-6 text-muted-foreground"/>
-                        <div>
-                            <p className="font-semibold">Not Currently Looking</p>
-                            <p className="text-sm text-muted-foreground">You are not listed in the player market.</p>
-                        </div>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-        
         <Card>
             <CardHeader>
                 <CardTitle>Player Stats (Coming Soon)</CardTitle>

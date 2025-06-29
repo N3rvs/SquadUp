@@ -88,7 +88,6 @@ export default function SignUpPage() {
         twitterUrl: "",
         youtubeUrl: "",
         discord: "",
-        availableForRecruitment: false,
         avatarUrl: "",
         createdAt: new Date().toISOString(),
       });

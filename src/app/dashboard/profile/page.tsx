@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, MessageCircle, Camera, Loader2, User, Shield, ShieldCheck } from "lucide-react";
+import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, MessageCircle, Camera, Loader2, User, Shield, ShieldCheck, Crown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { auth, db, storage } from "@/lib/firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -256,7 +256,7 @@ export default function ProfilePage() {
             <div className="flex items-center justify-center gap-2 flex-wrap">
               <h2 className="text-2xl font-bold font-headline">{profileData.displayName}</h2>
               {profileData.primaryRole === 'admin' && (
-                <Badge variant="destructive" className="shrink-0"><Shield className="mr-1 h-3 w-3" />Admin</Badge>
+                <Badge variant="destructive" className="shrink-0"><Crown className="mr-1 h-3 w-3" />Admin</Badge>
               )}
               {profileData.primaryRole === 'moderator' && (
                 <Badge variant="default" className="shrink-0"><ShieldCheck className="mr-1 h-3 w-3" />Moderator</Badge>

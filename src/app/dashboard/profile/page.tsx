@@ -1,51 +1,16 @@
-
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage
-} from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter
-} from "@/components/ui/card";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -53,7 +18,10 @@ import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, Briefcase, Mess
 import { Badge } from "@/components/ui/badge";
 import { auth, db, storage } from "@/lib/firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc, setDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useRouter } from "next/navigation";
 
 
 const profileFormSchema = z.object({
@@ -80,19 +48,10 @@ const countries = ["United Kingdom", "Germany", "France", "Spain", "Italy", "Net
 
 export default function ProfilePage() {
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [profileData, setProfileData] = useState({
-      displayName: "JohnDoe",
-      bio: "Aspiring Valorant pro. Looking for a serious team to climb the ranks.",
-      valorantRole: "Duelist",
-      country: "United Kingdom",
-      twitterUrl: "https://twitter.com/johndoe",
-      twitchUrl: "https://twitch.tv/johndoe",
-      youtubeUrl: "",
-      discord: "JohnDoe#1234",
-      availableForRecruitment: true,
-      avatarUrl: "https://placehold.co/96x96.png",
-  });
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false); // For form submission
+  const [isPageLoading, setIsPageLoading] = useState(true); // For initial page data load
+  const [profileData, setProfileData] = useState<ProfileFormValues | null>(null);
   
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -100,9 +59,60 @@ export default function ProfilePage() {
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
-    defaultValues: profileData,
+    defaultValues: {
+      displayName: "",
+      bio: "",
+      valorantRole: "Flex",
+      country: "",
+      twitchUrl: "",
+      twitterUrl: "",
+      youtubeUrl: "",
+      discord: "",
+      availableForRecruitment: false,
+      avatarUrl: "",
+    },
     mode: "onChange",
   });
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDocRef = doc(db, "users", user.uid);
+        const docSnap = await getDoc(userDocRef);
+
+        if (docSnap.exists()) {
+          const data = docSnap.data() as ProfileFormValues;
+          setProfileData(data);
+          form.reset(data);
+        } else {
+           console.log("No profile found, creating a new one for existing user.");
+           const defaultData: ProfileFormValues & { uid: string; email: string | null } = {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || "New User",
+            bio: "",
+            valorantRole: "Flex",
+            country: "United Kingdom",
+            twitchUrl: "",
+            twitterUrl: "",
+            youtubeUrl: "",
+            discord: "",
+            availableForRecruitment: false,
+            avatarUrl: user.photoURL || "",
+          };
+          await setDoc(userDocRef, defaultData);
+          setProfileData(defaultData);
+          form.reset(defaultData);
+        }
+      } else {
+        router.push("/login");
+      }
+      setIsPageLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [form, router]);
+
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -124,7 +134,9 @@ export default function ProfilePage() {
     if (!open) {
       setAvatarPreview(null);
       setAvatarFile(null);
-      form.reset(profileData);
+      if (profileData) {
+        form.reset(profileData);
+      }
     }
   };
 
@@ -138,7 +150,7 @@ export default function ProfilePage() {
     const uid = auth.currentUser.uid;
     
     try {
-      let newAvatarUrl = profileData.avatarUrl;
+      let newAvatarUrl = profileData?.avatarUrl || '';
       if (avatarFile) {
         const fileRef = storageRef(storage, `avatars/${uid}/${avatarFile.name}`);
         const uploadResult = await uploadBytes(fileRef, avatarFile);
@@ -153,7 +165,7 @@ export default function ProfilePage() {
       const userDocRef = doc(db, 'users', uid);
       await updateDoc(userDocRef, dataToSave);
       
-      const newProfileData = { ...profileData, ...dataToSave };
+      const newProfileData = { ...profileData, ...dataToSave } as ProfileFormValues;
       setProfileData(newProfileData);
       form.reset(newProfileData);
       setAvatarFile(null);
@@ -174,6 +186,46 @@ export default function ProfilePage() {
       setIsLoading(false);
     }
   }
+
+  if (isPageLoading) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        <div className="lg:col-span-1 space-y-8">
+          <Card>
+            <CardContent className="pt-6 text-center flex flex-col items-center">
+              <Skeleton className="h-24 w-24 rounded-full mb-4" />
+              <Skeleton className="h-7 w-40 mb-2" />
+              <Skeleton className="h-4 w-full max-w-sm" />
+            </CardContent>
+            <CardFooter>
+              <Skeleton className="h-10 w-full" />
+            </CardFooter>
+          </Card>
+           <Card>
+            <CardHeader><Skeleton className="h-6 w-32" /></CardHeader>
+            <CardContent className="space-y-4">
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-5 w-full" />
+            </CardContent>
+          </Card>
+        </div>
+        <div className="lg:col-span-2 space-y-8">
+          <Card>
+            <CardHeader><Skeleton className="h-6 w-48" /></CardHeader>
+            <CardContent><Skeleton className="h-20 w-full" /></CardContent>
+          </Card>
+          <Card>
+            <CardHeader><Skeleton className="h-6 w-48" /></CardHeader>
+            <CardContent><Skeleton className="h-24 w-full" /></CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+  
+  if (!profileData) {
+    return <div>Could not load profile. You may be logged out.</div>
+  }
   
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
@@ -182,7 +234,7 @@ export default function ProfilePage() {
           <CardContent className="pt-6 text-center flex flex-col items-center">
             <Avatar className="h-24 w-24 mb-4">
               <AvatarImage src={profileData.avatarUrl} data-ai-hint="male avatar" alt={profileData.displayName} />
-              <AvatarFallback>{profileData.displayName.substring(0, 2).toUpperCase()}</AvatarFallback>
+              <AvatarFallback>{profileData.displayName?.substring(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
             <h2 className="text-2xl font-bold font-headline">{profileData.displayName}</h2>
             <p className="text-sm text-muted-foreground mt-1">{profileData.bio}</p>
@@ -209,7 +261,7 @@ export default function ProfilePage() {
                 <div className="relative mx-auto w-fit cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                     <Avatar className="h-24 w-24">
                         <AvatarImage src={avatarPreview || profileData.avatarUrl} alt={profileData.displayName} />
-                        <AvatarFallback>{profileData.displayName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                        <AvatarFallback>{profileData.displayName?.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 hover:opacity-100 transition-opacity">
                       <Camera className="h-8 w-8 text-white"/>
@@ -398,12 +450,10 @@ export default function ProfilePage() {
                       <DialogClose asChild>
                          <Button type="button" variant="ghost">Cancel</Button>
                       </DialogClose>
-                      <DialogClose asChild>
-                        <Button type="submit" disabled={isLoading} onClick={form.handleSubmit(onSubmit)}>
-                           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                          {isLoading ? "Saving..." : "Save Changes"}
-                        </Button>
-                      </DialogClose>
+                      <Button type="submit" disabled={isLoading} onClick={form.handleSubmit(onSubmit)}>
+                         {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        {isLoading ? "Saving..." : "Save Changes"}
+                      </Button>
                     </DialogFooter>
                   </form>
                 </Form>
@@ -480,5 +530,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    

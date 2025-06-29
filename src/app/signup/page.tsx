@@ -7,7 +7,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -66,9 +67,28 @@ export default function SignUpPage() {
       );
       const user = userCredential.user;
 
+      // Update Firebase Auth profile
       await updateProfile(user, {
         displayName: values.displayName,
       });
+
+      // Create user document in Firestore
+      const userDocRef = doc(db, "users", user.uid);
+      await setDoc(userDocRef, {
+        uid: user.uid,
+        displayName: values.displayName,
+        email: user.email,
+        bio: "",
+        valorantRole: "Flex",
+        country: "United Kingdom",
+        twitchUrl: "",
+        twitterUrl: "",
+        youtubeUrl: "",
+        discord: "",
+        availableForRecruitment: false,
+        avatarUrl: "",
+      });
+
 
       toast({
         title: "Account Created!",

@@ -115,20 +115,14 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
     useEffect(() => {
         if (user) {
             let currentBanOption: BanOptionKey = 'none';
-            if (user.isBanned) {
-                if (user.banExpiresAt) {
-                    const expiry = user.banExpiresAt.toDate();
-                    // Check if it's a "permanent" ban (year 3000)
-                    if (expiry.getFullYear() >= 3000) {
-                        currentBanOption = 'permanent';
-                    } else if (expiry > new Date()) {
-                        currentBanOption = 'permanent';
-                    }
-                } else {
-                     currentBanOption = 'permanent';
+            const isCurrentlyBanned = user.isBanned && user.banExpiresAt && user.banExpiresAt.toDate() > new Date();
+            
+            if (isCurrentlyBanned) {
+                if (user.banExpiresAt!.toDate().getFullYear() >= 3000) {
+                    currentBanOption = 'permanent';
                 }
             }
-
+            
             form.reset({
                 role: user.primaryRole || 'player',
                 banOption: currentBanOption,
@@ -137,6 +131,8 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
     }, [user, form]);
     
     if (!user) return null;
+
+    const isTemporarilyBanned = user.isBanned && user.banExpiresAt && user.banExpiresAt.toDate() > new Date() && user.banExpiresAt.toDate().getFullYear() < 3000;
 
     const onSubmit = async (data: z.infer<typeof editUserFormSchema>) => {
         setIsSaving(true);
@@ -192,6 +188,11 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
                     <DialogTitle>Editar Usuario: {user.displayName}</DialogTitle>
                     <DialogDescription>
                         Modifica el rol y el estado de baneo del usuario.
+                        {isTemporarilyBanned && (
+                            <span className="text-destructive font-semibold block mt-2">
+                                Baneado hasta {format(user.banExpiresAt!.toDate(), "P 'a las' p", { locale: es })}.
+                            </span>
+                        )}
                     </DialogDescription>
                 </DialogHeader>
                  <Form {...form}>
@@ -236,7 +237,7 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
                                             ))}
                                         </SelectContent>
                                     </Select>
-                                    <FormDescription>El baneo se aplicará inmediatamente.</FormDescription>
+                                    <FormDescription>El baneo se aplicará inmediatamente. Seleccionar 'No Baneado' levantará cualquier suspensión activa.</FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -444,3 +445,4 @@ export default function UsersAdminPage() {
         </div>
     );
 }
+

@@ -26,34 +26,19 @@ export async function getPendingApplications(userId: string): Promise<{ success:
 
     try {
         const applicationsRef = collection(db, "teamApplications");
-        const q = query(applicationsRef, where("teamOwnerId", "==", userId), where("status", "==", "pending"));
+        const q = query(applicationsRef, 
+            where("teamOwnerId", "==", userId), 
+            where("status", "==", "pending"),
+            where("type", "==", "application")
+        );
         
         const querySnapshot = await getDocs(q);
         if (querySnapshot.empty) {
             return { success: true, applications: [] };
         }
 
-        const applicantIds = [...new Set(querySnapshot.docs.map(doc => doc.data().userId))];
-        
-        if (applicantIds.length === 0) {
-            return { success: true, applications: [] };
-        }
-
-        // Fetch user data directly using getDoc for better performance and to avoid potential security rule issues on list operations.
-        const userPromises = applicantIds.map(id => getDoc(doc(db, "users", id)));
-        const userDocSnapshots = await Promise.all(userPromises);
-        
-        const usersData = new Map();
-        userDocSnapshots.forEach(docSnap => {
-            if (docSnap.exists()) {
-                usersData.set(docSnap.id, docSnap.data());
-            }
-        });
-
-
         const applications: ApplicationWithUser[] = querySnapshot.docs.map(doc => {
             const appData = doc.data();
-            const applicantData = usersData.get(appData.userId);
             const createdAt = appData.createdAt instanceof Timestamp ? appData.createdAt.toDate() : new Date();
 
             return {
@@ -62,8 +47,8 @@ export async function getPendingApplications(userId: string): Promise<{ success:
                 teamName: appData.teamName,
                 applicant: {
                     uid: appData.userId,
-                    displayName: applicantData?.displayName || 'Unknown User',
-                    avatarUrl: applicantData?.avatarUrl || '',
+                    displayName: appData.userDisplayName || 'Unknown User',
+                    avatarUrl: appData.userAvatarUrl || '',
                 },
                 createdAt: createdAt.toISOString(),
             };

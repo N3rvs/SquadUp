@@ -11,13 +11,22 @@ export async function applyToTeam(teamId: string, userId: string) {
 
     try {
         const teamDocRef = doc(db, "teams", teamId);
-        const teamDoc = await getDoc(teamDocRef);
+        const userDocRef = doc(db, "users", userId);
+
+        const [teamDoc, userDoc] = await Promise.all([
+            getDoc(teamDocRef),
+            getDoc(userDocRef)
+        ]);
 
         if (!teamDoc.exists()) {
             return { success: false, error: "Team not found." };
         }
+        if (!userDoc.exists()) {
+            return { success: false, error: "Applicant profile not found." };
+        }
 
         const teamData = teamDoc.data();
+        const userData = userDoc.data();
 
         // Check if user is already a member
         if (teamData.memberIds?.includes(userId)) {
@@ -33,14 +42,17 @@ export async function applyToTeam(teamId: string, userId: string) {
             return { success: false, error: "You have already sent a pending application to this team." };
         }
 
-        // Create application
+        // Create application with denormalized user data
         await addDoc(collection(db, "teamApplications"), {
-            teamId,
-            userId,
+            teamId: teamId,
             teamName: teamData.name,
             teamOwnerId: teamData.ownerId,
+            userId: userId,
+            userDisplayName: userData.displayName,
+            userAvatarUrl: userData.avatarUrl || '',
             status: "pending",
             createdAt: serverTimestamp(),
+            type: 'application',
         });
 
         revalidatePath(`/dashboard/teams/${teamId}`);

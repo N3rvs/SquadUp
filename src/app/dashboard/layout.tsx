@@ -40,18 +40,9 @@ import { Badge } from "@/components/ui/badge";
 
 function Notifications() {
     const notifications = {
-        all: [
-            { type: 'request', user: 'xGhozt', action: 'sent a request to join', team: 'Cyber Eagles', avatarHint: 'male avatar' },
-            { type: 'message', user: 'Team: Shadow Wolves', text: 'Confirming our scrim for tomorrow at 8 PM.', avatarHint: 'wolf logo' },
-            { type: 'friend', user: 'JaneDoe', action: 'accepted your friend request.', avatarHint: 'female avatar' },
-        ],
-        messages: [
-            { type: 'message', user: 'Team: Shadow Wolves', text: 'Confirming our scrim for tomorrow at 8 PM.', avatarHint: 'wolf logo' },
-        ],
-        requests: [
-            { type: 'request', user: 'xGhozt', action: 'sent a request to join', team: 'Cyber Eagles', avatarHint: 'male avatar' },
-            { type: 'friend', user: 'Blaze', action: 'sent you a friend request.', avatarHint: 'phoenix logo' },
-        ]
+        all: [],
+        messages: [],
+        requests: []
     };
 
     return (
@@ -59,7 +50,7 @@ function Notifications() {
             <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative shrink-0">
                     <Bell className="h-5 w-5" />
-                    <Badge className="absolute -top-1 -right-1 h-4 w-4 justify-center p-0">{notifications.all.length}</Badge>
+                    {notifications.all.length > 0 && <Badge className="absolute -top-1 -right-1 h-4 w-4 justify-center p-0">{notifications.all.length}</Badge>}
                     <span className="sr-only">Open notifications</span>
                 </Button>
             </PopoverTrigger>
@@ -72,57 +63,75 @@ function Notifications() {
                     </TabsList>
                     <TabsContent value="all" className="max-h-96 overflow-y-auto">
                         <div className="space-y-4 pt-4">
-                            {notifications.all.map((n, i) => (
-                                <div key={i} className="flex items-start gap-3">
-                                    <Avatar className="h-8 w-8 shrink-0">
-                                        <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={n.avatarHint} />
-                                        <AvatarFallback>{n.user.substring(0, 2)}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="text-sm">
-                                        <p><span className="font-semibold">{n.user}</span> {n.action || n.text} <span className="font-semibold">{n.team || ''}</span></p>
-                                        {(n.type === 'request' || n.type === 'friend') && (
-                                            <div className="mt-2 flex gap-2">
-                                                <Button size="sm" className="h-7">Accept</Button>
-                                                <Button size="sm" variant="outline" className="h-7">Decline</Button>
-                                            </div>
-                                        )}
+                            {notifications.all.length > 0 ? (
+                                notifications.all.map((n: any, i) => (
+                                    <div key={i} className="flex items-start gap-3">
+                                        <Avatar className="h-8 w-8 shrink-0">
+                                            <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={n.avatarHint} />
+                                            <AvatarFallback>{n.user.substring(0, 2)}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="text-sm">
+                                            <p><span className="font-semibold">{n.user}</span> {n.action || n.text} <span className="font-semibold">{n.team || ''}</span></p>
+                                            {(n.type === 'request' || n.type === 'friend') && (
+                                                <div className="mt-2 flex gap-2">
+                                                    <Button size="sm" className="h-7">Accept</Button>
+                                                    <Button size="sm" variant="outline" className="h-7">Decline</Button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
+                                ))
+                            ) : (
+                                <div className="text-center text-sm text-muted-foreground py-10">
+                                    <p>No new notifications.</p>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </TabsContent>
                     <TabsContent value="messages" className="max-h-96 overflow-y-auto">
                         <div className="space-y-4 pt-4">
-                            {notifications.messages.map((n, i) => (
-                                <div key={i} className="flex items-start gap-3">
-                                    <Avatar className="h-8 w-8 shrink-0">
-                                        <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={n.avatarHint} />
-                                        <AvatarFallback>{n.user.substring(0, 2)}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="text-sm">
-                                        <p><span className="font-semibold">{n.user}</span> {n.text}</p>
+                           {notifications.messages.length > 0 ? (
+                                notifications.messages.map((n: any, i) => (
+                                    <div key={i} className="flex items-start gap-3">
+                                        <Avatar className="h-8 w-8 shrink-0">
+                                            <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={n.avatarHint} />
+                                            <AvatarFallback>{n.user.substring(0, 2)}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="text-sm">
+                                            <p><span className="font-semibold">{n.user}</span> {n.text}</p>
+                                        </div>
                                     </div>
+                                ))
+                            ) : (
+                                <div className="text-center text-sm text-muted-foreground py-10">
+                                    <p>No new messages.</p>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </TabsContent>
                     <TabsContent value="requests" className="max-h-96 overflow-y-auto">
                          <div className="space-y-4 pt-4">
-                            {notifications.requests.map((n, i) => (
-                                <div key={i} className="flex items-start gap-3">
-                                    <Avatar className="h-8 w-8 shrink-0">
-                                        <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={n.avatarHint} />
-                                        <AvatarFallback>{n.user.substring(0, 2)}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="text-sm">
-                                        <p><span className="font-semibold">{n.user}</span> {n.action} <span className="font-semibold">{n.team || ''}</span></p>
-                                        <div className="mt-2 flex gap-2">
-                                            <Button size="sm" className="h-7">Accept</Button>
-                                            <Button size="sm" variant="outline" className="h-7">Decline</Button>
+                           {notifications.requests.length > 0 ? (
+                                notifications.requests.map((n: any, i) => (
+                                    <div key={i} className="flex items-start gap-3">
+                                        <Avatar className="h-8 w-8 shrink-0">
+                                            <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={n.avatarHint} />
+                                            <AvatarFallback>{n.user.substring(0, 2)}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="text-sm">
+                                            <p><span className="font-semibold">{n.user}</span> {n.action} <span className="font-semibold">{n.team || ''}</span></p>
+                                            <div className="mt-2 flex gap-2">
+                                                <Button size="sm" className="h-7">Accept</Button>
+                                                <Button size="sm" variant="outline" className="h-7">Decline</Button>
+                                            </div>
                                         </div>
                                     </div>
+                                ))
+                            ) : (
+                                <div className="text-center text-sm text-muted-foreground py-10">
+                                    <p>No new requests.</p>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </TabsContent>
                 </Tabs>

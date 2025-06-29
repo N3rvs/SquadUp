@@ -24,39 +24,9 @@ type Chat = {
   messages: Message[];
 };
 
-const initialChats: Chat[] = [
-    {
-        name: 'Team: Cyber Eagles',
-        msg: 'No problem, see you then!',
-        avatarHint: 'eagle logo',
-        messages: [
-            { id: 1, text: 'Hey team, don\'t forget practice tonight at 8 PM on Ascent. We need to work on our B-site executes.', sender: 'other', avatarHint: 'eagle logo', senderName: 'Coach' },
-            { id: 2, text: 'Got it, coach. I\'ll be there. I\'ve been practicing my Sova lineups.', sender: 'user', avatarHint: 'male avatar', senderName: 'You' },
-            { id: 3, text: 'I might be 15 minutes late, finishing up some work.', sender: 'other', avatarHint: 'female avatar', senderName: 'JaneSmith'},
-            { id: 4, text: 'No problem, see you then!', sender: 'user', avatarHint: 'male avatar', senderName: 'You' },
-        ],
-    },
-    {
-        name: 'JohnDoe',
-        msg: 'Hey, are you free for a match?',
-        avatarHint: 'male avatar',
-        messages: [
-            { id: 1, text: 'Hey, are you free for a match?', sender: 'other', avatarHint: 'male avatar', senderName: 'JohnDoe' }
-        ],
-    },
-    {
-        name: 'JaneSmith',
-        msg: 'Great game yesterday!',
-        avatarHint: 'female avatar',
-        messages: [
-             { id: 1, text: 'Great game yesterday!', sender: 'other', avatarHint: 'female avatar', senderName: 'JaneSmith' }
-        ]
-    }
-];
-
 export default function ChatPage() {
-    const [chats, setChats] = useState<Chat[]>(initialChats);
-    const [selectedChat, setSelectedChat] = useState<Chat>(chats[0]);
+    const [chats, setChats] = useState<Chat[]>([]);
+    const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
 

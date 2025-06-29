@@ -112,49 +112,9 @@ export default function Dashboard() {
             </TableHeader>
             <TableBody>
               <TableRow>
-                <TableCell>
-                  <div className="font-medium">Viper Elites</div>
-                  <div className="hidden text-sm text-muted-foreground md:inline">
-                    Tournament - Finals
-                  </div>
+                <TableCell colSpan={4} className="h-24 text-center">
+                  No recent matches to display.
                 </TableCell>
-                <TableCell className="hidden sm:table-cell">Ascent</TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  <Badge className="text-xs" variant="destructive">
-                    Loss
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">2 days ago</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>
-                  <div className="font-medium">Ghost Gaming</div>
-                  <div className="hidden text-sm text-muted-foreground md:inline">
-                    Scrimmage
-                  </div>
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">Split</TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  <Badge className="text-xs" variant="secondary">
-                    Win
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">4 days ago</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>
-                  <div className="font-medium">Phoenix Blaze</div>
-                  <div className="hidden text-sm text-muted-foreground md:inline">
-                    Tournament - S/F
-                  </div>
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">Bind</TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  <Badge className="text-xs" variant="secondary">
-                    Win
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">1 week ago</TableCell>
               </TableRow>
             </TableBody>
           </Table>

@@ -52,7 +52,7 @@ type ProfileFormValues = z.infer<typeof profileFormSchema>;
 type UserProfileData = Omit<ProfileFormValues, 'valorantRoles'> & {
   uid: string;
   email: string | null;
-  primaryRole: string; // Subscription plan, e.g. "player"
+  primaryRole: string; // The user's main security role (e.g., 'player', 'admin'). This is a denormalized field for easier querying and display, while the authoritative source is the Auth custom claim.
   isBanned: boolean;
   createdAt: string;
   valorantRoles?: string[];
@@ -119,7 +119,7 @@ export default function ProfilePage() {
             uid: user.uid,
             email: user.email,
             displayName: user.displayName || "New User",
-            primaryRole: "player", // Default subscription plan
+            primaryRole: "player",
             isBanned: false,
             valorantRoles: ["Flex"],
             valorantRank: "Unranked",
@@ -681,4 +681,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-

@@ -56,8 +56,6 @@ export function AssignRoleWithEmail() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Asignar Rol por Email</h2>
-
       <div className="flex gap-2">
         <Input placeholder="Email del usuario" value={email} onChange={(e) => setEmail(e.target.value)} />
         <Button onClick={handleSearch} disabled={!email || searching} size="icon">

@@ -30,12 +30,13 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, PlusCircle, Users, Camera, Briefcase, ShieldCheck, Upload, Edit } from "lucide-react";
+import { Loader2, PlusCircle, Users, Camera, Briefcase, ShieldCheck, Upload, Edit, Target } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // --- TYPE DEFINITIONS ---
 
@@ -50,6 +51,7 @@ interface Team {
   minRank: string;
   maxRank: string;
   seekingCoach?: boolean;
+  seekingRoles?: string[];
   videoUrl?: string;
   createdAt: Timestamp;
 }
@@ -59,6 +61,7 @@ interface UserProfile {
 }
 
 const valorantRanks = ["Cualquiera", "Hierro", "Bronce", "Plata", "Oro", "Platino", "Diamante", "Ascendente", "Inmortal", "Radiante"];
+const valorantRoles = ["Duelist", "Controller", "Initiator", "Sentinel", "Flex"];
 
 const teamFormSchema = z.object({
   name: z.string().min(3, { message: "El nombre del equipo debe tener al menos 3 caracteres." }).max(30, { message: "El nombre del equipo no puede tener más de 30 caracteres." }),
@@ -66,6 +69,7 @@ const teamFormSchema = z.object({
   minRank: z.string({ required_error: "Debes seleccionar un rango mínimo." }),
   maxRank: z.string({ required_error: "Debes seleccionar un rango máximo." }),
   seekingCoach: z.boolean().default(false).optional(),
+  seekingRoles: z.array(z.string()).optional(),
   videoUrl: z.string().url("Por favor, introduce una URL de YouTube o similar válida.").optional().or(z.literal('')),
 });
 
@@ -136,6 +140,55 @@ function TeamFormFields({
           <FormItem><FormLabel>Rango Máximo</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona un rango" /></SelectTrigger></FormControl><SelectContent>{valorantRanks.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
         )}/>
       </div>
+      
+      <FormField
+        control={control}
+        name="seekingRoles"
+        render={() => (
+          <FormItem>
+             <FormLabel>Roles Buscados</FormLabel>
+             <FormDescription>Marca los roles que tu equipo necesita.</FormDescription>
+             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {valorantRoles.map((role) => (
+                    <FormField
+                    key={role}
+                    control={control}
+                    name="seekingRoles"
+                    render={({ field }) => {
+                        return (
+                        <FormItem
+                            key={role}
+                            className="flex flex-row items-center space-x-2 space-y-0"
+                        >
+                            <FormControl>
+                            <Checkbox
+                                checked={field.value?.includes(role)}
+                                onCheckedChange={(checked) => {
+                                const currentValue = field.value || [];
+                                if (checked) {
+                                    field.onChange([...currentValue, role]);
+                                } else {
+                                    field.onChange(
+                                    currentValue.filter((value) => value !== role)
+                                    );
+                                }
+                                }}
+                            />
+                            </FormControl>
+                            <FormLabel className="font-normal text-sm">
+                            {role}
+                            </FormLabel>
+                        </FormItem>
+                        );
+                    }}
+                    />
+                ))}
+             </div>
+             <FormMessage />
+          </FormItem>
+        )}
+      />
+
       <FormField control={control} name="seekingCoach" render={({ field }) => (
         <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Buscando Coach</FormLabel><FormDescription>Activa si buscas un coach para tu equipo.</FormDescription></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
       )}/>
@@ -166,17 +219,25 @@ function TeamCard({ team }: { team: Team }) {
             <CardDescription className="line-clamp-2 h-10">{team.bio || 'Este equipo aún no tiene una biografía.'}</CardDescription>
             </CardHeader>
             <CardContent className="flex-grow space-y-2">
-            <div className="flex items-center gap-2 text-sm">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-                <span>Rango: {team.minRank} - {team.maxRank}</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-                <Users className="h-4 w-4 text-primary" />
-                <span>{team.memberIds.length}/5 Miembros</span>
-            </div>
-            {team.seekingCoach && (
-                <Badge variant="secondary"><Briefcase className="mr-1 h-3 w-3" /> Buscando Coach</Badge>
-            )}
+                <div className="flex items-center gap-2 text-sm">
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    <span>Rango: {team.minRank} - {team.maxRank}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                    <Users className="h-4 w-4 text-primary" />
+                    <span>{team.memberIds.length}/5 Miembros</span>
+                </div>
+                {team.seekingCoach && (
+                    <Badge variant="secondary"><Briefcase className="mr-1 h-3 w-3" /> Buscando Coach</Badge>
+                )}
+                {team.seekingRoles && team.seekingRoles.length > 0 && (
+                    <div className="flex items-center gap-2 text-sm pt-1">
+                        <Target className="h-4 w-4 text-primary" />
+                        <div className="flex flex-wrap gap-1">
+                          {team.seekingRoles.map(role => <Badge key={role} variant="outline">{role}</Badge>)}
+                        </div>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
@@ -235,6 +296,7 @@ export default function TeamsPage() {
       minRank: "Cualquiera",
       maxRank: "Radiante",
       seekingCoach: false,
+      seekingRoles: [],
       videoUrl: ""
     },
     mode: "onChange",
@@ -288,7 +350,7 @@ export default function TeamsPage() {
   }, [toast]);
 
   const resetFormAndPreviews = useCallback(() => {
-    form.reset({ name: "", bio: "", minRank: "Cualquiera", maxRank: "Radiante", seekingCoach: false, videoUrl: "" });
+    form.reset({ name: "", bio: "", minRank: "Cualquiera", maxRank: "Radiante", seekingCoach: false, seekingRoles: [], videoUrl: "" });
     setLogoFile(null);
     setLogoPreview(null);
     setBannerFile(null);
@@ -310,6 +372,7 @@ export default function TeamsPage() {
       minRank: team.minRank,
       maxRank: team.maxRank,
       seekingCoach: team.seekingCoach || false,
+      seekingRoles: team.seekingRoles || [],
       videoUrl: team.videoUrl || '',
     });
     setLogoPreview(team.logoUrl);
@@ -469,3 +532,5 @@ export default function TeamsPage() {
     </div>
   );
 }
+
+    

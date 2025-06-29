@@ -24,14 +24,13 @@ import { doc, updateDoc, getDoc, setDoc, collection, query, where, getDocs, limi
 import { onAuthStateChanged } from "firebase/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
+import { Checkbox } from "@/components/ui/checkbox";
 
 
 const profileFormSchema = z.object({
   displayName: z.string().min(2, "Display name must be at least 2 characters.").max(30, "Display name must not be longer than 30 characters."),
   bio: z.string().max(160, "Bio must not be longer than 160 characters.").optional(),
-  valorantRole: z.string({
-    required_error: "Please select a role.",
-  }),
+  valorantRoles: z.array(z.string()).min(1, "Debes seleccionar al menos un rol.").max(3, "Puedes seleccionar un máximo de 3 roles."),
   country: z.string({
     required_error: "Please select a country.",
   }),
@@ -44,13 +43,14 @@ const profileFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
-// This type represents the full user document in Firestore.
-type UserProfileData = ProfileFormValues & {
+type UserProfileData = Omit<ProfileFormValues, 'valorantRoles'> & {
   uid: string;
   email: string | null;
   primaryRole: "player" | "moderator" | "admin";
   isBanned: boolean;
   createdAt: string;
+  valorantRoles?: string[];
+  valorantRole?: string; // For backwards compatibility
 };
 
 
@@ -91,7 +91,7 @@ export default function ProfilePage() {
     defaultValues: {
       displayName: "",
       bio: "",
-      valorantRole: "Flex",
+      valorantRoles: [],
       country: "",
       twitchUrl: "",
       twitterUrl: "",
@@ -108,10 +108,17 @@ export default function ProfilePage() {
         const userDocRef = doc(db, "users", user.uid);
         const docSnap = await getDoc(userDocRef);
 
+        let dataToSet;
         if (docSnap.exists()) {
-          const data = docSnap.data() as UserProfileData;
-          setProfileData(data);
-          form.reset(data);
+          const data = { ...docSnap.data() } as UserProfileData;
+          if (data.valorantRole && !Array.isArray(data.valorantRoles)) {
+            data.valorantRoles = [data.valorantRole];
+            delete data.valorantRole;
+          }
+          if (!data.valorantRoles) {
+            data.valorantRoles = ["Flex"];
+          }
+          dataToSet = data;
         } else {
            console.log("No profile found, creating a new one for existing user.");
            const defaultData: UserProfileData = {
@@ -120,7 +127,7 @@ export default function ProfilePage() {
             displayName: user.displayName || "New User",
             primaryRole: "player",
             isBanned: false,
-            valorantRole: "Flex",
+            valorantRoles: ["Flex"],
             bio: "",
             country: "United Kingdom",
             twitchUrl: "",
@@ -131,9 +138,18 @@ export default function ProfilePage() {
             createdAt: new Date().toISOString(),
           };
           await setDoc(userDocRef, defaultData);
-          setProfileData(defaultData);
-          form.reset(defaultData);
+          dataToSet = defaultData;
         }
+
+        setProfileData(dataToSet);
+        form.reset({
+          ...dataToSet,
+          bio: dataToSet.bio || '',
+          twitchUrl: dataToSet.twitchUrl || '',
+          twitterUrl: dataToSet.twitterUrl || '',
+          youtubeUrl: dataToSet.youtubeUrl || '',
+          discord: dataToSet.discord || '',
+        });
         
         // --- Fetch user's team ---
         const teamsQuery = query(collection(db, "teams"), where("memberIds", "array-contains", user.uid), limit(1));
@@ -174,7 +190,14 @@ export default function ProfilePage() {
       setAvatarPreview(null);
       setAvatarFile(null);
       if (profileData) {
-        form.reset(profileData);
+        form.reset({
+          ...profileData,
+          bio: profileData.bio || '',
+          twitchUrl: profileData.twitchUrl || '',
+          twitterUrl: profileData.twitterUrl || '',
+          youtubeUrl: profileData.youtubeUrl || '',
+          discord: profileData.discord || '',
+        });
       }
     }
   };
@@ -191,12 +214,12 @@ export default function ProfilePage() {
     try {
       let newAvatarUrl = profileData?.avatarUrl || '';
       if (avatarFile) {
-        const fileRef = storageRef(storage, `avatars/${uid}/${avatarFile.name}`);
+        const fileRef = storageRef(storage, `avatars/${uid}/avatar`);
         const uploadResult = await uploadBytes(fileRef, avatarFile);
         newAvatarUrl = await getDownloadURL(uploadResult.ref);
       }
 
-      const dataToSave = {
+      const dataToSave: Omit<UserProfileData, 'valorantRole' | 'uid' | 'email' | 'primaryRole' | 'isBanned' | 'createdAt'> = {
         ...data,
         avatarUrl: newAvatarUrl,
       };
@@ -206,7 +229,14 @@ export default function ProfilePage() {
       
       const newProfileData = { ...profileData, ...dataToSave } as UserProfileData;
       setProfileData(newProfileData);
-      form.reset(newProfileData);
+      form.reset({
+        ...newProfileData,
+        bio: newProfileData.bio || '',
+        twitchUrl: newProfileData.twitchUrl || '',
+        twitterUrl: newProfileData.twitterUrl || '',
+        youtubeUrl: newProfileData.youtubeUrl || '',
+        discord: newProfileData.discord || '',
+      });
       setAvatarFile(null);
       setAvatarPreview(null);
       
@@ -299,7 +329,9 @@ export default function ProfilePage() {
                         </Badge>
                     </Link>
                 )}
-                <Badge variant="secondary"><Gamepad2 className="mr-1 h-3 w-3" />{profileData.valorantRole}</Badge>
+                {profileData.valorantRoles?.map(role => (
+                   <Badge key={role} variant="secondary"><Gamepad2 className="mr-1 h-3 w-3" />{role}</Badge>
+                ))}
                 <Badge variant="secondary" className="inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1">
                     {countryCode ? (
                         <Image 
@@ -377,60 +409,83 @@ export default function ProfilePage() {
                         )}
                       />
                     </div>
+                    
+                    <FormField
+                      control={form.control}
+                      name="valorantRoles"
+                      render={() => (
+                        <FormItem>
+                          <FormLabel>Valorant Roles</FormLabel>
+                           <FormDescription>
+                             Selecciona de 1 a 3 roles.
+                          </FormDescription>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {valorantRoles.map((role) => (
+                              <FormField
+                                key={role}
+                                control={form.control}
+                                name="valorantRoles"
+                                render={({ field }) => {
+                                  return (
+                                    <FormItem
+                                      key={role}
+                                      className="flex flex-row items-center space-x-2 space-y-0"
+                                    >
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={field.value?.includes(role)}
+                                          onCheckedChange={(checked) => {
+                                            const currentValue = field.value || [];
+                                            if (checked) {
+                                              field.onChange([...currentValue, role]);
+                                            } else {
+                                              field.onChange(
+                                                currentValue.filter(
+                                                  (value) => value !== role
+                                                )
+                                              );
+                                            }
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <FormLabel className="font-normal text-sm">
+                                        {role}
+                                      </FormLabel>
+                                    </FormItem>
+                                  );
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="valorantRole"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Valorant Role</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select your main role" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {valorantRoles.map(role => (
-                                  <SelectItem key={role} value={role}>
-                                    {role}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormDescription>
-                              Only editable when not in a team.
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="country"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Country</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select your country" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {countries.map(country => (
-                                  <SelectItem key={country} value={country}>
-                                    {country}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                    <FormField
+                      control={form.control}
+                      name="country"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Country</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select your country" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {countries.map(country => (
+                                <SelectItem key={country} value={country}>
+                                  {country}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     
                     <div className="space-y-4">
                       <h3 className="text-sm font-medium">Social Links</h3>
@@ -555,3 +610,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    

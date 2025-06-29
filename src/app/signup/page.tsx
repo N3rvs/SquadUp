@@ -81,7 +81,7 @@ export default function SignUpPage() {
         email: user.email,
         primaryRole: "player",
         isBanned: false,
-        valorantRole: "Flex",
+        valorantRoles: ["Flex"],
         bio: "",
         country: "United Kingdom",
         twitchUrl: "",
@@ -219,3 +219,5 @@ export default function SignUpPage() {
     </div>
   );
 }
+
+    

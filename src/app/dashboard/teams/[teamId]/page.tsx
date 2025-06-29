@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Briefcase, Edit, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, Briefcase, Edit, ShieldCheck, Users, Target } from "lucide-react";
 
 // --- TYPE DEFINITIONS ---
 
@@ -30,6 +30,7 @@ interface Team {
   minRank: string;
   maxRank: string;
   seekingCoach?: boolean;
+  seekingRoles?: string[];
   videoUrl?: string;
 }
 
@@ -205,23 +206,47 @@ export default function TeamDetailPage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-            <CardTitle>Miembros del Equipo</CardTitle>
-            <CardDescription>Conoce a los jugadores que forman parte de {team.name}.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            {members.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {members.map(member => (
-                       <TeamMemberCard key={member.uid} member={member} />
-                    ))}
-                </div>
-            ) : (
-                <p className="text-muted-foreground text-center py-8">No se encontraron miembros para este equipo.</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="md:col-span-2 space-y-8">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Miembros del Equipo</CardTitle>
+                    <CardDescription>Conoce a los jugadores que forman parte de {team.name}.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {members.length > 0 ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {members.map(member => (
+                            <TeamMemberCard key={member.uid} member={member} />
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-muted-foreground text-center py-8">No se encontraron miembros para este equipo.</p>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+        <div className="md:col-span-1 space-y-8">
+            {team.seekingRoles && team.seekingRoles.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Target className="h-5 w-5" />
+                            Buscando Roles
+                        </CardTitle>
+                        <CardDescription>El equipo está reclutando activamente para estas posiciones.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                        {team.seekingRoles.map(role => (
+                            <Badge key={role} variant="default">{role}</Badge>
+                        ))}
+                    </CardContent>
+                </Card>
             )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
+
+    

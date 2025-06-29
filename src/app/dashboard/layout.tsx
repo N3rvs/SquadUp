@@ -138,6 +138,7 @@ export default function DashboardLayout({
     { href: "/dashboard/scrims", icon: Swords, label: "Scrims" },
     { href: "/dashboard/ai-coach", icon: BrainCircuit, label: "Coach AI" },
     { href: "/dashboard/chat", icon: MessageSquare, label: "Chat" },
+    { href: "/dashboard/inbox", icon: Inbox, label: "Bandeja de Entrada" },
   ];
   
   if (isPrivilegedUser) {

@@ -82,25 +82,7 @@ function Notifications() {
                     </TabsList>
                     <TabsContent value="all" className="max-h-96 overflow-y-auto">
                         <div className="space-y-4 pt-4">
-                            {notifications.all.length > 0 ? (
-                                notifications.all.map((n: any, i) => (
-                                    <div key={i} className="flex items-start gap-3">
-                                        <Avatar className="h-8 w-8 shrink-0">
-                                            <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={n.avatarHint} />
-                                            <AvatarFallback>{n.user.substring(0, 2)}</AvatarFallback>
-                                        </Avatar>
-                                        <div className="text-sm">
-                                            <p><span className="font-semibold">{n.user}</span> {n.action || n.text} <span className="font-semibold">{n.team || ''}</span></p>
-                                            {(n.type === 'request' || n.type === 'friend') && (
-                                                <div className="mt-2 flex gap-2">
-                                                    <Button size="sm" className="h-7">Accept</Button>
-                                                    <Button size="sm" variant="outline" className="h-7">Decline</Button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
+                            {notifications.all.length === 0 && (
                                 <div className="text-center text-sm text-muted-foreground py-10">
                                     <p>No new notifications.</p>
                                 </div>
@@ -109,19 +91,7 @@ function Notifications() {
                     </TabsContent>
                     <TabsContent value="messages" className="max-h-96 overflow-y-auto">
                         <div className="space-y-4 pt-4">
-                           {notifications.messages.length > 0 ? (
-                                notifications.messages.map((n: any, i) => (
-                                    <div key={i} className="flex items-start gap-3">
-                                        <Avatar className="h-8 w-8 shrink-0">
-                                            <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={n.avatarHint} />
-                                            <AvatarFallback>{n.user.substring(0, 2)}</AvatarFallback>
-                                        </Avatar>
-                                        <div className="text-sm">
-                                            <p><span className="font-semibold">{n.user}</span> {n.text}</p>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
+                           {notifications.messages.length === 0 && (
                                 <div className="text-center text-sm text-muted-foreground py-10">
                                     <p>No new messages.</p>
                                 </div>
@@ -130,23 +100,7 @@ function Notifications() {
                     </TabsContent>
                     <TabsContent value="requests" className="max-h-96 overflow-y-auto">
                          <div className="space-y-4 pt-4">
-                           {notifications.requests.length > 0 ? (
-                                notifications.requests.map((n: any, i) => (
-                                    <div key={i} className="flex items-start gap-3">
-                                        <Avatar className="h-8 w-8 shrink-0">
-                                            <AvatarImage src={`https://placehold.co/40x40.png`} data-ai-hint={n.avatarHint} />
-                                            <AvatarFallback>{n.user.substring(0, 2)}</AvatarFallback>
-                                        </Avatar>
-                                        <div className="text-sm">
-                                            <p><span className="font-semibold">{n.user}</span> {n.action} <span className="font-semibold">{n.team || ''}</span></p>
-                                            <div className="mt-2 flex gap-2">
-                                                <Button size="sm" className="h-7">Accept</Button>
-                                                <Button size="sm" variant="outline" className="h-7">Decline</Button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
+                           {notifications.requests.length === 0 && (
                                 <div className="text-center text-sm text-muted-foreground py-10">
                                     <p>No new requests.</p>
                                 </div>
@@ -206,7 +160,7 @@ export default function DashboardLayout({
 
   const navItems = [
     { href: "/dashboard/profile", icon: User, label: "Perfil" },
-    { href: "/dashboard/teams", icon: Users, label: "Equipos" },
+    { href: "/dashboard/teams", icon: Users, label: "Mi Equipo" },
     { href: "/dashboard/marketplace", icon: Store, label: "Marketplace" },
     { href: "/dashboard/tournaments", icon: Trophy, label: "Torneos" },
     { href: "/dashboard/scrims", icon: Swords, label: "Scrims" },
@@ -331,7 +285,7 @@ export default function DashboardLayout({
                         <DialogHeader>
                             <DialogTitle>Contactar a Soporte</DialogTitle>
                             <DialogDescription>
-                                Describe tu problema y nuestra IA te ayudará a categorizarlo para una respuesta más rápida.
+                                Describe tu problema y nuestros moderadores te ayudaran a categorizarlo para una respuesta más rápida.
                             </DialogDescription>
                         </DialogHeader>
                         <SupportForm />

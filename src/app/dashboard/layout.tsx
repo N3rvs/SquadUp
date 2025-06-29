@@ -137,27 +137,46 @@ export default function DashboardLayout({
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        // Fetch token and profile in parallel for performance
+        const idTokenResultPromise = user.getIdTokenResult(true); // Force refresh
         const userDocRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(userDocRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setUserProfile({
-            uid: user.uid,
-            primaryRole: data.primaryRole || 'player',
-            displayName: data.displayName || 'Usuario',
-            email: user.email || 'usuario@example.com',
-            avatarUrl: data.avatarUrl || '',
-          });
-        } else {
-            // This case might happen for a newly signed-up user whose doc hasn't been created yet.
-            // Or if a user document is missing for some reason.
-            // We create a default profile here.
-            setUserProfile({
+        const docSnapPromise = getDoc(userDocRef);
+
+        try {
+            const [idTokenResult, docSnap] = await Promise.all([idTokenResultPromise, docSnapPromise]);
+            const userRole = (idTokenResult.claims.role as 'player' | 'moderator' | 'admin') || 'player';
+
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              setUserProfile({
                 uid: user.uid,
-                primaryRole: 'player',
-                displayName: user.displayName || 'Usuario',
+                primaryRole: userRole,
+                displayName: data.displayName || 'Usuario',
                 email: user.email || 'usuario@example.com',
-                avatarUrl: user.photoURL || '',
+                avatarUrl: data.avatarUrl || '',
+              });
+            } else {
+                // This case might happen for a newly signed-up user whose doc hasn't been created yet.
+                // Or if a user document is missing for some reason.
+                // We create a default profile here.
+                setUserProfile({
+                    uid: user.uid,
+                    primaryRole: userRole,
+                    displayName: user.displayName || 'Usuario',
+                    email: user.email || 'usuario@example.com',
+                    avatarUrl: user.photoURL || '',
+                });
+            }
+        } catch (error) {
+            console.error("Error fetching user data:", error);
+            // If fetching fails, we can still show a degraded experience
+            // using the basic info from the auth user object and a default role.
+            setUserProfile({
+              uid: user.uid,
+              primaryRole: 'player', // Default to 'player' on error
+              displayName: user.displayName || 'Usuario',
+              email: user.email || 'usuario@example.com',
+              avatarUrl: user.photoURL || '',
             });
         }
       } else {

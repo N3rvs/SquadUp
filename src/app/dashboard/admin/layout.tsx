@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
@@ -15,17 +14,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const userDocRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(userDocRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (data.primaryRole === 'admin' || data.primaryRole === 'moderator') {
+        try {
+          // Force refresh to get the latest custom claims.
+          const idTokenResult = await user.getIdTokenResult(true);
+          const userRole = idTokenResult.claims.role;
+
+          if (userRole === 'admin' || userRole === 'moderator') {
             setIsAuthorized(true);
           } else {
             router.push('/dashboard');
           }
-        } else {
-          router.push('/dashboard');
+        } catch (error) {
+            console.error("Authorization check failed:", error);
+            // If we can't verify the role, deny access for security.
+            router.push('/dashboard');
         }
       } else {
         router.push('/login');
@@ -45,6 +47,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   if (!isAuthorized) {
+    // Return null to avoid a flash of content while redirecting.
     return null;
   }
 

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -77,6 +78,7 @@ import {
   Swords,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 interface UserProfile {
@@ -89,7 +91,7 @@ interface Tournament {
   id: string;
   name: string;
   premierRank: string;
-  status: 'Pending' | 'Open' | 'In Progress' | 'Finished';
+  status: 'Pending' | 'Open' | 'In Progress' | 'Finished' | 'Rejected';
   region: string;
   prizePool: string;
   slots: {
@@ -102,6 +104,8 @@ interface Tournament {
   streamUrl: string;
   format: string;
 }
+
+type TournamentStatus = Tournament['status'];
 
 const tournamentFormSchema = z.object({
   name: z.string().min(5, { message: "El nombre debe tener al menos 5 caracteres." }).max(50, { message: "El nombre no puede tener más de 50 caracteres."}),
@@ -135,13 +139,15 @@ const regions = ["EMEA"];
 const getStatusVariant = (status: Tournament['status']) => {
   switch (status) {
     case 'Pending':
-      return 'destructive';
+      return 'outline';
     case 'Open':
       return 'secondary';
     case 'In Progress':
       return 'default';
     case 'Finished':
       return 'outline';
+    case 'Rejected':
+      return 'destructive';
     default:
       return 'outline';
   }
@@ -157,6 +163,7 @@ export default function TournamentsPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
+  const [activeTab, setActiveTab] = useState<TournamentStatus>('Open');
   const { toast } = useToast();
 
   const form = useForm<TournamentFormValues>({
@@ -176,7 +183,7 @@ export default function TournamentsPage() {
   const fetchTournaments = async () => {
     setIsPageLoading(true);
     try {
-      const q = query(collection(db, "tournaments"), where("status", "==", "Open"), orderBy("startDate", "asc"));
+      const q = query(collection(db, "tournaments"), orderBy("createdAt", "desc"));
       const querySnapshot = await getDocs(q);
       const fetchedTournaments = querySnapshot.docs.map(doc => {
         const data = doc.data();
@@ -258,6 +265,7 @@ export default function TournamentsPage() {
 
       form.reset();
       setIsCreateDialogOpen(false);
+      fetchTournaments();
     } catch (error) {
       console.error("Error creating tournament: ", error);
       toast({
@@ -292,6 +300,19 @@ export default function TournamentsPage() {
       Crear Evento
     </Button>
   );
+
+  const filteredTournaments = tournaments.filter(t => t.status === activeTab);
+
+  const getEmptyStateMessage = () => {
+    switch (activeTab) {
+      case 'Open': return 'Abiertos';
+      case 'Pending': return 'Pendientes';
+      case 'In Progress': return 'En Progreso';
+      case 'Finished': return 'Finalizados';
+      case 'Rejected': return 'Rechazados';
+      default: return '';
+    }
+  };
 
   return (
     <div className="grid gap-8">
@@ -503,6 +524,16 @@ export default function TournamentsPage() {
         </Dialog>
       </div>
 
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TournamentStatus)} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
+          <TabsTrigger value="Open">Abiertos</TabsTrigger>
+          <TabsTrigger value="Pending">Pendientes</TabsTrigger>
+          <TabsTrigger value="In Progress">En Progreso</TabsTrigger>
+          <TabsTrigger value="Finished">Finalizados</TabsTrigger>
+          <TabsTrigger value="Rejected">Rechazados</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {isPageLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3].map((i) => (
@@ -536,9 +567,9 @@ export default function TournamentsPage() {
             </Card>
           ))}
         </div>
-      ) : tournaments.length > 0 ? (
+      ) : filteredTournaments.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tournaments.map((tournament) => (
+          {filteredTournaments.map((tournament) => (
             <Card key={tournament.id} className="flex flex-col">
               <CardHeader>
                 <div className="flex justify-between items-start">
@@ -579,9 +610,9 @@ export default function TournamentsPage() {
         <Card className="col-span-full">
             <CardContent className="flex flex-col items-center justify-center text-center p-10 gap-4">
                 <Trophy className="h-12 w-12 text-muted-foreground" />
-                <h3 className="text-xl font-semibold">No Hay Torneos Disponibles</h3>
+                <h3 className="text-xl font-semibold">No Hay Torneos {getEmptyStateMessage()}</h3>
                 <p className="text-muted-foreground">
-                    Aún no se han publicado torneos. ¡Vuelve a comprobarlo más tarde!
+                    Aún no hay eventos en esta categoría. ¡Vuelve a comprobarlo más tarde!
                 </p>
             </CardContent>
         </Card>

@@ -1,8 +1,14 @@
 
+"use client";
+
+import { useEffect, useState } from "react";
+import { User, onAuthStateChanged } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PlusCircle, Users, Trophy, Calendar, DollarSign, Shield } from "lucide-react";
+import { auth } from "@/lib/firebase";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Define a more detailed structure for tournaments
 interface Tournament {
@@ -77,6 +83,17 @@ const getStatusVariant = (status: Tournament['status']) => {
 }
 
 export default function TournamentsPage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
   return (
     <div className="grid gap-8">
       <div className="flex items-center justify-between">
@@ -84,46 +101,81 @@ export default function TournamentsPage() {
           <h1 className="text-3xl font-bold font-headline">Torneos de la Comunidad</h1>
           <p className="text-muted-foreground">Encuentra tu próximo desafío y escala en la clasificación.</p>
         </div>
-        <Button>
+        <Button disabled={isLoading || !user}>
           <PlusCircle className="mr-2 h-4 w-4" />
-          Create Event
+          Crear Evento
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {tournaments.map((tournament) => (
-          <Card key={tournament.id} className="flex flex-col">
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                  <CardTitle className="font-headline text-xl leading-tight">{tournament.name}</CardTitle>
-                  <Badge variant={getStatusVariant(tournament.status)}>{tournament.status}</Badge>
-              </div>
-              <CardDescription className="flex items-center gap-2 pt-2">
-                <Shield className="h-4 w-4" /> Rango: {tournament.premierRank}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1 space-y-3">
-               <div className="text-sm text-muted-foreground flex items-center gap-2">
-                 <DollarSign className="h-4 w-4 text-primary" />
-                 <span>Prize Pool: <span className="font-semibold text-foreground">{tournament.prizePool}</span></span>
-               </div>
-               <div className="text-sm text-muted-foreground flex items-center gap-2">
-                 <Calendar className="h-4 w-4 text-primary" />
-                 <span>Starts: <span className="font-semibold text-foreground">{tournament.startDate}</span></span>
-               </div>
-               <div className="text-sm text-muted-foreground flex items-center gap-2">
-                 <Users className="h-4 w-4 text-primary" />
-                 <span>Slots: <span className="font-semibold text-foreground">{tournament.slots.current}/{tournament.slots.total}</span></span>
-               </div>
-            </CardContent>
-            <CardFooter>
-              <Button variant="outline" className="w-full">
-                <Trophy className="mr-2 h-4 w-4" /> View Details
-              </Button>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <div className="flex justify-between items-start gap-4">
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-6 w-1/4" />
+                </div>
+                <div className="pt-2">
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-4" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-4" />
+                  <Skeleton className="h-4 w-1/3" />
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Skeleton className="h-10 w-full" />
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {tournaments.map((tournament) => (
+            <Card key={tournament.id} className="flex flex-col">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                    <CardTitle className="font-headline text-xl leading-tight">{tournament.name}</CardTitle>
+                    <Badge variant={getStatusVariant(tournament.status)}>{tournament.status}</Badge>
+                </div>
+                <CardDescription className="flex items-center gap-2 pt-2">
+                  <Shield className="h-4 w-4" /> Rango: {tournament.premierRank}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-3">
+                 <div className="text-sm text-muted-foreground flex items-center gap-2">
+                   <DollarSign className="h-4 w-4 text-primary" />
+                   <span>Prize Pool: <span className="font-semibold text-foreground">{tournament.prizePool}</span></span>
+                 </div>
+                 <div className="text-sm text-muted-foreground flex items-center gap-2">
+                   <Calendar className="h-4 w-4 text-primary" />
+                   <span>Starts: <span className="font-semibold text-foreground">{tournament.startDate}</span></span>
+                 </div>
+                 <div className="text-sm text-muted-foreground flex items-center gap-2">
+                   <Users className="h-4 w-4 text-primary" />
+                   <span>Slots: <span className="font-semibold text-foreground">{tournament.slots.current}/{tournament.slots.total}</span></span>
+                 </div>
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" className="w-full">
+                  <Trophy className="mr-2 h-4 w-4" /> View Details
+                </Button>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

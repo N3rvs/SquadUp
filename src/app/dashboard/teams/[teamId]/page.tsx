@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Briefcase, Edit, ShieldCheck, Users, Target } from "lucide-react";
+import { ArrowLeft, Briefcase, Edit, Globe, ShieldCheck, Users, Target } from "lucide-react";
 
 // --- TYPE DEFINITIONS ---
 
@@ -32,13 +32,38 @@ interface Team {
   seekingCoach?: boolean;
   seekingRoles?: string[];
   videoUrl?: string;
+  country: string;
 }
 
 interface TeamMember extends DocumentData {
     uid: string;
     displayName: string;
     avatarUrl: string;
-    valorantRole: string;
+    valorantRoles: string[];
+}
+
+const countryNameToCode: { [key: string]: string } = {
+    "Albania": "AL", "Andorra": "AD", "Austria": "AT", "Belarus": "BY", "Belgium": "BE", "Bosnia and Herzegovina": "BA", "Bulgaria": "BG", "Croatia": "HR", "Cyprus": "CY", "Czech Republic": "CZ", "Denmark": "DK", "Estonia": "EE", "Finland": "FI", "France": "FR", "Germany": "DE", "Greece": "GR", "Hungary": "HU", "Iceland": "IS", "Ireland": "IE", "Italy": "IT", "Latvia": "LV", "Liechtenstein": "LI", "Lithuania": "LT", "Luxembourg": "LU", "Malta": "MT", "Moldova": "MD", "Monaco": "MC", "Montenegro": "ME", "Netherlands": "NL", "North Macedonia": "MK", "Norway": "NO", "Poland": "PL", "Portugal": "PT", "Romania": "RO", "Russia": "RU", "San Marino": "SM", "Serbia": "RS", "Slovakia": "SK", "Slovenia": "SI", "Spain": "ES", "Sweden": "SE", "Switzerland": "CH", "Ukraine": "UA", "United Kingdom": "GB", "Vatican City": "VA",
+    "Bahrain": "BH", "Egypt": "EG", "Iran": "IR", "Iraq": "IQ", "Israel": "IL", "Jordan": "JO", "Kuwait": "KW", "Lebanon": "LB", "Oman": "OM", "Palestine": "PS", "Qatar": "QA", "Saudi Arabia": "SA", "Syria": "SY", "Turkey": "TR", "United Arab Emirates": "AE", "Yemen": "YE",
+    "Algeria": "DZ", "Angola": "AO", "Benin": "BJ", "Botswana": "BW", "Burkina Faso": "BF", "Burundi": "BI", "Cameroon": "CM", "Cape Verde": "CV", "Central African Republic": "CF", "Chad": "TD", "Comoros": "KM", "Congo, Democratic Republic of the": "CD", "Congo, Republic of the": "CG", "Cote d'Ivoire": "CI", "Djibouti": "DJ", "Equatorial Guinea": "GQ", "Eritrea": "ER", "Eswatini": "SZ", "Ethiopia": "ET", "Gabon": "GA", "Gambia": "GM", "Ghana": "GH", "Guinea": "GN", "Guinea-Bissau": "GW", "Kenya": "KE", "Lesotho": "LS", "Liberia": "LR", "Libya": "LY", "Madagascar": "MG", "Malawi": "MW", "Mali": "ML", "Mauritania": "MR", "Mauritius": "MU", "Morocco": "MA", "Mozambique": "MZ", "Namibia": "NA", "Niger": "NE", "Nigeria": "NG", "Rwanda": "RW", "Sao Tome and Principe": "ST", "Senegal": "SN", "Seychelles": "SC", "Sierra Leone": "SL", "Somalia": "SO", "South Africa": "ZA", "South Sudan": "SS", "Sudan": "SD", "Tanzania": "TZ", "Togo": "TG", "Tunisia": "TN", "Uganda": "UG", "Zambia": "ZM", "Zimbabwe": "ZW",
+};
+
+function getCountryCode(countryName?: string): string | null {
+  if (!countryName) return null;
+  return countryNameToCode[countryName] || null;
+}
+
+function getYoutubeEmbedUrl(url?: string): string | null {
+    if (!url) return null;
+    let videoId;
+    const youtubeRegex = /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const match = url.match(youtubeRegex);
+    if (match && match[1]) {
+        videoId = match[1];
+    } else {
+        return null;
+    }
+    return `https://www.youtube.com/embed/${videoId}`;
 }
 
 // --- HELPER COMPONENTS ---
@@ -52,7 +77,11 @@ function TeamMemberCard({ member }: { member: TeamMember }) {
                     <AvatarFallback>{member.displayName?.substring(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <h3 className="font-semibold">{member.displayName}</h3>
-                <p className="text-sm text-muted-foreground">{member.valorantRole}</p>
+                <div className="flex flex-wrap justify-center gap-1 mt-1">
+                    {member.valorantRoles?.map(role => (
+                        <Badge key={role} variant="outline" className="text-xs">{role}</Badge>
+                    ))}
+                </div>
             </CardContent>
         </Card>
     );
@@ -125,7 +154,6 @@ export default function TeamDetailPage() {
       // Fetch members data
       if (teamData.memberIds && teamData.memberIds.length > 0) {
         const usersRef = collection(db, "users");
-        // Firestore 'in' query is limited to 30 elements, which is fine for team members.
         const q = query(usersRef, where("uid", "in", teamData.memberIds));
         const querySnapshot = await getDocs(q);
         const fetchedMembers = querySnapshot.docs.map(doc => doc.data() as TeamMember);
@@ -160,6 +188,8 @@ export default function TeamDetailPage() {
 
   const isOwner = user?.uid === team.ownerId;
   const canManage = isOwner; // In the future, we can add admin/moderator roles here.
+  const countryCode = getCountryCode(team.country);
+  const embedUrl = getYoutubeEmbedUrl(team.videoUrl);
 
   return (
     <div className="space-y-8">
@@ -202,6 +232,22 @@ export default function TeamDetailPage() {
         <div className="mt-6 flex flex-wrap gap-4">
             <Badge variant="secondary" className="text-sm py-1 px-3"><ShieldCheck className="mr-2 h-4 w-4 text-primary" />Rango: {team.minRank} - {team.maxRank}</Badge>
             <Badge variant="secondary" className="text-sm py-1 px-3"><Users className="mr-2 h-4 w-4 text-primary" />{members.length}/{5} Miembros</Badge>
+            {team.country && (
+                <Badge variant="secondary" className="text-sm py-1 px-3 inline-flex items-center gap-1.5">
+                    {countryCode ? (
+                        <Image 
+                            src={`https://flagsapi.com/${countryCode}/flat/16.png`} 
+                            alt={team.country}
+                            width={16}
+                            height={16}
+                            className="rounded-sm" 
+                        />
+                    ) : (
+                        <Globe className="h-4 w-4 text-primary" />
+                    )}
+                    {team.country}
+                </Badge>
+            )}
             {team.seekingCoach && <Badge variant="secondary" className="text-sm py-1 px-3"><Briefcase className="mr-2 h-4 w-4 text-primary" /> Buscando Coach</Badge>}
         </div>
       </div>
@@ -243,10 +289,28 @@ export default function TeamDetailPage() {
                     </CardContent>
                 </Card>
             )}
+             {embedUrl && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Video de Presentación</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="aspect-video">
+                            <iframe
+                                className="w-full h-full rounded-lg"
+                                src={embedUrl}
+                                title="YouTube video player"
+                                frameBorder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                referrerPolicy="strict-origin-when-cross-origin"
+                                allowFullScreen
+                            ></iframe>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
         </div>
       </div>
     </div>
   );
 }
-
-    

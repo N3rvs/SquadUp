@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, PlusCircle, Users, Camera, Briefcase, ShieldCheck, Upload, Edit, Target } from "lucide-react";
+import { Loader2, PlusCircle, Users, Camera, Briefcase, ShieldCheck, Upload, Edit, Target, Globe } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -38,7 +38,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 
-// --- TYPE DEFINITIONS ---
+// --- DATA & TYPE DEFINITIONS ---
+
+const countries = [
+  "Albania", "Andorra", "Austria", "Belarus", "Belgium", "Bosnia and Herzegovina", "Bulgaria", "Croatia", "Cyprus", "Czech Republic", "Denmark", "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy", "Latvia", "Liechtenstein", "Lithuania", "Luxembourg", "Malta", "Moldova", "Monaco", "Montenegro", "Netherlands", "North Macedonia", "Norway", "Poland", "Portugal", "Romania", "Russia", "San Marino", "Serbia", "Slovakia", "Slovenia", "Spain", "Sweden", "Switzerland", "Ukraine", "United Kingdom", "Vatican City",
+  "Bahrain", "Egypt", "Iran", "Iraq", "Israel", "Jordan", "Kuwait", "Lebanon", "Oman", "Palestine", "Qatar", "Saudi Arabia", "Syria", "Turkey", "United Arab Emirates", "Yemen",
+  "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon", "Cape Verde", "Central African Republic", "Chad", "Comoros", "Congo, Democratic Republic of the", "Congo, Republic of the", "Cote d'Ivoire", "Djibouti", "Equatorial Guinea", "Eritrea", "Eswatini", "Ethiopia", "Gabon", "Gambia", "Ghana", "Guinea", "Guinea-Bissau", "Kenya", "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritania", "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria", "Rwanda", "Sao Tome and Principe", "Senegal", "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan", "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"
+].sort();
+
+const countryNameToCode: { [key: string]: string } = {
+    "Albania": "AL", "Andorra": "AD", "Austria": "AT", "Belarus": "BY", "Belgium": "BE", "Bosnia and Herzegovina": "BA", "Bulgaria": "BG", "Croatia": "HR", "Cyprus": "CY", "Czech Republic": "CZ", "Denmark": "DK", "Estonia": "EE", "Finland": "FI", "France": "FR", "Germany": "DE", "Greece": "GR", "Hungary": "HU", "Iceland": "IS", "Ireland": "IE", "Italy": "IT", "Latvia": "LV", "Liechtenstein": "LI", "Lithuania": "LT", "Luxembourg": "LU", "Malta": "MT", "Moldova": "MD", "Monaco": "MC", "Montenegro": "ME", "Netherlands": "NL", "North Macedonia": "MK", "Norway": "NO", "Poland": "PL", "Portugal": "PT", "Romania": "RO", "Russia": "RU", "San Marino": "SM", "Serbia": "RS", "Slovakia": "SK", "Slovenia": "SI", "Spain": "ES", "Sweden": "SE", "Switzerland": "CH", "Ukraine": "UA", "United Kingdom": "GB", "Vatican City": "VA",
+    "Bahrain": "BH", "Egypt": "EG", "Iran": "IR", "Iraq": "IQ", "Israel": "IL", "Jordan": "JO", "Kuwait": "KW", "Lebanon": "LB", "Oman": "OM", "Palestine": "PS", "Qatar": "QA", "Saudi Arabia": "SA", "Syria": "SY", "Turkey": "TR", "United Arab Emirates": "AE", "Yemen": "YE",
+    "Algeria": "DZ", "Angola": "AO", "Benin": "BJ", "Botswana": "BW", "Burkina Faso": "BF", "Burundi": "BI", "Cameroon": "CM", "Cape Verde": "CV", "Central African Republic": "CF", "Chad": "TD", "Comoros": "KM", "Congo, Democratic Republic of the": "CD", "Congo, Republic of the": "CG", "Cote d'Ivoire": "CI", "Djibouti": "DJ", "Equatorial Guinea": "GQ", "Eritrea": "ER", "Eswatini": "SZ", "Ethiopia": "ET", "Gabon": "GA", "Gambia": "GM", "Ghana": "GH", "Guinea": "GN", "Guinea-Bissau": "GW", "Kenya": "KE", "Lesotho": "LS", "Liberia": "LR", "Libya": "LY", "Madagascar": "MG", "Malawi": "MW", "Mali": "ML", "Mauritania": "MR", "Mauritius": "MU", "Morocco": "MA", "Mozambique": "MZ", "Namibia": "NA", "Niger": "NE", "Nigeria": "NG", "Rwanda": "RW", "Sao Tome and Principe": "ST", "Senegal": "SN", "Seychelles": "SC", "Sierra Leone": "SL", "Somalia": "SO", "South Africa": "ZA", "South Sudan": "SS", "Sudan": "SD", "Tanzania": "TZ", "Togo": "TG", "Tunisia": "TN", "Uganda": "UG", "Zambia": "ZM", "Zimbabwe": "ZW",
+};
+
+function getCountryCode(countryName?: string): string | null {
+  if (!countryName) return null;
+  return countryNameToCode[countryName] || null;
+}
 
 interface Team {
   id: string;
@@ -50,6 +67,7 @@ interface Team {
   memberIds: string[];
   minRank: string;
   maxRank: string;
+  country: string;
   seekingCoach?: boolean;
   seekingRoles?: string[];
   videoUrl?: string;
@@ -68,6 +86,7 @@ const teamFormSchema = z.object({
   bio: z.string().max(200, "La biografía no puede exceder los 200 caracteres.").optional(),
   minRank: z.string({ required_error: "Debes seleccionar un rango mínimo." }),
   maxRank: z.string({ required_error: "Debes seleccionar un rango máximo." }),
+  country: z.string({ required_error: "Debes seleccionar un país." }),
   seekingCoach: z.boolean().default(false).optional(),
   seekingRoles: z.array(z.string()).optional(),
   videoUrl: z.string().url("Por favor, introduce una URL de YouTube o similar válida.").optional().or(z.literal('')),
@@ -130,7 +149,7 @@ function TeamFormFields({
         <FormItem><FormLabel>Biografía del Equipo</FormLabel><FormControl><Textarea placeholder="Nuestra misión, estilo de juego..." {...field} /></FormControl><FormMessage /></FormItem>
       )}/>
       <FormField control={control} name="videoUrl" render={({ field }) => (
-        <FormItem><FormLabel>Video de Presentación (URL)</FormLabel><FormControl><Input placeholder="https://youtube.com/watch?v=..." {...field} /></FormControl><FormMessage /></FormItem>
+        <FormItem><FormLabel>Video de Presentación (URL YouTube)</FormLabel><FormControl><Input placeholder="https://youtube.com/watch?v=..." {...field} /></FormControl><FormMessage /></FormItem>
       )}/>
       <div className="grid grid-cols-2 gap-4">
         <FormField control={control} name="minRank" render={({ field }) => (
@@ -140,6 +159,10 @@ function TeamFormFields({
           <FormItem><FormLabel>Rango Máximo</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona un rango" /></SelectTrigger></FormControl><SelectContent>{valorantRanks.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
         )}/>
       </div>
+
+       <FormField control={control} name="country" render={({ field }) => (
+          <FormItem><FormLabel>País del Equipo</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Selecciona un país" /></SelectTrigger></FormControl><SelectContent>{countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>
+        )}/>
       
       <FormField
         control={control}
@@ -197,6 +220,7 @@ function TeamFormFields({
 }
 
 function TeamCard({ team }: { team: Team }) {
+    const countryCode = getCountryCode(team.country);
     return (
         <Card className="flex flex-col overflow-hidden transition-all hover:shadow-lg hover:-translate-y-1 cursor-pointer h-full">
             <div className="relative h-36 w-full">
@@ -227,6 +251,22 @@ function TeamCard({ team }: { team: Team }) {
                     <Users className="h-4 w-4 text-primary" />
                     <span>{team.memberIds.length}/5 Miembros</span>
                 </div>
+                {team.country && (
+                    <div className="flex items-center gap-2 text-sm">
+                        {countryCode ? (
+                            <Image 
+                                src={`https://flagsapi.com/${countryCode}/flat/16.png`} 
+                                alt={team.country}
+                                width={16}
+                                height={16}
+                                className="rounded-sm" 
+                            />
+                        ) : (
+                            <Globe className="h-4 w-4 text-primary" />
+                        )}
+                        <span>{team.country}</span>
+                    </div>
+                )}
                 {team.seekingCoach && (
                     <Badge variant="secondary"><Briefcase className="mr-1 h-3 w-3" /> Buscando Coach</Badge>
                 )}
@@ -295,6 +335,7 @@ export default function TeamsPage() {
       bio: "",
       minRank: "Cualquiera",
       maxRank: "Radiante",
+      country: "Spain",
       seekingCoach: false,
       seekingRoles: [],
       videoUrl: ""
@@ -350,7 +391,7 @@ export default function TeamsPage() {
   }, [toast]);
 
   const resetFormAndPreviews = useCallback(() => {
-    form.reset({ name: "", bio: "", minRank: "Cualquiera", maxRank: "Radiante", seekingCoach: false, seekingRoles: [], videoUrl: "" });
+    form.reset({ name: "", bio: "", minRank: "Cualquiera", maxRank: "Radiante", seekingCoach: false, seekingRoles: [], videoUrl: "", country: "Spain" });
     setLogoFile(null);
     setLogoPreview(null);
     setBannerFile(null);
@@ -371,6 +412,7 @@ export default function TeamsPage() {
       bio: team.bio || '',
       minRank: team.minRank,
       maxRank: team.maxRank,
+      country: team.country,
       seekingCoach: team.seekingCoach || false,
       seekingRoles: team.seekingRoles || [],
       videoUrl: team.videoUrl || '',
@@ -400,6 +442,12 @@ export default function TeamsPage() {
         toast({ title: "¡Equipo Actualizado!" });
       } else {
         // CREATE LOGIC
+        if (!logoFile || !bannerFile) {
+            toast({ variant: "destructive", title: "Imágenes requeridas", description: "Debes subir un logo y un banner para crear el equipo." });
+            setIsSubmitting(false);
+            return;
+        }
+
         const newTeamRef = await addDoc(collection(db, "teams"), {
             ...data,
             ownerId: user.uid,
@@ -505,7 +553,7 @@ export default function TeamsPage() {
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {myTeams.map(team => (
                        <div key={team.id} className="relative">
-                         {user?.uid === team.ownerId && (
+                         {(user?.uid === team.ownerId || isPrivilegedUser) && (
                            <Button
                              variant="secondary"
                              size="icon"
@@ -532,5 +580,3 @@ export default function TeamsPage() {
     </div>
   );
 }
-
-    

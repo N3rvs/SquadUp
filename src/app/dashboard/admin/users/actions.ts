@@ -4,6 +4,24 @@
 import { functions } from "@/lib/firebase";
 import { httpsCallable, FunctionsError } from "firebase/functions";
 
+function getErrorMessage(error: any): string {
+    if (error instanceof FunctionsError) {
+        switch (error.code) {
+            case 'unauthenticated':
+                return "No estás autenticado. Por favor, inicia sesión de nuevo.";
+            case 'permission-denied':
+                return "No tienes los permisos necesarios para realizar esta acción.";
+            case 'not-found':
+                return "La operación o el usuario no fue encontrado en el servidor.";
+            case 'invalid-argument':
+                return "Los datos enviados son incorrectos. Por favor, revisa la información.";
+            default:
+                return `Ocurrió un error con la función: ${error.message}`;
+        }
+    }
+    return "Ocurrió un error desconocido al contactar con el servidor.";
+}
+
 export async function deleteUserAction(uid: string): Promise<{ success: boolean; error?: string }> {
     if (!uid) {
         return { success: false, error: "UID de usuario no proporcionado." };
@@ -15,12 +33,7 @@ export async function deleteUserAction(uid: string): Promise<{ success: boolean;
         return { success: true };
     } catch (error: any) {
         console.error("Error deleting user:", error);
-        
-        if (error instanceof FunctionsError) {
-            return { success: false, error: error.message };
-        }
-        
-        return { success: false, error: "Ocurrió un error desconocido al contactar con el servidor." };
+        return { success: false, error: getErrorMessage(error) };
     }
 }
 
@@ -35,7 +48,6 @@ export async function updateUserAction(data: { uid: string, role?: string, banEx
     if (role) {
         payload.role = role;
     }
-    // Check if banExpiresAt is part of the data object to decide if we should send it
     if (typeof banExpiresAt !== 'undefined') {
         payload.banExpiresAt = banExpiresAt;
     }
@@ -46,11 +58,6 @@ export async function updateUserAction(data: { uid: string, role?: string, banEx
         return { success: true };
     } catch (error: any) {
         console.error("Error updating user:", error);
-        
-        if (error instanceof FunctionsError) {
-            return { success: false, error: error.message };
-        }
-        
-        return { success: false, error: "Ocurrió un error desconocido al contactar con el servidor." };
+        return { success: false, error: getErrorMessage(error) };
     }
 }

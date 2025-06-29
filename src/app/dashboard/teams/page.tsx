@@ -21,7 +21,7 @@ import {
 } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "@/lib/firebase";
-import { countries } from "@/lib/countries";
+import { countries, getCountryCode } from "@/lib/countries";
 import { valorantRanks as allValorantRanks, valorantRoles } from "@/lib/valorant";
 
 import { Button } from "@/components/ui/button";
@@ -461,48 +461,95 @@ export default function TeamsPage() {
             ) : <Card><CardContent className="text-center p-10"><Users className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">No hay equipos creados</h3></CardContent></Card>}
           </TabsContent>
           <TabsContent value="mi-equipo" className="pt-4">
-          {isLoading ? (
-            <LoadingSkeleton />
-          ) : myTeams.length > 0 ? (
-            (() => {
-              const myTeam = myTeams[0]; // Assumption: user is in one team, or we show the first one.
-              return (
-                <div className="max-w-md"> {/* Container for a single card, not a wide grid */}
-                  <div key={myTeam.id} className="relative">
-                    {(user?.uid === myTeam.ownerId || isPrivilegedUser) && (
-                      <Button
-                        variant="secondary"
-                        size="icon"
-                        className="absolute top-4 right-4 z-10 h-8 w-8"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleEditClick(myTeam);
-                        }}
-                      >
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Gestionar Equipo</span>
-                      </Button>
-                    )}
-                    <Link href={`/dashboard/teams/${myTeam.id}`}>
-                      <TeamCard team={myTeam} />
-                    </Link>
+            {isLoading ? (
+              <LoadingSkeleton />
+            ) : myTeams.length > 0 ? (
+              (() => {
+                const myTeam = myTeams[0];
+                const countryCode = getCountryCode(myTeam.country);
+                return (
+                  <div className="max-w-2xl">
+                    <Card className="overflow-hidden">
+                      <div className="relative">
+                        <div className="relative h-48 w-full bg-muted">
+                          <Image
+                            src={myTeam.bannerUrl || 'https://placehold.co/800x300.png'}
+                            alt={`${myTeam.name} banner`}
+                            fill
+                            className="object-cover"
+                            data-ai-hint="team banner"
+                          />
+                        </div>
+                        <div className="absolute -bottom-12 left-6">
+                          <Avatar className="h-24 w-24 border-4 border-card bg-card">
+                            <AvatarImage src={myTeam.logoUrl || 'https://placehold.co/128x128.png'} alt={`${myTeam.name} logo`} data-ai-hint="team logo" />
+                            <AvatarFallback>{myTeam.name.substring(0, 2)}</AvatarFallback>
+                          </Avatar>
+                        </div>
+                        {(user?.uid === myTeam.ownerId || isPrivilegedUser) && (
+                          <Button
+                            variant="secondary"
+                            className="absolute top-4 right-4 z-10"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleEditClick(myTeam);
+                            }}
+                          >
+                            <Edit className="mr-2 h-4 w-4" />
+                            Gestionar
+                          </Button>
+                        )}
+                      </div>
+                      <CardHeader className="pt-16">
+                        <CardTitle className="font-headline text-2xl">{myTeam.name}</CardTitle>
+                        <CardDescription>{myTeam.bio || 'Este equipo aún no tiene una biografía.'}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline">Rango: {myTeam.minRank} - {myTeam.maxRank}</Badge>
+                          <Badge variant="outline">{myTeam.memberIds.length}/5 Miembros</Badge>
+                          {myTeam.country && (
+                            <Badge variant="outline" className="inline-flex items-center gap-1.5">
+                              {countryCode && <Image src={`https://flagsapi.com/${countryCode}/flat/16.png`} alt={myTeam.country} width={16} height={16} />}
+                              {myTeam.country}
+                            </Badge>
+                          )}
+                        </div>
+                        {myTeam.seekingRoles && myTeam.seekingRoles.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-semibold mb-2">Buscando Roles</h4>
+                            <div className="flex flex-wrap gap-1">
+                              {myTeam.seekingRoles.map(role => <Badge key={role} variant="default">{role}</Badge>)}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                      <CardFooter>
+                        <Button asChild className="w-full" variant="secondary">
+                          <Link href={`/dashboard/teams/${myTeam.id}`}>
+                            Ir a la página del equipo
+                          </Link>
+                        </Button>
+                      </CardFooter>
+                    </Card>
                   </div>
-                </div>
-              );
-            })()
-          ) : (
-            <Card>
-              <CardContent className="text-center p-10">
-                <Users className="mx-auto h-12 w-12 text-muted-foreground" />
-                <h3 className="mt-4 text-xl font-semibold">
-                  No perteneces a ningún equipo
-                </h3>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
+                );
+              })()
+            ) : (
+              <Card>
+                <CardContent className="text-center p-10">
+                  <Users className="mx-auto h-12 w-12 text-muted-foreground" />
+                  <h3 className="mt-4 text-xl font-semibold">
+                    No perteneces a ningún equipo
+                  </h3>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
         </Tabs>
       </div>
     </div>
   );
 }
+
+    

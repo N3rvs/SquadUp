@@ -6,8 +6,7 @@ admin.initializeApp();
 
 export const setUserRole = functions.https.onCall(async (data, context) => {
   // 🔒 Seguridad: solo admins pueden usar esto
-  const requesterClaims = context.auth?.token;
-  if (!requesterClaims || requesterClaims.role !== "admin") {
+  if (context.auth?.token?.role !== "admin") {
     throw new functions.https.HttpsError("permission-denied", "No autorizado");
   }
 
@@ -26,8 +25,8 @@ export const setUserRole = functions.https.onCall(async (data, context) => {
 });
 
 export const deleteTournament = functions.https.onCall(async (data, context) => {
-  const requesterClaims = context.auth?.token;
-  if (!requesterClaims || requesterClaims.role !== "admin") {
+  // 🔒 Seguridad: solo admins pueden usar esto
+  if (context.auth?.token?.role !== "admin") {
     throw new functions.https.HttpsError("permission-denied", "No autorizado para realizar esta acción.");
   }
 

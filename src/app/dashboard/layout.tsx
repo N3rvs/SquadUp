@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   User,
   Users,
@@ -10,9 +10,14 @@ import {
   Swords,
   UserPlus,
   LogOut,
+  BrainCircuit,
+  MessageSquare,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { auth } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
+import { useToast } from "@/hooks/use-toast";
 
 export default function DashboardLayout({
   children,
@@ -20,6 +25,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { toast } = useToast();
 
   const navItems = [
     { href: "/dashboard/profile", icon: User, label: "Profile" },
@@ -28,7 +35,26 @@ export default function DashboardLayout({
     { href: "/dashboard/tournaments", icon: Trophy, label: "Tournaments" },
     { href: "/dashboard/scrims", icon: Swords, label: "Scrims" },
     { href: "/dashboard/friends", icon: UserPlus, label: "Friends" },
+    { href: "/dashboard/ai-coach", icon: BrainCircuit, label: "AI Coach" },
+    { href: "/dashboard/chat", icon: MessageSquare, label: "Chat" },
   ];
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
+      router.push("/login");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Logout Failed",
+        description: "An error occurred during logout. Please try again.",
+      });
+    }
+  };
 
   return (
     <div className="flex min-h-screen w-full">
@@ -52,7 +78,11 @@ export default function DashboardLayout({
           </nav>
         </div>
         <div className="p-4 border-t">
-          <Button variant="ghost" className="w-full justify-start gap-3">
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-3"
+            onClick={handleLogout}
+          >
             <LogOut className="h-5 w-5" />
             Logout
           </Button>

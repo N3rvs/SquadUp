@@ -461,32 +461,46 @@ export default function TeamsPage() {
             ) : <Card><CardContent className="text-center p-10"><Users className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">No hay equipos creados</h3></CardContent></Card>}
           </TabsContent>
           <TabsContent value="mi-equipo" className="pt-4">
-          {isLoading ? <LoadingSkeleton /> : myTeams.length > 0 ? (
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {myTeams.map(team => (
-                       <div key={team.id} className="relative">
-                         {(user?.uid === team.ownerId || isPrivilegedUser) && (
-                           <Button
-                             variant="secondary"
-                             size="icon"
-                             className="absolute top-4 right-4 z-10 h-8 w-8"
-                             onClick={(e) => {
-                               e.preventDefault();
-                               handleEditClick(team);
-                             }}
-                           >
-                             <Edit className="h-4 w-4" />
-                             <span className="sr-only">Gestionar Equipo</span>
-                           </Button>
-                         )}
-                         <Link href={`/dashboard/teams/${team.id}`}>
-                           <TeamCard team={team} />
-                         </Link>
-                       </div>
-                    ))}
+          {isLoading ? (
+            <LoadingSkeleton />
+          ) : myTeams.length > 0 ? (
+            (() => {
+              const myTeam = myTeams[0]; // Assumption: user is in one team, or we show the first one.
+              return (
+                <div className="max-w-md"> {/* Container for a single card, not a wide grid */}
+                  <div key={myTeam.id} className="relative">
+                    {(user?.uid === myTeam.ownerId || isPrivilegedUser) && (
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="absolute top-4 right-4 z-10 h-8 w-8"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleEditClick(myTeam);
+                        }}
+                      >
+                        <Edit className="h-4 w-4" />
+                        <span className="sr-only">Gestionar Equipo</span>
+                      </Button>
+                    )}
+                    <Link href={`/dashboard/teams/${myTeam.id}`}>
+                      <TeamCard team={myTeam} />
+                    </Link>
+                  </div>
                 </div>
-            ) : <Card><CardContent className="text-center p-10"><Users className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">No perteneces a ningún equipo</h3></CardContent></Card>}
-          </TabsContent>
+              );
+            })()
+          ) : (
+            <Card>
+              <CardContent className="text-center p-10">
+                <Users className="mx-auto h-12 w-12 text-muted-foreground" />
+                <h3 className="mt-4 text-xl font-semibold">
+                  No perteneces a ningún equipo
+                </h3>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
         </Tabs>
       </div>
     </div>

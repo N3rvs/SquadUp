@@ -128,8 +128,8 @@ export default function DashboardLayout({
     email: string;
     avatarUrl: string;
     uid: string;
-    primaryRole: 'player' | 'moderator' | 'admin';
   } | null>(null);
+  const [userRole, setUserRole] = React.useState<'player' | 'moderator' | 'admin' | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = React.useState(true);
   const [status, setStatus] = React.useState<'disponible' | 'ausente' | 'ocupado'>('disponible');
 
@@ -144,13 +144,13 @@ export default function DashboardLayout({
 
         try {
             const [idTokenResult, docSnap] = await Promise.all([idTokenResultPromise, docSnapPromise]);
-            const userRole = (idTokenResult.claims.role as 'player' | 'moderator' | 'admin') || 'player';
+            const role = (idTokenResult.claims.role as 'player' | 'moderator' | 'admin') || 'player';
+            setUserRole(role);
 
             if (docSnap.exists()) {
               const data = docSnap.data();
               setUserProfile({
                 uid: user.uid,
-                primaryRole: userRole,
                 displayName: data.displayName || 'Usuario',
                 email: user.email || 'usuario@example.com',
                 avatarUrl: data.avatarUrl || '',
@@ -161,7 +161,6 @@ export default function DashboardLayout({
                 // We create a default profile here.
                 setUserProfile({
                     uid: user.uid,
-                    primaryRole: userRole,
                     displayName: user.displayName || 'Usuario',
                     email: user.email || 'usuario@example.com',
                     avatarUrl: user.photoURL || '',
@@ -171,9 +170,9 @@ export default function DashboardLayout({
             console.error("Error fetching user data:", error);
             // If fetching fails, we can still show a degraded experience
             // using the basic info from the auth user object and a default role.
-            setUserProfile({
+             setUserRole('player');
+             setUserProfile({
               uid: user.uid,
-              primaryRole: 'player', // Default to 'player' on error
               displayName: user.displayName || 'Usuario',
               email: user.email || 'usuario@example.com',
               avatarUrl: user.photoURL || '',
@@ -187,7 +186,7 @@ export default function DashboardLayout({
     return () => unsubscribe();
   }, [router]);
 
-  const isPrivilegedUser = userProfile?.primaryRole === 'admin' || userProfile?.primaryRole === 'moderator';
+  const isPrivilegedUser = userRole === 'admin' || userRole === 'moderator';
 
   const navItems = [
     { href: "/dashboard/profile", icon: User, label: "Perfil" },

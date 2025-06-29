@@ -49,7 +49,7 @@ type ProfileFormValues = z.infer<typeof profileFormSchema>;
 type UserProfileData = Omit<ProfileFormValues, 'valorantRoles'> & {
   uid: string;
   email: string | null;
-  primaryRole: "player" | "moderator" | "admin";
+  primaryRole: string; // Subscription plan, e.g. "player"
   isBanned: boolean;
   createdAt: string;
   valorantRoles?: string[];
@@ -80,6 +80,7 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(false); // For form submission
   const [isPageLoading, setIsPageLoading] = useState(true); // For initial page data load
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
+  const [securityRole, setSecurityRole] = useState<'player' | 'moderator' | 'admin' | null>(null);
   const [userTeam, setUserTeam] = useState<{ id: string; name: string } | null>(null);
   
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -117,7 +118,8 @@ export default function ProfilePage() {
             idTokenResultPromise,
             docSnapPromise,
           ]);
-          const userRole = (idTokenResult.claims.role as "player" | "moderator" | "admin") || "player";
+          const userClaimRole = (idTokenResult.claims.role as "player" | "moderator" | "admin") || "player";
+          setSecurityRole(userClaimRole);
 
           let dataToSet;
           if (docSnap.exists()) {
@@ -131,22 +133,14 @@ export default function ProfilePage() {
             if (!data.valorantRoles) {
               data.valorantRoles = ["Flex"];
             }
-
-            // Use the custom claim as the single source of truth for the role
-            data.primaryRole = userRole;
             dataToSet = data;
-
-            // Sync Firestore document if its role is out of date
-            if (docSnap.data().primaryRole !== userRole) {
-              await updateDoc(userDocRef, { primaryRole: userRole });
-            }
           } else {
             console.log("No profile found, creating a new one for existing user.");
             const defaultData: UserProfileData = {
               uid: user.uid,
               email: user.email,
               displayName: user.displayName || "New User",
-              primaryRole: userRole,
+              primaryRole: "player", // Default subscription plan
               isBanned: false,
               valorantRoles: ["Flex"],
               valorantRank: "Unranked",
@@ -249,7 +243,7 @@ export default function ProfilePage() {
         newAvatarUrl = await getDownloadURL(uploadResult.ref);
       }
 
-      const dataToSave: Omit<UserProfileData, 'valorantRole' | 'uid' | 'email' | 'primaryRole' | 'isBanned' | 'createdAt'> = {
+      const dataToSave: Omit<UserProfileData, 'valorantRole' | 'uid' | 'email' | 'primaryRole' | 'isBanned' | 'createdAt'> & { avatarUrl: string } = {
         ...data,
         avatarUrl: newAvatarUrl,
       };
@@ -339,14 +333,17 @@ export default function ProfilePage() {
             </Avatar>
             <div className="flex items-baseline justify-center gap-2 flex-wrap">
               <h2 className="text-2xl font-bold font-headline">{profileData.displayName}</h2>
-              {profileData.primaryRole === 'admin' && (
+              {securityRole === 'admin' && (
                 <Badge variant="admin" className="shrink-0"><Crown className="mr-1 h-3 w-3" />Admin</Badge>
               )}
-              {profileData.primaryRole === 'moderator' && (
+              {securityRole === 'moderator' && (
                 <Badge variant="default" className="shrink-0"><ShieldCheck className="mr-1 h-3 w-3" />Moderator</Badge>
               )}
-              {profileData.primaryRole === 'player' && (
-                <Badge variant="secondary" className="shrink-0"><User className="mr-1 h-3 w-3" />Player</Badge>
+              {profileData.primaryRole && (
+                <Badge variant="secondary" className="shrink-0">
+                  <User className="mr-1 h-3 w-3" />
+                  {profileData.primaryRole.charAt(0).toUpperCase() + profileData.primaryRole.slice(1)}
+                </Badge>
               )}
             </div>
             <p className="text-sm text-muted-foreground mt-2">{profileData.bio}</p>

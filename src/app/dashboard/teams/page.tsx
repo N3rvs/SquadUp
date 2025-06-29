@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useRef, useCallback, type FC } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useForm, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -80,6 +80,9 @@ const teamFormSchema = z.object({
 
 type TeamFormValues = z.infer<typeof teamFormSchema>;
 
+
+// --- Helper Components defined at top-level ---
+
 interface TeamFormFieldsProps {
   control: Control<TeamFormValues>;
   logoInputRef: React.RefObject<HTMLInputElement>;
@@ -90,7 +93,7 @@ interface TeamFormFieldsProps {
   isReadOnly: boolean;
 }
 
-const TeamFormFields = ({
+function TeamFormFields({
   control,
   logoInputRef,
   bannerInputRef,
@@ -98,7 +101,7 @@ const TeamFormFields = ({
   logoPreview,
   bannerPreview,
   isReadOnly,
-}: TeamFormFieldsProps) => {
+}: TeamFormFieldsProps) {
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
@@ -154,7 +157,7 @@ const TeamFormFields = ({
       )}/>
     </>
   );
-};
+}
 
 interface TeamGridProps {
   teamList: Team[];
@@ -164,7 +167,7 @@ interface TeamGridProps {
   onManageDialogChange: (open: boolean) => void;
 }
 
-const TeamGrid = ({ teamList, user, profile, setSelectedTeam, onManageDialogChange }: TeamGridProps) => {
+function TeamGrid({ teamList, user, profile, setSelectedTeam, onManageDialogChange }: TeamGridProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {teamList.map((team) => {
@@ -214,9 +217,9 @@ const TeamGrid = ({ teamList, user, profile, setSelectedTeam, onManageDialogChan
       })}
     </div>
   );
-};
+}
 
-const LoadingSkeleton = () => {
+function LoadingSkeleton() {
   return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {[1, 2, 3].map(i => (
@@ -236,7 +239,9 @@ const LoadingSkeleton = () => {
       ))}
       </div>
   );
-};
+}
+
+// --- Main Page Component ---
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -485,10 +490,25 @@ export default function TeamsPage() {
 
   const myTeams = teams.filter((team) => !!team.role);
   
-  const isPrivilegedUser = profile?.primaryRole === 'admin' || profile?.primaryRole === 'moderator';
-  const canCreateTeam = !!(user && profile && isPrivilegedUser);
-  const isOwner = selectedTeam && user ? user.uid === selectedTeam.ownerId : false;
-  const canManageSelectedTeam = !!(selectedTeam && user && profile && (isOwner || isPrivilegedUser));
+  const isPrivilegedUser = useMemo(
+    () => profile?.primaryRole === 'admin' || profile?.primaryRole === 'moderator',
+    [profile]
+  );
+
+  const canCreateTeam = useMemo(
+    () => !!(user && profile && isPrivilegedUser),
+    [user, profile, isPrivilegedUser]
+  );
+
+  const isOwner = useMemo(
+    () => (selectedTeam && user ? user.uid === selectedTeam.ownerId : false),
+    [selectedTeam, user]
+  );
+  
+  const canManageSelectedTeam = useMemo(
+    () => !!(selectedTeam && user && profile && (isOwner || isPrivilegedUser)),
+    [selectedTeam, user, profile, isOwner, isPrivilegedUser]
+  );
 
   return (
     <div>

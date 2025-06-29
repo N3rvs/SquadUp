@@ -7,7 +7,6 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { httpsCallable, FunctionsError } from "firebase/functions";
 import { doc, updateDoc } from "firebase/firestore";
-import { revalidatePath } from 'next/cache';
 
 
 import { Button } from '@/components/ui/button';

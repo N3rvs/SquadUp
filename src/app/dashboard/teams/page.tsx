@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, PlusCircle, Users, Camera, Briefcase, ShieldCheck, Upload } from "lucide-react";
+import { Loader2, PlusCircle, Users, Camera, Briefcase, ShieldCheck, Upload, Edit } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -216,7 +216,8 @@ export default function TeamsPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
 
   const { toast } = useToast();
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -300,36 +301,68 @@ export default function TeamsPage() {
     const uploadResult = await uploadBytes(fileRef, file);
     return getDownloadURL(uploadResult.ref);
   }, []);
-  
 
+  const handleEditClick = (team: Team) => {
+    setEditingTeam(team);
+    form.reset({
+      name: team.name,
+      bio: team.bio || '',
+      minRank: team.minRank,
+      maxRank: team.maxRank,
+      seekingCoach: team.seekingCoach || false,
+      videoUrl: team.videoUrl || '',
+    });
+    setLogoPreview(team.logoUrl);
+    setBannerPreview(team.bannerUrl);
+    setIsFormDialogOpen(true);
+  };
+  
   const handleFormSubmit = useCallback(async (data: TeamFormValues) => {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      const newTeamRef = await addDoc(collection(db, "teams"), {
-          ...data,
-          ownerId: user.uid,
-          memberIds: [user.uid],
-          createdAt: Timestamp.now(),
-          logoUrl: '',
-          bannerUrl: '',
-      });
-      const teamId = newTeamRef.id;
-      let updateData: { logoUrl?: string; bannerUrl?: string } = {};
-      if (logoFile) updateData.logoUrl = await uploadImage(logoFile, `team-logos/${teamId}/logo`);
-      if (bannerFile) updateData.bannerUrl = await uploadImage(bannerFile, `team-banners/${teamId}/banner`);
-      if (Object.keys(updateData).length > 0) await updateDoc(doc(db, "teams", teamId), updateData);
-      
-      toast({ title: "¡Equipo Creado!" });
+      if (editingTeam) {
+        // UPDATE LOGIC
+        const teamDocRef = doc(db, "teams", editingTeam.id);
+        const updateData: any = { ...data };
+
+        if (logoFile) {
+          updateData.logoUrl = await uploadImage(logoFile, `team-logos/${editingTeam.id}/logo`);
+        }
+        if (bannerFile) {
+          updateData.bannerUrl = await uploadImage(bannerFile, `team-banners/${editingTeam.id}/banner`);
+        }
+        
+        await updateDoc(teamDocRef, updateData);
+        toast({ title: "¡Equipo Actualizado!" });
+      } else {
+        // CREATE LOGIC
+        const newTeamRef = await addDoc(collection(db, "teams"), {
+            ...data,
+            ownerId: user.uid,
+            memberIds: [user.uid],
+            createdAt: Timestamp.now(),
+            logoUrl: '',
+            bannerUrl: '',
+        });
+        const teamId = newTeamRef.id;
+        let updateData: { logoUrl?: string; bannerUrl?: string } = {};
+        if (logoFile) updateData.logoUrl = await uploadImage(logoFile, `team-logos/${teamId}/logo`);
+        if (bannerFile) updateData.bannerUrl = await uploadImage(bannerFile, `team-banners/${teamId}/banner`);
+        if (Object.keys(updateData).length > 0) await updateDoc(doc(db, "teams", teamId), updateData);
+        
+        toast({ title: "¡Equipo Creado!" });
+      }
+
       await fetchTeams();
-      setIsCreateDialogOpen(false);
+      setIsFormDialogOpen(false);
     } catch (error) {
       console.error("Error submitting form:", error);
       toast({ variant: "destructive", title: "Error", description: "Hubo un problema al guardar." });
     } finally {
       setIsSubmitting(false);
     }
-  }, [user, logoFile, bannerFile, uploadImage, toast, fetchTeams]);
+  }, [user, logoFile, bannerFile, editingTeam, uploadImage, toast, fetchTeams]);
 
 
   const isPrivilegedUser = profile?.primaryRole === 'admin' || profile?.primaryRole === 'moderator';
@@ -344,17 +377,26 @@ export default function TeamsPage() {
             <h1 className="text-3xl font-bold font-headline">Equipos</h1>
             <p className="text-muted-foreground">Explora los equipos existentes o únete a uno.</p>
           </div>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <Dialog 
+            open={isFormDialogOpen} 
+            onOpenChange={(open) => {
+              if (!open) {
+                  resetFormAndPreviews();
+                  setEditingTeam(null);
+              }
+              setIsFormDialogOpen(open);
+            }}
+          >
             <DialogTrigger asChild>
-                <Button disabled={!canCreateTeam}>
+                <Button disabled={!canCreateTeam} onClick={() => setIsFormDialogOpen(true)}>
                   <PlusCircle className="mr-2 h-4 w-4" />
                   Crear Equipo
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Crear Nuevo Equipo</DialogTitle>
-                <DialogDescription>Dale una identidad a tu equipo.</DialogDescription>
+                <DialogTitle>{editingTeam ? "Editar Equipo" : "Crear Nuevo Equipo"}</DialogTitle>
+                <DialogDescription>{editingTeam ? "Modifica los detalles de tu equipo." : "Dale una identidad a tu equipo."}</DialogDescription>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
@@ -370,7 +412,7 @@ export default function TeamsPage() {
                       <DialogClose asChild><Button type="button" variant="ghost">Cancelar</Button></DialogClose>
                       <Button type="submit" disabled={isSubmitting}>
                         {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                        Crear Equipo
+                        {editingTeam ? "Guardar Cambios" : "Crear Equipo"}
                       </Button>
                   </DialogFooter>
                 </form>
@@ -382,7 +424,7 @@ export default function TeamsPage() {
         <Tabs defaultValue="explorar" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="explorar">Explorar Equipos</TabsTrigger>
-            <TabsTrigger value="mis-equipos">Mis Equipos</TabsTrigger>
+            <TabsTrigger value="mis-equipos">Mi Equipo</TabsTrigger>
           </TabsList>
           <TabsContent value="explorar" className="pt-4">
             {isLoading ? <LoadingSkeleton /> : teams.length > 0 ? (
@@ -399,9 +441,25 @@ export default function TeamsPage() {
           {isLoading ? <LoadingSkeleton /> : myTeams.length > 0 ? (
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {myTeams.map(team => (
-                        <Link href={`/dashboard/teams/${team.id}`} key={team.id}>
+                       <div key={team.id} className="relative">
+                         {user?.uid === team.ownerId && (
+                           <Button
+                             variant="secondary"
+                             size="icon"
+                             className="absolute top-4 right-4 z-10 h-8 w-8"
+                             onClick={(e) => {
+                               e.preventDefault();
+                               handleEditClick(team);
+                             }}
+                           >
+                             <Edit className="h-4 w-4" />
+                             <span className="sr-only">Gestionar Equipo</span>
+                           </Button>
+                         )}
+                         <Link href={`/dashboard/teams/${team.id}`}>
                            <TeamCard team={team} />
-                        </Link>
+                         </Link>
+                       </div>
                     ))}
                 </div>
             ) : <Card><CardContent className="text-center p-10"><Users className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">No perteneces a ningún equipo</h3></CardContent></Card>}

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -38,6 +39,7 @@ import type { SuggestTeamCompositionOutput } from "@/ai/flows/suggest-team-compo
 import { BrainCircuit, Loader2, ShieldCheck, ShieldAlert } from "lucide-react";
 import Image from "next/image";
 import { WinProbabilityChart } from "@/components/win-probability-chart";
+import { valorantMaps } from "@/lib/valorant";
 
 const formSchema = z.object({
   mapName: z.string().min(1, "Please select a map."),
@@ -45,11 +47,6 @@ const formSchema = z.object({
   agentPreferences: z.string().min(1, "Please enter agent preferences."),
   currentMeta: z.string().min(1, "Please describe the current meta."),
 });
-
-const valorantMaps = [
-  "Ascent", "Bind", "Breeze", "Fracture", "Haven",
-  "Icebox", "Lotus", "Pearl", "Split", "Sunset",
-];
 
 export default function AiCoachPage() {
   const [isLoading, setIsLoading] = useState(false);

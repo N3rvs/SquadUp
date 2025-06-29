@@ -16,10 +16,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, MoreHorizontal, Search, Loader2 } from "lucide-react";
+import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, MoreHorizontal, Search, Loader2, Crown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { applyToTeam } from "./actions";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // --- TYPE DEFINITIONS ---
 
@@ -304,7 +305,23 @@ export default function TeamDetailPage() {
                                                     <AvatarImage src={member.avatarUrl || undefined} alt={member.displayName} />
                                                     <AvatarFallback>{member.displayName?.substring(0, 2).toUpperCase()}</AvatarFallback>
                                                 </Avatar>
-                                                <span className="font-medium">{member.displayName}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <Link href={`/dashboard/profile/${member.uid}`} className="font-medium hover:underline">
+                                                        {member.displayName}
+                                                    </Link>
+                                                    {team.ownerId === member.uid && (
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger>
+                                                                    <Crown className="h-4 w-4 text-yellow-500" />
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Fundador del Equipo</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    )}
+                                                </div>
                                             </div>
                                         </TableCell>
                                         <TableCell>

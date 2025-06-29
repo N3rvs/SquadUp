@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, MessageCircle, Camera, Loader2, User, ShieldCheck, Crown, Users, Search, Award, ClipboardList } from "lucide-react";
+import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, MessageCircle, Camera, Loader2, User, ShieldCheck, Crown, Users, Search, ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { auth, db, storage } from "@/lib/firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -52,7 +52,7 @@ type ProfileFormValues = z.infer<typeof profileFormSchema>;
 type UserProfileData = Omit<ProfileFormValues, 'valorantRoles'> & {
   uid: string;
   email: string | null;
-  primaryRole: string; // The user's main security role (e.g., 'player', 'admin'). This is a denormalized field for easier querying and display, while the authoritative source is the Auth custom claim.
+  primaryRole: string; // This is a denormalized field for easier querying and display, while the authoritative source is the Auth custom claim.
   isBanned: boolean;
   createdAt: string;
   valorantRoles?: string[];
@@ -323,7 +323,7 @@ export default function ProfilePage() {
                 <Badge variant="default" className="shrink-0"><ShieldCheck className="mr-1 h-3 w-3" />Moderator</Badge>
               )}
                {securityRole === 'founder' && (
-                <Badge variant="destructive" className="shrink-0"><Award className="mr-1 h-3 w-3" />Founder</Badge>
+                <Badge variant="admin" className="shrink-0"><Crown className="mr-1 h-3 w-3" />Founder</Badge>
               )}
               {securityRole === 'coach' && (
                 <Badge variant="outline" className="shrink-0"><ClipboardList className="mr-1 h-3 w-3" />Coach</Badge>

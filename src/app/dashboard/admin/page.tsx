@@ -1,8 +1,14 @@
+"use client";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Shield, Mail } from "lucide-react";
 import Link from "next/link";
+import { AssignRoleWithEmail } from "@/components/admin/AssignRoleWithEmail";
+import { useAuthRole } from "@/hooks/useAuthRole";
 
 export default function AdminDashboardPage() {
+  const { role, isLoading } = useAuthRole();
+
   return (
     <div className="grid gap-8">
        <div>
@@ -20,14 +26,17 @@ export default function AdminDashboardPage() {
                 </CardContent>
             </Card>
         </Link>
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" /> Gestión de Usuarios (Próximamente)</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <p className="text-muted-foreground">Administrar roles, permisos y baneos de usuarios.</p>
-            </CardContent>
-        </Card>
+        
+        {!isLoading && role === 'admin' && (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" /> Gestión de Usuarios</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <AssignRoleWithEmail />
+                </CardContent>
+            </Card>
+        )}
        </div>
     </div>
   );

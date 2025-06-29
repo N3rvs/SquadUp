@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -78,8 +79,10 @@ export default function SignUpPage() {
         uid: user.uid,
         displayName: values.displayName,
         email: user.email,
+        primaryRole: "player",
+        isBanned: false,
+        valorantRole: "Flex",
         bio: "",
-        primaryRole: "Flex",
         country: "United Kingdom",
         twitchUrl: "",
         twitterUrl: "",
@@ -87,6 +90,7 @@ export default function SignUpPage() {
         discord: "",
         availableForRecruitment: false,
         avatarUrl: "",
+        createdAt: new Date().toISOString(),
       });
 
 

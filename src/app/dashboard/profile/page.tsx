@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
@@ -27,7 +28,7 @@ import { useRouter } from "next/navigation";
 const profileFormSchema = z.object({
   displayName: z.string().min(2, "Display name must be at least 2 characters.").max(30, "Display name must not be longer than 30 characters."),
   bio: z.string().max(160, "Bio must not be longer than 160 characters.").optional(),
-  primaryRole: z.string({
+  valorantRole: z.string({
     required_error: "Please select a role.",
   }),
   country: z.string({
@@ -43,6 +44,16 @@ const profileFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
+// This type represents the full user document in Firestore.
+type UserProfileData = ProfileFormValues & {
+  uid: string;
+  email: string | null;
+  primaryRole: "player" | "moderator" | "admin";
+  isBanned: boolean;
+  createdAt: string;
+};
+
+
 const valorantRoles = ["Duelist", "Controller", "Initiator", "Sentinel", "Flex"];
 const countries = ["United Kingdom", "Germany", "France", "Spain", "Italy", "Netherlands", "Sweden", "Poland", "Belgium", "Austria", "Switzerland", "Portugal", "Ireland", "Denmark", "Norway", "Finland"]; 
 
@@ -51,7 +62,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false); // For form submission
   const [isPageLoading, setIsPageLoading] = useState(true); // For initial page data load
-  const [profileData, setProfileData] = useState<ProfileFormValues | null>(null);
+  const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -62,7 +73,7 @@ export default function ProfilePage() {
     defaultValues: {
       displayName: "",
       bio: "",
-      primaryRole: "Flex",
+      valorantRole: "Flex",
       country: "",
       twitchUrl: "",
       twitterUrl: "",
@@ -81,17 +92,19 @@ export default function ProfilePage() {
         const docSnap = await getDoc(userDocRef);
 
         if (docSnap.exists()) {
-          const data = docSnap.data() as ProfileFormValues;
+          const data = docSnap.data() as UserProfileData;
           setProfileData(data);
           form.reset(data);
         } else {
            console.log("No profile found, creating a new one for existing user.");
-           const defaultData: ProfileFormValues & { uid: string; email: string | null } = {
+           const defaultData: UserProfileData = {
             uid: user.uid,
             email: user.email,
             displayName: user.displayName || "New User",
             bio: "",
-            primaryRole: "Flex",
+            primaryRole: "player",
+            valorantRole: "Flex",
+            isBanned: false,
             country: "United Kingdom",
             twitchUrl: "",
             twitterUrl: "",
@@ -99,6 +112,7 @@ export default function ProfilePage() {
             discord: "",
             availableForRecruitment: false,
             avatarUrl: user.photoURL || "",
+            createdAt: new Date().toISOString(),
           };
           await setDoc(userDocRef, defaultData);
           setProfileData(defaultData);
@@ -165,7 +179,7 @@ export default function ProfilePage() {
       const userDocRef = doc(db, 'users', uid);
       await updateDoc(userDocRef, dataToSave);
       
-      const newProfileData = { ...profileData, ...dataToSave } as ProfileFormValues;
+      const newProfileData = { ...profileData, ...dataToSave } as UserProfileData;
       setProfileData(newProfileData);
       form.reset(newProfileData);
       setAvatarFile(null);
@@ -239,7 +253,7 @@ export default function ProfilePage() {
             <h2 className="text-2xl font-bold font-headline">{profileData.displayName}</h2>
             <p className="text-sm text-muted-foreground mt-1">{profileData.bio}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
-                <Badge variant="secondary"><Gamepad2 className="mr-1 h-3 w-3" />{profileData.primaryRole}</Badge>
+                <Badge variant="secondary"><Gamepad2 className="mr-1 h-3 w-3" />{profileData.valorantRole}</Badge>
                 <Badge variant="secondary"><MapPin className="mr-1 h-3 w-3" />{profileData.country}</Badge>
             </div>
           </CardContent>
@@ -308,10 +322,10 @@ export default function ProfilePage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
-                        name="primaryRole"
+                        name="valorantRole"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Primary Role</FormLabel>
+                            <FormLabel>Valorant Role</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                               <FormControl>
                                 <SelectTrigger>

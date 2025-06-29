@@ -184,7 +184,7 @@ export default function TeamsPage() {
   }
 
   const handleDeleteTeam = async () => {
-    if (!user || !selectedTeam || user.uid !== selectedTeam.ownerId) {
+    if (!user || !selectedTeam || (user.uid !== selectedTeam.ownerId && profile?.primaryRole !== 'admin')) {
       toast({ variant: "destructive", title: "No autorizado", description: "No tienes permiso para eliminar este equipo." });
       return;
     }
@@ -374,7 +374,7 @@ export default function TeamsPage() {
                     <p className="text-muted-foreground">La gestión de miembros estará disponible próximamente.</p>
                 </div>
                 <DialogFooter className="sm:justify-between flex-wrap gap-2">
-                    {user?.uid === selectedTeam?.ownerId && (
+                    {(user?.uid === selectedTeam?.ownerId || profile?.primaryRole === 'admin') && (
                         <AlertDialog>
                             <AlertDialogTrigger asChild>
                             <Button variant="destructive">

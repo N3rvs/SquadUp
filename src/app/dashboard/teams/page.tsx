@@ -91,7 +91,7 @@ interface TeamFormFieldsProps {
   isReadOnly: boolean;
 }
 
-function TeamFormFields({
+const TeamFormFields: React.FC<TeamFormFieldsProps> = ({
   control,
   logoInputRef,
   bannerInputRef,
@@ -99,7 +99,7 @@ function TeamFormFields({
   logoPreview,
   bannerPreview,
   isReadOnly,
-}: TeamFormFieldsProps) {
+}) => {
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
@@ -165,7 +165,7 @@ interface TeamGridProps {
   onManageDialogChange: (open: boolean) => void;
 }
 
-function TeamGrid({ teamList, user, profile, setSelectedTeam, onManageDialogChange }: TeamGridProps) {
+const TeamGrid: React.FC<TeamGridProps> = ({ teamList, user, profile, setSelectedTeam, onManageDialogChange }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {teamList.map((team) => {
@@ -217,7 +217,7 @@ function TeamGrid({ teamList, user, profile, setSelectedTeam, onManageDialogChan
   );
 }
 
-function LoadingSkeleton() {
+const LoadingSkeleton: React.FC = () => {
   return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {[1, 2, 3].map(i => (

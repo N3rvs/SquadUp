@@ -70,7 +70,7 @@ const profileFormSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
 const valorantRoles = ["Duelist", "Controller", "Initiator", "Sentinel", "Flex"];
-const countries = ["United States", "Canada", "Mexico", "Brazil", "United Kingdom", "Germany", "France", "Spain", "Japan", "South Korea"]; 
+const countries = ["United Kingdom", "Germany", "France", "Spain", "Italy", "Netherlands", "Sweden", "Poland", "Belgium", "Austria", "Switzerland", "Portugal", "Ireland", "Denmark", "Norway", "Finland"]; 
 
 export default function ProfilePage() {
   const { toast } = useToast();
@@ -78,7 +78,7 @@ export default function ProfilePage() {
       displayName: "JohnDoe",
       bio: "Aspiring Valorant pro. Looking for a serious team to climb the ranks.",
       valorantRole: "Duelist",
-      country: "United States",
+      country: "United Kingdom",
       twitterUrl: "https://twitter.com/johndoe",
       twitchUrl: "https://twitch.tv/johndoe",
       youtubeUrl: "",

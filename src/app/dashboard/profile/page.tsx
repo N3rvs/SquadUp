@@ -56,7 +56,6 @@ type UserProfileData = Omit<ProfileFormValues, 'valorantRoles'> & {
   isBanned: boolean;
   createdAt: string;
   valorantRoles?: string[];
-  valorantRole?: string; // For backwards compatibility
 };
 
 export default function ProfilePage() {
@@ -106,16 +105,12 @@ export default function ProfilePage() {
           const userClaimRole = (idTokenResult.claims.role as SecurityRole) || "player";
           setSecurityRole(userClaimRole);
 
-          let dataToSet;
+          let dataToSet: UserProfileData;
+          
           if (docSnap.exists()) {
-            const data = { ...docSnap.data() } as UserProfileData;
+            const data = { uid: user.uid, email: user.email, ...docSnap.data() } as UserProfileData;
             
-            // Backwards compatibility for old data structure
-            if (data.valorantRole && !Array.isArray(data.valorantRoles)) {
-              data.valorantRoles = [data.valorantRole];
-              delete data.valorantRole;
-            }
-            if (!data.valorantRoles) {
+            if (!Array.isArray(data.valorantRoles) || data.valorantRoles.length === 0) {
               data.valorantRoles = ["Flex"];
             }
             dataToSet = data;
@@ -161,10 +156,13 @@ export default function ProfilePage() {
           if (!teamSnapshot.empty) {
             const teamDoc = teamSnapshot.docs[0];
             setUserTeam({ id: teamDoc.id, name: teamDoc.data().name });
+          } else {
+            setUserTeam(null);
           }
         } catch (error) {
             console.error("Error fetching user data on profile page:", error);
-            router.push("/login");
+            toast({ variant: "destructive", title: "Error", description: "No se pudo cargar tu perfil." });
+            router.push("/login"); // or a generic dashboard page
         }
       } else {
         router.push("/login");
@@ -173,7 +171,7 @@ export default function ProfilePage() {
     });
 
     return () => unsubscribe();
-  }, [form, router]);
+  }, [form, router, toast]);
 
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -193,21 +191,19 @@ export default function ProfilePage() {
   };
 
   const onDialogOpenChange = (open: boolean) => {
-    if (!open) {
-      setAvatarPreview(null);
-      setAvatarFile(null);
-      if (profileData) {
+    if (!open && profileData) {
+        setAvatarPreview(null);
+        setAvatarFile(null);
         form.reset({
-          ...profileData,
-          bio: profileData.bio || '',
-          twitchUrl: profileData.twitchUrl || '',
-          twitterUrl: profileData.twitterUrl || '',
-          youtubeUrl: profileData.youtubeUrl || '',
-          discord: profileData.discord || '',
-          valorantRank: profileData.valorantRank || 'Unranked',
-          lookingForTeam: profileData.lookingForTeam || false,
+            ...profileData,
+            bio: profileData.bio || '',
+            twitchUrl: profileData.twitchUrl || '',
+            twitterUrl: profileData.twitterUrl || '',
+            youtubeUrl: profileData.youtubeUrl || '',
+            discord: profileData.discord || '',
+            valorantRank: profileData.valorantRank || 'Unranked',
+            lookingForTeam: profileData.lookingForTeam || false,
         });
-      }
     }
   };
 
@@ -228,7 +224,7 @@ export default function ProfilePage() {
         newAvatarUrl = await getDownloadURL(uploadResult.ref);
       }
 
-      const dataToSave: Omit<UserProfileData, 'valorantRole' | 'uid' | 'email' | 'primaryRole' | 'isBanned' | 'createdAt'> & { avatarUrl: string } = {
+      const dataToSave: Omit<UserProfileData, 'uid' | 'email' | 'primaryRole' | 'isBanned' | 'createdAt'> & { avatarUrl: string } = {
         ...data,
         avatarUrl: newAvatarUrl,
       };
@@ -238,14 +234,7 @@ export default function ProfilePage() {
       
       const newProfileData = { ...profileData, ...dataToSave } as UserProfileData;
       setProfileData(newProfileData);
-      form.reset({
-        ...newProfileData,
-        bio: newProfileData.bio || '',
-        twitchUrl: newProfileData.twitchUrl || '',
-        twitterUrl: newProfileData.twitterUrl || '',
-        youtubeUrl: newProfileData.youtubeUrl || '',
-        discord: newProfileData.discord || '',
-      });
+
       setAvatarFile(null);
       setAvatarPreview(null);
       
@@ -253,6 +242,11 @@ export default function ProfilePage() {
         title: "Profile Updated",
         description: "Your changes have been saved successfully.",
       });
+      // Close the dialog after successful submission
+      const closeButton = document.querySelector('[data-radix-dialog-close]');
+      if (closeButton instanceof HTMLElement) {
+          closeButton.click();
+      }
     } catch (error) {
       console.error("Error updating profile: ", error);
       toast({
@@ -318,7 +312,10 @@ export default function ProfilePage() {
             </Avatar>
             <div className="flex items-baseline justify-center gap-2 flex-wrap">
               <h2 className="text-2xl font-bold font-headline">{profileData.displayName}</h2>
-              {securityRole === 'admin' && (
+            </div>
+
+            <div className="flex items-center justify-center gap-2 flex-wrap mt-2">
+                 {securityRole === 'admin' && (
                 <Badge variant="admin" className="shrink-0"><Crown className="mr-1 h-3 w-3" />Admin</Badge>
               )}
               {securityRole === 'moderator' && (
@@ -337,6 +334,7 @@ export default function ProfilePage() {
                 </Badge>
               )}
             </div>
+
             <p className="text-sm text-muted-foreground mt-2">{profileData.bio}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
                 {profileData.lookingForTeam && (
@@ -624,7 +622,7 @@ export default function ProfilePage() {
                       <DialogClose asChild>
                          <Button type="button" variant="ghost">Cancel</Button>
                       </DialogClose>
-                      <Button type="submit" disabled={isLoading} onClick={form.handleSubmit(onSubmit)}>
+                      <Button type="submit" disabled={isLoading}>
                          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         {isLoading ? "Saving..." : "Save Changes"}
                       </Button>
@@ -660,6 +658,9 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-3 text-sm">
                    <MessageCircle className="h-5 w-5 text-muted-foreground" /> <span>{profileData.discord}</span>
                 </div>
+             )}
+             {!(profileData.twitterUrl || profileData.twitchUrl || profileData.youtubeUrl || profileData.discord) && (
+                <p className="text-sm text-muted-foreground">No has añadido enlaces sociales.</p>
              )}
           </CardContent>
         </Card>

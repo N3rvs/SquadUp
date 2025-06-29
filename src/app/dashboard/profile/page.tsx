@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, Briefcase, MessageCircle, CheckCircle, Camera, Loader2 } from "lucide-react";
+import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, Briefcase, MessageCircle, CheckCircle, Camera, Loader2, User, Shield, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { auth, db, storage } from "@/lib/firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -101,10 +101,10 @@ export default function ProfilePage() {
             uid: user.uid,
             email: user.email,
             displayName: user.displayName || "New User",
-            bio: "",
             primaryRole: "player",
-            valorantRole: "Flex",
             isBanned: false,
+            valorantRole: "Flex",
+            bio: "",
             country: "United Kingdom",
             twitchUrl: "",
             twitterUrl: "",
@@ -250,8 +250,19 @@ export default function ProfilePage() {
               <AvatarImage src={profileData.avatarUrl || undefined} alt={profileData.displayName} />
               <AvatarFallback>{profileData.displayName?.substring(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
-            <h2 className="text-2xl font-bold font-headline">{profileData.displayName}</h2>
-            <p className="text-sm text-muted-foreground mt-1">{profileData.bio}</p>
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              <h2 className="text-2xl font-bold font-headline">{profileData.displayName}</h2>
+              {profileData.primaryRole === 'admin' && (
+                <Badge variant="destructive" className="shrink-0"><Shield className="mr-1 h-3 w-3" />Admin</Badge>
+              )}
+              {profileData.primaryRole === 'moderator' && (
+                <Badge variant="default" className="shrink-0"><ShieldCheck className="mr-1 h-3 w-3" />Moderator</Badge>
+              )}
+              {profileData.primaryRole === 'player' && (
+                <Badge variant="secondary" className="shrink-0"><User className="mr-1 h-3 w-3" />Player</Badge>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">{profileData.bio}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Badge variant="secondary"><Gamepad2 className="mr-1 h-3 w-3" />{profileData.valorantRole}</Badge>
                 <Badge variant="secondary"><MapPin className="mr-1 h-3 w-3" />{profileData.country}</Badge>

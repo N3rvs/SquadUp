@@ -13,7 +13,7 @@ import {
   LogOut,
   BrainCircuit,
   MessageSquare,
-  Bell,
+  Inbox,
   Settings,
   LifeBuoy,
   Circle,
@@ -26,11 +26,6 @@ import { signOut } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -45,76 +40,18 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { SupportForm } from "@/components/support-form";
 import type { SecurityRole } from "@/hooks/useAuthRole";
 import { BannedScreen } from "@/components/BannedScreen";
-
-function Notifications() {
-    const notifications = {
-        all: [],
-        messages: [],
-        requests: []
-    };
-
-    return (
-        <Popover>
-            <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative shrink-0">
-                    <Bell className="h-5 w-5" />
-                    
-                    <span className="sr-only">Open notifications</span>
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80" align="end">
-                 <Tabs defaultValue="all" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="all">All</TabsTrigger>
-                        <TabsTrigger value="messages">Messages</TabsTrigger>
-                        <TabsTrigger value="requests">Requests</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="all" className="max-h-96 overflow-y-auto">
-                        <div className="space-y-4 pt-4">
-                            {notifications.all.length === 0 && (
-                                <div className="text-center text-sm text-muted-foreground py-10">
-                                    <p>No new notifications.</p>
-                                </div>
-                            )}
-                        </div>
-                    </TabsContent>
-                    <TabsContent value="messages" className="max-h-96 overflow-y-auto">
-                        <div className="space-y-4 pt-4">
-                           {notifications.messages.length === 0 && (
-                                <div className="text-center text-sm text-muted-foreground py-10">
-                                    <p>No new messages.</p>
-                                </div>
-                            )}
-                        </div>
-                    </TabsContent>
-                    <TabsContent value="requests" className="max-h-96 overflow-y-auto">
-                         <div className="space-y-4 pt-4">
-                           {notifications.requests.length === 0 && (
-                                <div className="text-center text-sm text-muted-foreground py-10">
-                                    <p>No new requests.</p>
-                                </div>
-                            )}
-                        </div>
-                    </TabsContent>
-                </Tabs>
-            </PopoverContent>
-        </Popover>
-    );
-}
+import { NotificationsInbox } from "@/components/notifications-inbox";
 
 interface UserProfile {
     displayName: string;
@@ -268,7 +205,7 @@ export default function DashboardLayout({
       </aside>
       <div className="flex flex-col flex-1">
         <header className="flex h-16 items-center justify-end gap-4 border-b bg-card px-6">
-            <Notifications />
+            <NotificationsInbox />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button

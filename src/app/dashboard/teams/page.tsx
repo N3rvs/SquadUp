@@ -1,13 +1,12 @@
-
 "use client";
 
-import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import type { User } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import { useForm, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Image from "next/image";
-import type { User } from "firebase/auth";
-import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, getDocs, doc, getDoc, addDoc, orderBy, deleteDoc, updateDoc, Timestamp } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "@/lib/firebase";
@@ -79,9 +78,6 @@ const teamFormSchema = z.object({
 });
 
 type TeamFormValues = z.infer<typeof teamFormSchema>;
-
-
-// --- Helper Components defined at top-level ---
 
 interface TeamFormFieldsProps {
   control: Control<TeamFormValues>;
@@ -240,8 +236,6 @@ function LoadingSkeleton() {
       </div>
   );
 }
-
-// --- Main Page Component ---
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -488,27 +482,12 @@ export default function TeamsPage() {
     }
   };
 
-  const myTeams = teams.filter((team) => !!team.role);
+  const myTeams = teams.filter(team => team.role);
   
-  const isPrivilegedUser = useMemo(
-    () => profile?.primaryRole === 'admin' || profile?.primaryRole === 'moderator',
-    [profile]
-  );
-
-  const canCreateTeam = useMemo(
-    () => !!(user && profile && isPrivilegedUser),
-    [user, profile, isPrivilegedUser]
-  );
-
-  const isOwner = useMemo(
-    () => (selectedTeam && user ? user.uid === selectedTeam.ownerId : false),
-    [selectedTeam, user]
-  );
-  
-  const canManageSelectedTeam = useMemo(
-    () => !!(selectedTeam && user && profile && (isOwner || isPrivilegedUser)),
-    [selectedTeam, user, profile, isOwner, isPrivilegedUser]
-  );
+  const isPrivilegedUser = profile?.primaryRole === 'admin' || profile?.primaryRole === 'moderator';
+  const canCreateTeam = !!(user && profile && isPrivilegedUser);
+  const isOwner = selectedTeam && user ? user.uid === selectedTeam.ownerId : false;
+  const canManageSelectedTeam = !!(selectedTeam && user && profile && (isOwner || isPrivilegedUser));
 
   return (
     <div>

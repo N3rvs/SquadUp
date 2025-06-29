@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Briefcase, Edit, Globe, ShieldCheck, Users, Target } from "lucide-react";
+import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target } from "lucide-react";
 
 // --- TYPE DEFINITIONS ---
 
@@ -186,8 +186,6 @@ export default function TeamDetailPage() {
     );
   }
 
-  const isOwner = user?.uid === team.ownerId;
-  const canManage = isOwner; // In the future, we can add admin/moderator roles here.
   const countryCode = getCountryCode(team.country);
   const embedUrl = getYoutubeEmbedUrl(team.videoUrl);
 
@@ -221,12 +219,6 @@ export default function TeamDetailPage() {
                  <h1 className="text-3xl md:text-4xl font-bold font-headline">{team.name}</h1>
                  <p className="text-muted-foreground mt-1 max-w-prose">{team.bio}</p>
             </div>
-            {canManage && (
-                <Button disabled>
-                    <Edit className="mr-2 h-4 w-4" />
-                    Gestionar Equipo (Próximamente)
-                </Button>
-            )}
         </div>
 
         <div className="mt-6 flex flex-wrap gap-4">
@@ -254,6 +246,23 @@ export default function TeamDetailPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-8">
+            {embedUrl && (
+                <Card className="overflow-hidden">
+                    <CardContent className="p-0">
+                        <div className="aspect-video">
+                            <iframe
+                                className="w-full h-full"
+                                src={embedUrl}
+                                title="YouTube video player"
+                                frameBorder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                referrerPolicy="strict-origin-when-cross-origin"
+                                allowFullScreen
+                            ></iframe>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
             <Card>
                 <CardHeader>
                     <CardTitle>Miembros del Equipo</CardTitle>
@@ -286,26 +295,6 @@ export default function TeamDetailPage() {
                         {team.seekingRoles.map(role => (
                             <Badge key={role} variant="default">{role}</Badge>
                         ))}
-                    </CardContent>
-                </Card>
-            )}
-             {embedUrl && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Video de Presentación</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="aspect-video">
-                            <iframe
-                                className="w-full h-full rounded-lg"
-                                src={embedUrl}
-                                title="YouTube video player"
-                                frameBorder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                referrerPolicy="strict-origin-when-cross-origin"
-                                allowFullScreen
-                            ></iframe>
-                        </div>
                     </CardContent>
                 </Card>
             )}

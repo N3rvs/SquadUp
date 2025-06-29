@@ -39,7 +39,21 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { TeamCard, type Team } from "@/components/team-card";
+import type { Team } from "@/components/team-card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+
 
 // --- DATA & TYPE DEFINITIONS ---
 
@@ -195,27 +209,35 @@ function TeamFormFields({
 
 function LoadingSkeleton() {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[...Array(3)].map((_, i) => (
-          <Card key={i} className="overflow-hidden">
-            <div className="relative h-36 w-full bg-muted">
-              <Skeleton className="w-full h-full" />
-            </div>
-            <CardHeader className="pt-12">
-              <Skeleton className="h-6 w-3/4" />
-              <Skeleton className="h-4 w-full mt-2" />
-              <Skeleton className="h-4 w-2/3" />
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Skeleton className="h-5 w-1/2" />
-              <Skeleton className="h-5 w-1/3" />
+        <Card>
+            <CardContent className="p-0">
+                 <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead><Skeleton className="h-5 w-24" /></TableHead>
+                            <TableHead><Skeleton className="h-5 w-24" /></TableHead>
+                            <TableHead><Skeleton className="h-5 w-24" /></TableHead>
+                            <TableHead><Skeleton className="h-5 w-24" /></TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {[...Array(5)].map((_, i) => (
+                        <TableRow key={i}>
+                            <TableCell>
+                                <div className="flex items-center gap-4">
+                                    <Skeleton className="h-10 w-10 rounded-full" />
+                                    <Skeleton className="h-5 w-32" />
+                                </div>
+                            </TableCell>
+                            <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                        </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
             </CardContent>
-            <CardFooter>
-              <Skeleton className="h-10 w-full" />
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
+        </Card>
     );
 }
 
@@ -389,8 +411,8 @@ export default function TeamsPage() {
 
 
   const isPrivilegedUser = profile?.primaryRole === 'admin' || profile?.primaryRole === 'moderator';
-  const myTeams = teams.filter(team => user && team.memberIds.includes(user.uid));
   const canCreateTeam = isPrivilegedUser;
+  const myTeams = teams.filter(team => user && team.memberIds.includes(user.uid));
 
   return (
     <div>
@@ -450,15 +472,147 @@ export default function TeamsPage() {
             <TabsTrigger value="mi-equipo">Mi Equipo</TabsTrigger>
           </TabsList>
           <TabsContent value="explorar" className="pt-4">
-            {isLoading ? <LoadingSkeleton /> : teams.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {teams.map(team => (
-                        <Link href={`/dashboard/teams/${team.id}`} key={team.id}>
-                            <TeamCard team={team} />
-                        </Link>
-                    ))}
-                </div>
-            ) : <Card><CardContent className="text-center p-10"><Users className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">No hay equipos creados</h3></CardContent></Card>}
+            {isLoading ? (
+              <LoadingSkeleton />
+            ) : teams.length > 0 ? (
+              <Card>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Equipo</TableHead>
+                      <TableHead>País</TableHead>
+                      <TableHead>Rango Requerido</TableHead>
+                      <TableHead>Miembros</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {teams.map((team) => {
+                      const countryCode = getCountryCode(team.country);
+                      return (
+                        <TableRow key={team.id}>
+                          <TableCell>
+                            <HoverCard>
+                              <HoverCardTrigger asChild>
+                                <Link
+                                  href={`/dashboard/teams/${team.id}`}
+                                  className="flex items-center gap-3"
+                                >
+                                  <Avatar className="h-10 w-10 border">
+                                    <AvatarImage
+                                      src={team.logoUrl}
+                                      alt={team.name}
+                                    />
+                                    <AvatarFallback>
+                                      {team.name.substring(0, 2)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="font-medium hover:underline">
+                                    {team.name}
+                                  </span>
+                                </Link>
+                              </HoverCardTrigger>
+                              <HoverCardContent
+                                className="w-80 p-0"
+                                align="start"
+                              >
+                                <div className="relative h-24 w-full">
+                                  <Image
+                                    src={
+                                      team.bannerUrl ||
+                                      "https://placehold.co/320x96.png"
+                                    }
+                                    alt={`${team.name} banner`}
+                                    fill
+                                    className="object-cover rounded-t-lg"
+                                    data-ai-hint="team banner abstract"
+                                  />
+                                </div>
+                                <div className="p-4 flex flex-col gap-4">
+                                  <div className="flex items-center gap-4">
+                                    <Avatar className="h-12 w-12">
+                                      <AvatarImage src={team.logoUrl} />
+                                      <AvatarFallback>
+                                        {team.name.substring(0, 2)}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <h4 className="text-sm font-semibold">
+                                      {team.name}
+                                    </h4>
+                                  </div>
+                                  <p className="text-sm text-muted-foreground line-clamp-3">
+                                    {team.bio ||
+                                      "Este equipo no tiene una biografía."}
+                                  </p>
+                                  {team.seekingRoles &&
+                                    team.seekingRoles.length > 0 && (
+                                      <div>
+                                        <h5 className="mb-2 text-sm font-semibold flex items-center gap-1.5">
+                                          <Target className="h-4 w-4" />
+                                          Buscando Roles
+                                        </h5>
+                                        <div className="flex flex-wrap gap-1">
+                                          {team.seekingRoles.map((role) => (
+                                            <Badge
+                                              key={role}
+                                              variant="default"
+                                            >
+                                              {role}
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  <div className="flex items-center pt-2">
+                                    <Button
+                                      asChild
+                                      variant="link"
+                                      className="p-0 h-auto"
+                                    >
+                                      <Link href={`/dashboard/teams/${team.id}`}>
+                                        Ver Equipo
+                                      </Link>
+                                    </Button>
+                                  </div>
+                                </div>
+                              </HoverCardContent>
+                            </HoverCard>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {countryCode && (
+                                <Image
+                                  src={`https://flagsapi.com/${countryCode}/flat/16.png`}
+                                  alt={team.country}
+                                  width={16}
+                                  height={16}
+                                />
+                              )}
+                              {team.country}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline">{team.minRank}</Badge> -{" "}
+                              <Badge variant="outline">{team.maxRank}</Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell>{team.memberIds.length} / 5</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="text-center p-10">
+                  <Users className="mx-auto h-12 w-12 text-muted-foreground" />
+                  <h3 className="mt-4 text-xl font-semibold">
+                    No hay equipos creados
+                  </h3>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
           <TabsContent value="mi-equipo" className="pt-4">
             {isLoading ? (
@@ -551,3 +705,4 @@ export default function TeamsPage() {
     </div>
   );
 }
+

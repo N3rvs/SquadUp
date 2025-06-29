@@ -14,7 +14,7 @@ export function AssignRoleWithEmail() {
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [uid, setUid] = useState("");
-  const [role, setRole] = useState("moderator");
+  const [role, setRole] = useState("player");
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
 
@@ -74,6 +74,9 @@ export function AssignRoleWithEmail() {
             <SelectContent>
               <SelectItem value="admin">Admin</SelectItem>
               <SelectItem value="moderator">Moderator</SelectItem>
+              <SelectItem value="founder">Founder</SelectItem>
+              <SelectItem value="coach">Coach</SelectItem>
+              <SelectItem value="player">Player</SelectItem>
             </SelectContent>
           </Select>
 

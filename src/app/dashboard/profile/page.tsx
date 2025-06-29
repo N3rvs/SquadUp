@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, MessageCircle, Camera, Loader2, User, ShieldCheck, Crown, Users, Search } from "lucide-react";
+import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, MessageCircle, Camera, Loader2, User, ShieldCheck, Crown, Users, Search, Award, ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { auth, db, storage } from "@/lib/firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import type { SecurityRole } from "@/hooks/useAuthRole";
 
 
 const profileFormSchema = z.object({
@@ -80,7 +81,7 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(false); // For form submission
   const [isPageLoading, setIsPageLoading] = useState(true); // For initial page data load
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
-  const [securityRole, setSecurityRole] = useState<'player' | 'moderator' | 'admin' | null>(null);
+  const [securityRole, setSecurityRole] = useState<SecurityRole | null>(null);
   const [userTeam, setUserTeam] = useState<{ id: string; name: string } | null>(null);
   
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -118,7 +119,7 @@ export default function ProfilePage() {
             idTokenResultPromise,
             docSnapPromise,
           ]);
-          const userClaimRole = (idTokenResult.claims.role as "player" | "moderator" | "admin") || "player";
+          const userClaimRole = (idTokenResult.claims.role as SecurityRole) || "player";
           setSecurityRole(userClaimRole);
 
           let dataToSet;
@@ -338,6 +339,12 @@ export default function ProfilePage() {
               )}
               {securityRole === 'moderator' && (
                 <Badge variant="default" className="shrink-0"><ShieldCheck className="mr-1 h-3 w-3" />Moderator</Badge>
+              )}
+               {securityRole === 'founder' && (
+                <Badge variant="destructive" className="shrink-0"><Award className="mr-1 h-3 w-3" />Founder</Badge>
+              )}
+              {securityRole === 'coach' && (
+                <Badge variant="outline" className="shrink-0"><ClipboardList className="mr-1 h-3 w-3" />Coach</Badge>
               )}
               {profileData.primaryRole && (
                 <Badge variant="secondary" className="shrink-0">

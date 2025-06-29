@@ -57,6 +57,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { SupportForm } from "@/components/support-form";
+import type { SecurityRole } from "@/hooks/useAuthRole";
 
 function Notifications() {
     const notifications = {
@@ -70,7 +71,7 @@ function Notifications() {
             <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative shrink-0">
                     <Bell className="h-5 w-5" />
-                    {notifications.all.length > 0 && <Badge className="absolute -top-1 -right-1 h-4 w-4 justify-center p-0">{notifications.all.length}</Badge>}
+                    
                     <span className="sr-only">Open notifications</span>
                 </Button>
             </PopoverTrigger>
@@ -129,7 +130,7 @@ export default function DashboardLayout({
     avatarUrl: string;
     uid: string;
   } | null>(null);
-  const [userRole, setUserRole] = React.useState<'player' | 'moderator' | 'admin' | null>(null);
+  const [userRole, setUserRole] = React.useState<SecurityRole | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = React.useState(true);
   const [status, setStatus] = React.useState<'disponible' | 'ausente' | 'ocupado'>('disponible');
 
@@ -144,7 +145,7 @@ export default function DashboardLayout({
 
         try {
             const [idTokenResult, docSnap] = await Promise.all([idTokenResultPromise, docSnapPromise]);
-            const role = (idTokenResult.claims.role as 'player' | 'moderator' | 'admin') || 'player';
+            const role = (idTokenResult.claims.role as SecurityRole) || 'player';
             setUserRole(role);
 
             if (docSnap.exists()) {

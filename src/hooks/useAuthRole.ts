@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
+export type SecurityRole = 'player' | 'moderator' | 'admin' | 'founder' | 'coach';
+
 export function useAuthRole() {
-  const [role, setRole] = useState<'player' | 'moderator' | 'admin' | null>(null);
+  const [role, setRole] = useState<SecurityRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -13,7 +15,7 @@ export function useAuthRole() {
       if (user) {
         try {
           const idTokenResult = await user.getIdTokenResult(true);
-          const userRole = (idTokenResult.claims.role as 'player' | 'moderator' | 'admin') || 'player';
+          const userRole = (idTokenResult.claims.role as SecurityRole) || 'player';
           setRole(userRole);
         } catch (error) {
           console.error("Failed to get user role:", error);

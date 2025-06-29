@@ -1,74 +1,43 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
 export default function ProfilePage() {
   return (
-    <div className="grid gap-6">
+    <div className="flex flex-col gap-8">
+      <h1 className="text-3xl font-bold font-headline">Profile</h1>
       <Card>
-        <CardHeader>
-          <CardTitle className="font-headline">My Profile</CardTitle>
-          <CardDescription>
-            Update your profile information. Your primary role is managed by the system.
-          </CardDescription>
+        <CardHeader className="flex-row items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Avatar className="h-24 w-24">
+              <AvatarImage src="https://placehold.co/96x96.png" data-ai-hint="male avatar" />
+              <AvatarFallback>JD</AvatarFallback>
+            </Avatar>
+            <div>
+              <CardTitle className="text-2xl font-bold">John Doe</CardTitle>
+              <p className="text-muted-foreground">
+                Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+              </p>
+            </div>
+          </div>
+          <Button variant="secondary">Edit Profile</Button>
         </CardHeader>
-        <CardContent>
-          <form className="grid gap-6">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-20 w-20">
-                <AvatarImage src="https://placehold.co/80x80.png" data-ai-hint="male avatar" />
-                <AvatarFallback>JD</AvatarFallback>
-              </Avatar>
-              <Button variant="outline">Change Avatar</Button>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="displayName">Display Name</Label>
-              <Input id="displayName" defaultValue="JohnDoe" />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="primaryRole">Primary Role</Label>
-                <Input id="primaryRole" defaultValue="Player" disabled />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="gameRoles">Game Roles</Label>
-                <Select defaultValue="duelist">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="duelist">Duelist</SelectItem>
-                    <SelectItem value="controller">Controller</SelectItem>
-                    <SelectItem value="initiator">Initiator</SelectItem>
-                    <SelectItem value="sentinel">Sentinel</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <Button>Save Changes</Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-headline">Competitive History</CardTitle>
-          <CardDescription>
-            Your recent match history and performance statistics.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center text-muted-foreground py-8">
-            <p>No competitive history found.</p>
-            <p className="text-sm">Play some matches to see your stats here.</p>
+        <Separator />
+        <CardContent className="pt-6 grid gap-4 md:grid-cols-2">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">Email</p>
+            <p>john.doe@example.com</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">
+              Location
+            </p>
+            <p>New York</p>
           </div>
         </CardContent>
       </Card>
+      <Card className="min-h-48"></Card>
     </div>
   );
 }

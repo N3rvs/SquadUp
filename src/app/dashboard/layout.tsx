@@ -9,7 +9,6 @@ import {
   Store,
   Trophy,
   Swords,
-  UserPlus,
   LogOut,
   BrainCircuit,
   MessageSquare,
@@ -147,7 +146,6 @@ export default function DashboardLayout({
     { href: "/dashboard/marketplace", icon: Store, label: "Marketplace" },
     { href: "/dashboard/tournaments", icon: Trophy, label: "Torneos" },
     { href: "/dashboard/scrims", icon: Swords, label: "Scrims" },
-    { href: "/dashboard/friends", icon: UserPlus, label: "Amigos" },
     { href: "/dashboard/ai-coach", icon: BrainCircuit, label: "Coach AI" },
     { href: "/dashboard/chat", icon: MessageSquare, label: "Chat" },
   ];

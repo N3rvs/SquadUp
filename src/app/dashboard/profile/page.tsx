@@ -27,7 +27,7 @@ import { useRouter } from "next/navigation";
 const profileFormSchema = z.object({
   displayName: z.string().min(2, "Display name must be at least 2 characters.").max(30, "Display name must not be longer than 30 characters."),
   bio: z.string().max(160, "Bio must not be longer than 160 characters.").optional(),
-  valorantRole: z.string({
+  primaryRole: z.string({
     required_error: "Please select a role.",
   }),
   country: z.string({
@@ -62,7 +62,7 @@ export default function ProfilePage() {
     defaultValues: {
       displayName: "",
       bio: "",
-      valorantRole: "Flex",
+      primaryRole: "Flex",
       country: "",
       twitchUrl: "",
       twitterUrl: "",
@@ -91,7 +91,7 @@ export default function ProfilePage() {
             email: user.email,
             displayName: user.displayName || "New User",
             bio: "",
-            valorantRole: "Flex",
+            primaryRole: "Flex",
             country: "United Kingdom",
             twitchUrl: "",
             twitterUrl: "",
@@ -239,7 +239,7 @@ export default function ProfilePage() {
             <h2 className="text-2xl font-bold font-headline">{profileData.displayName}</h2>
             <p className="text-sm text-muted-foreground mt-1">{profileData.bio}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
-                <Badge variant="secondary"><Gamepad2 className="mr-1 h-3 w-3" />{profileData.valorantRole}</Badge>
+                <Badge variant="secondary"><Gamepad2 className="mr-1 h-3 w-3" />{profileData.primaryRole}</Badge>
                 <Badge variant="secondary"><MapPin className="mr-1 h-3 w-3" />{profileData.country}</Badge>
             </div>
           </CardContent>
@@ -308,7 +308,7 @@ export default function ProfilePage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
-                        name="valorantRole"
+                        name="primaryRole"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Primary Role</FormLabel>

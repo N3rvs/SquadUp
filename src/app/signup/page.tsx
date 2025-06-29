@@ -79,7 +79,7 @@ export default function SignUpPage() {
         displayName: values.displayName,
         email: user.email,
         bio: "",
-        valorantRole: "Flex",
+        primaryRole: "Flex",
         country: "United Kingdom",
         twitchUrl: "",
         twitterUrl: "",

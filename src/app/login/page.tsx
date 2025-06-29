@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -60,7 +61,7 @@ export default function LoginPage() {
         title: "Login Successful!",
         description: "Welcome back!",
       });
-      router.push("/dashboard");
+      router.push("/dashboard/profile");
     } catch (error: any) {
       let errorMessage = "An unknown error occurred.";
       switch (error.code) {

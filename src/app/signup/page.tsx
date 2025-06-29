@@ -99,7 +99,7 @@ export default function SignUpPage() {
         title: "Account Created!",
         description: "Welcome! You have been successfully signed up.",
       });
-      router.push("/dashboard");
+      router.push("/dashboard/profile");
     } catch (error: any) {
       let errorMessage = "An unknown error occurred.";
       switch (error.code) {
@@ -221,5 +221,3 @@ export default function SignUpPage() {
     </div>
   );
 }
-
-    

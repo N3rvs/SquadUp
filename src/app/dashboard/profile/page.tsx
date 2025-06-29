@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -48,8 +49,12 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, Briefcase, MessageCircle, CheckCircle } from "lucide-react";
+import { Twitter, Youtube, Twitch, Save, Edit, MapPin, Gamepad2, Briefcase, MessageCircle, CheckCircle, Camera, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { auth, db, storage } from "@/lib/firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { doc, updateDoc } from "firebase/firestore";
+
 
 const profileFormSchema = z.object({
   displayName: z.string().min(2, "Display name must be at least 2 characters.").max(30, "Display name must not be longer than 30 characters."),
@@ -65,6 +70,7 @@ const profileFormSchema = z.object({
   youtubeUrl: z.string().url("Please enter a valid URL.").optional().or(z.literal('')),
   discord: z.string().optional(),
   availableForRecruitment: z.boolean().default(false),
+  avatarUrl: z.string().url().optional().or(z.literal('')),
 });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
@@ -74,6 +80,7 @@ const countries = ["United Kingdom", "Germany", "France", "Spain", "Italy", "Net
 
 export default function ProfilePage() {
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
   const [profileData, setProfileData] = useState({
       displayName: "JohnDoe",
       bio: "Aspiring Valorant pro. Looking for a serious team to climb the ranks.",
@@ -84,7 +91,12 @@ export default function ProfilePage() {
       youtubeUrl: "",
       discord: "JohnDoe#1234",
       availableForRecruitment: true,
+      avatarUrl: "https://placehold.co/96x96.png",
   });
+  
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -92,14 +104,75 @@ export default function ProfilePage() {
     mode: "onChange",
   });
 
-  function onSubmit(data: ProfileFormValues) {
-    console.log(data);
-    setProfileData(data);
-    form.reset(data);
-    toast({
-      title: "Profile Updated",
-      description: "Your changes have been saved successfully.",
-    });
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        toast({ variant: "destructive", title: "File too large", description: "Avatar image must be less than 2MB." });
+        return;
+      }
+      if (!file.type.startsWith("image/")) {
+        toast({ variant: "destructive", title: "Invalid file type", description: "Please select an image file." });
+        return;
+      }
+      setAvatarFile(file);
+      setAvatarPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const onDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      setAvatarPreview(null);
+      setAvatarFile(null);
+      form.reset(profileData);
+    }
+  };
+
+  async function onSubmit(data: ProfileFormValues) {
+    setIsLoading(true);
+    if (!auth.currentUser) {
+        toast({ variant: "destructive", title: "Not Authenticated", description: "You must be logged in to update your profile."});
+        setIsLoading(false);
+        return;
+    }
+    const uid = auth.currentUser.uid;
+    
+    try {
+      let newAvatarUrl = profileData.avatarUrl;
+      if (avatarFile) {
+        const fileRef = storageRef(storage, `avatars/${uid}/${avatarFile.name}`);
+        const uploadResult = await uploadBytes(fileRef, avatarFile);
+        newAvatarUrl = await getDownloadURL(uploadResult.ref);
+      }
+
+      const dataToSave = {
+        ...data,
+        avatarUrl: newAvatarUrl,
+      };
+
+      const userDocRef = doc(db, 'users', uid);
+      await updateDoc(userDocRef, dataToSave);
+      
+      const newProfileData = { ...profileData, ...dataToSave };
+      setProfileData(newProfileData);
+      form.reset(newProfileData);
+      setAvatarFile(null);
+      setAvatarPreview(null);
+      
+      toast({
+        title: "Profile Updated",
+        description: "Your changes have been saved successfully.",
+      });
+    } catch (error) {
+      console.error("Error updating profile: ", error);
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "An error occurred while saving your profile. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   }
   
   return (
@@ -108,7 +181,7 @@ export default function ProfilePage() {
         <Card>
           <CardContent className="pt-6 text-center flex flex-col items-center">
             <Avatar className="h-24 w-24 mb-4">
-              <AvatarImage src="https://placehold.co/96x96.png" data-ai-hint="male avatar" />
+              <AvatarImage src={profileData.avatarUrl} data-ai-hint="male avatar" alt={profileData.displayName} />
               <AvatarFallback>{profileData.displayName.substring(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
             <h2 className="text-2xl font-bold font-headline">{profileData.displayName}</h2>
@@ -119,7 +192,7 @@ export default function ProfilePage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Dialog>
+            <Dialog onOpenChange={onDialogOpenChange}>
               <DialogTrigger asChild>
                 <Button className="w-full">
                   <Edit className="mr-2 h-4 w-4" /> Edit Profile
@@ -133,6 +206,17 @@ export default function ProfilePage() {
                   </DialogDescription>
                 </DialogHeader>
 
+                <div className="relative mx-auto w-fit cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                    <Avatar className="h-24 w-24">
+                        <AvatarImage src={avatarPreview || profileData.avatarUrl} alt={profileData.displayName} />
+                        <AvatarFallback>{profileData.displayName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 hover:opacity-100 transition-opacity">
+                      <Camera className="h-8 w-8 text-white"/>
+                    </div>
+                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                </div>
+                
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pr-2">
                     <div className="space-y-4">
@@ -315,9 +399,9 @@ export default function ProfilePage() {
                          <Button type="button" variant="ghost">Cancel</Button>
                       </DialogClose>
                       <DialogClose asChild>
-                        <Button type="submit">
-                          <Save className="mr-2 h-4 w-4" />
-                          Save Changes
+                        <Button type="submit" disabled={isLoading} onClick={form.handleSubmit(onSubmit)}>
+                           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                          {isLoading ? "Saving..." : "Save Changes"}
                         </Button>
                       </DialogClose>
                     </DialogFooter>
@@ -396,3 +480,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    

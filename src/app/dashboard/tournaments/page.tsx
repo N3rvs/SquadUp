@@ -304,6 +304,22 @@ export default function TournamentsPage() {
   const handleDeleteTournament = async () => {
     if (!selectedTournament) return;
     setIsDeleting(true);
+
+    if (!auth.currentUser) {
+        toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'No estás autenticado. Por favor, inicia sesión de nuevo.' });
+        setIsDeleting(false);
+        return;
+    }
+
+    try {
+        await auth.currentUser.getIdToken(true); // Force token refresh
+    } catch (tokenError) {
+        console.error("Token refresh failed:", tokenError);
+        toast({ variant: 'destructive', title: 'Error de Sesión', description: 'No se pudo verificar tu sesión. Intenta recargar la página.' });
+        setIsDeleting(false);
+        return;
+    }
+
     const result = await deleteTournamentAction(selectedTournament.id);
     if (result.success) {
         toast({ title: "Torneo eliminado", description: "El torneo ha sido eliminado con éxito." });

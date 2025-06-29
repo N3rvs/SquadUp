@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { auth } from '@/lib/firebase';
 import { ArrowLeft, Check, Loader2, Trophy, X } from 'lucide-react';
 import { getAdminTournaments, updateTournamentStatusAction } from './actions';
 
@@ -65,6 +66,22 @@ export default function TournamentsAdminPage() {
 
     const handleUpdateStatus = async (id: string, status: 'Open' | 'Rejected') => {
         setIsUpdating(id);
+        
+        if (!auth.currentUser) {
+            toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'No estás autenticado. Por favor, inicia sesión de nuevo.' });
+            setIsUpdating(null);
+            return;
+        }
+
+        try {
+            await auth.currentUser.getIdToken(true); // Force token refresh
+        } catch (tokenError) {
+            console.error("Token refresh failed:", tokenError);
+            toast({ variant: 'destructive', title: 'Error de Sesión', description: 'No se pudo verificar tu sesión. Intenta recargar la página.' });
+            setIsUpdating(null);
+            return;
+        }
+
         const result = await updateTournamentStatusAction(id, status);
         if (result.success) {
             toast({ title: 'Éxito', description: `El torneo ha sido ${status === 'Open' ? 'aprobado' : 'rechazado'}.` });

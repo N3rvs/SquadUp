@@ -124,6 +124,22 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
 
     const onSubmit = async (data: z.infer<typeof editUserFormSchema>) => {
         setIsSaving(true);
+        
+        if (!auth.currentUser) {
+            toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'No estás autenticado. Por favor, inicia sesión de nuevo.' });
+            setIsSaving(false);
+            return;
+        }
+
+        try {
+            await auth.currentUser.getIdToken(true); // Force token refresh
+        } catch (tokenError) {
+            console.error("Token refresh failed:", tokenError);
+            toast({ variant: 'destructive', title: 'Error de Sesión', description: 'No se pudo verificar tu sesión. Intenta recargar la página.' });
+            setIsSaving(false);
+            return;
+        }
+
         let banExpiresAt: string | null;
 
         switch (data.banOption) {
@@ -271,6 +287,24 @@ export default function UsersAdminPage() {
     const handleDelete = async () => {
         if (!userToDelete) return;
         setIsDeleting(true);
+
+        if (!auth.currentUser) {
+            toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'No estás autenticado. Por favor, inicia sesión de nuevo.' });
+            setIsDeleting(false);
+            setUserToDelete(null);
+            return;
+        }
+
+        try {
+            await auth.currentUser.getIdToken(true); // Force token refresh
+        } catch (tokenError) {
+            console.error("Token refresh failed:", tokenError);
+            toast({ variant: 'destructive', title: 'Error de Sesión', description: 'No se pudo verificar tu sesión. Intenta recargar la página.' });
+            setIsDeleting(false);
+            setUserToDelete(null);
+            return;
+        }
+
         const result = await deleteUserAction(userToDelete.uid);
         if (result.success) {
             toast({ title: 'Usuario Eliminado', description: `El usuario ${userToDelete.displayName} ha sido eliminado.` });

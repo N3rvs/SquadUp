@@ -89,11 +89,11 @@ export async function updateMemberGameRoles(
         }
 
         const teamData = teamDoc.data();
-        // Check if the manager is the owner, or if they are a platform admin/mod
+        // Check if the manager is the owner, or if they are a platform admin/mod/founder
         if (teamData.ownerId !== managerId) {
             const managerDoc = await getDoc(doc(db, "users", managerId));
             const managerRole = managerDoc.data()?.primaryRole;
-            if (managerRole !== 'admin' && managerRole !== 'moderator') {
+            if (managerRole !== 'admin' && managerRole !== 'moderator' && managerRole !== 'founder') {
                  return { success: false, error: "You don't have permission to edit member roles." };
             }
         }

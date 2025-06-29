@@ -60,7 +60,7 @@ interface TeamMember extends DocumentData {
 }
 
 interface UserProfile {
-  primaryRole?: 'player' | 'moderator' | 'admin';
+  primaryRole?: 'player' | 'moderator' | 'admin' | 'founder' | 'coach';
 }
 
 const rolesFormSchema = z.object({
@@ -299,7 +299,8 @@ export default function TeamDetailPage() {
   const isManager = user && team && profile && (
     user.uid === team.ownerId ||
     profile.primaryRole === 'admin' ||
-    profile.primaryRole === 'moderator'
+    profile.primaryRole === 'moderator' ||
+    profile.primaryRole === 'founder'
   );
   
   const canApply = user && team.isRecruiting && applicationStatus === 'idle';

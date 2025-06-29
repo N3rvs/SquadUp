@@ -1,12 +1,22 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Trophy } from "lucide-react";
+import Link from "next/link";
 
 export default function TournamentsAdminPage() {
     return (
         <div className="grid gap-8">
-            <div>
-                <h1 className="text-3xl font-bold font-headline">Gestión de Torneos</h1>
-                <p className="text-muted-foreground">Administra y modera todos los torneos de la comunidad.</p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold font-headline">Gestión de Torneos</h1>
+                    <p className="text-muted-foreground">Administra y modera todos los torneos de la comunidad.</p>
+                </div>
+                <Button asChild variant="outline">
+                    <Link href="/dashboard/admin">
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Volver al Panel
+                    </Link>
+                </Button>
             </div>
              <Card>
                 <CardHeader>

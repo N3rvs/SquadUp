@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { collection, getDocs, orderBy, query, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
@@ -20,7 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Loader2, Trash2, Edit } from 'lucide-react';
+import { MoreHorizontal, Loader2, Trash2, Edit, ArrowLeft } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { deleteUserAction } from './actions';
@@ -101,9 +102,17 @@ export default function UsersAdminPage() {
 
     return (
         <div className="grid gap-8">
-            <div>
-                <h1 className="text-3xl font-bold font-headline">Gestión de Usuarios</h1>
-                <p className="text-muted-foreground">Administra todos los usuarios de la plataforma.</p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold font-headline">Gestión de Usuarios</h1>
+                    <p className="text-muted-foreground">Administra todos los usuarios de la plataforma.</p>
+                </div>
+                <Button asChild variant="outline">
+                    <Link href="/dashboard/admin">
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Volver al Panel
+                    </Link>
+                </Button>
             </div>
             
             <Card>

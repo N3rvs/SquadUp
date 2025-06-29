@@ -32,6 +32,7 @@ interface Player {
   valorantRank: string;
   country: string;
   bio?: string;
+  bannerUrl?: string;
 }
 
 const valorantRanks = ["All", ...allValorantRanks];
@@ -209,7 +210,7 @@ export default function MarketplacePage() {
                                             </TableCell>
                                         </TableRow>
                                     </HoverCardTrigger>
-                                    <HoverCardContent className="w-80">
+                                    <HoverCardContent className="w-80" align="start">
                                         <div className="flex justify-between space-x-4">
                                         <Avatar>
                                             <AvatarImage src={player.avatarUrl} />
@@ -282,8 +283,17 @@ export default function MarketplacePage() {
                                                     <TableCell>{team.memberIds.length} / 5</TableCell>
                                                 </TableRow>
                                             </HoverCardTrigger>
-                                            <HoverCardContent className="w-80">
-                                                <div className="flex flex-col gap-4">
+                                            <HoverCardContent className="w-80 p-0" align="start">
+                                                <div className="relative h-24 w-full">
+                                                    <Image
+                                                        src={team.bannerUrl || 'https://placehold.co/320x96.png'}
+                                                        alt={`${team.name} banner`}
+                                                        fill
+                                                        className="object-cover rounded-t-lg"
+                                                        data-ai-hint="team banner abstract"
+                                                    />
+                                                </div>
+                                                <div className="p-4 flex flex-col gap-4">
                                                     <div className="flex items-center gap-4">
                                                         <Avatar className="h-12 w-12">
                                                             <AvatarImage src={team.logoUrl} />

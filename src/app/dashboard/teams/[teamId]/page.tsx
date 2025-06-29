@@ -109,6 +109,7 @@ export default function TeamDetailPage() {
 
   const [isApplying, setIsApplying] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState<'idle' | 'applied' | 'member'>('idle');
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -129,6 +130,7 @@ export default function TeamDetailPage() {
   const fetchTeamAndMembers = useCallback(async () => {
     if (!teamId) return;
     setIsLoading(true);
+    setIsCheckingStatus(true);
 
     try {
       // Fetch team data
@@ -175,6 +177,7 @@ export default function TeamDetailPage() {
       toast({ variant: "destructive", title: "Error al cargar el equipo" });
     } finally {
       setIsLoading(false);
+      setIsCheckingStatus(false);
     }
   }, [teamId, router, toast, user]);
 
@@ -372,10 +375,11 @@ export default function TeamDetailPage() {
                     <Button 
                         className="w-full" 
                         onClick={handleApply}
-                        disabled={!canApply || isApplying}
+                        disabled={isCheckingStatus || !canApply || isApplying}
                     >
-                        {isApplying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isApplying ? "Enviando..." : 
+                        {(isApplying || isCheckingStatus) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isCheckingStatus ? "Verificando..." :
+                            isApplying ? "Enviando..." : 
                             applicationStatus === 'applied' ? "Solicitud Enviada" : 
                             applicationStatus === 'member' ? "Ya eres miembro" :
                             "Aplicar al Equipo"

@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,44 +22,44 @@ interface Tournament {
 // Mock data reflecting the new structure for Premier-style tournaments
 const tournaments: Tournament[] = [
   {
-    id: "valorant-regional-clash-2024",
-    name: "Valorant Regional Clash",
-    premierRank: "Contender",
+    id: "ascendant-series-1",
+    name: "Ascendant Series #1",
+    premierRank: "Diamond - Ascendant",
     status: "Open",
     region: "EMEA",
-    prizePool: "$5,000",
+    prizePool: "$1,500",
     slots: { current: 12, total: 32 },
-    startDate: "July 25, 2024",
+    startDate: "August 1, 2024",
   },
   {
-    id: "premier-open-weekly-12",
-    name: "Premier Open Weekly #12",
-    premierRank: "Open 4",
+    id: "platinum-clash-weekly",
+    name: "Platinum Clash Weekly",
+    premierRank: "Gold - Platinum",
     status: "In Progress",
     region: "EMEA",
-    prizePool: "$500",
+    prizePool: "Premium Skin Bundle",
     slots: { current: 16, total: 16 },
-    startDate: "July 20, 2024",
+    startDate: "July 28, 2024",
   },
   {
-    id: "elite-division-qualifier",
-    name: "Elite Division Qualifier",
-    premierRank: "Elite 1-2",
+    id: "radiant-elite-qualifier",
+    name: "Radiant Elite Qualifier",
+    premierRank: "Ascendant - Immortal",
     status: "Finished",
     region: "EMEA",
-    prizePool: "$2,500",
+    prizePool: "$5,000 + Invite",
     slots: { current: 8, total: 8 },
     startDate: "July 15, 2024",
   },
   {
-    id: "intermediate-showdown-august",
-    name: "Intermediate Showdown",
-    premierRank: "Intermediate 3",
+    id: "immortal-invitational-august",
+    name: "Immortal Invitational",
+    premierRank: "Immortal+",
     status: "Open",
     region: "EMEA",
-    prizePool: "$1,000",
+    prizePool: "$10,000",
     slots: { current: 4, total: 16 },
-    startDate: "August 5, 2024",
+    startDate: "August 10, 2024",
   },
 ];
 
@@ -80,8 +81,8 @@ export default function TournamentsPage() {
     <div className="grid gap-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold font-headline">Valorant Premier Hub</h1>
-          <p className="text-muted-foreground">Find your next challenge and climb the Premier ranks.</p>
+          <h1 className="text-3xl font-bold font-headline">Torneos de la Comunidad</h1>
+          <p className="text-muted-foreground">Encuentra tu próximo desafío y escala en la clasificación.</p>
         </div>
         <Button>
           <PlusCircle className="mr-2 h-4 w-4" />
@@ -98,7 +99,7 @@ export default function TournamentsPage() {
                   <Badge variant={getStatusVariant(tournament.status)}>{tournament.status}</Badge>
               </div>
               <CardDescription className="flex items-center gap-2 pt-2">
-                <Shield className="h-4 w-4" /> Premier Rank: {tournament.premierRank}
+                <Shield className="h-4 w-4" /> Rango: {tournament.premierRank}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex-1 space-y-3">

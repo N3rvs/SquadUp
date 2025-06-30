@@ -1,4 +1,3 @@
-'use server';
 
 import { db, auth as clientAuth, functions } from '@/lib/firebase';
 import {

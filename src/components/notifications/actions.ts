@@ -1,4 +1,3 @@
-'use server';
 
 import { db, auth, functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';

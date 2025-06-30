@@ -65,6 +65,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { NotificationsInbox } from '@/components/notifications-inbox';
+import { ForceLogoutFix } from '@/components/ForceLogoutFix';
 
 interface UserProfile {
   displayName: string;
@@ -337,5 +338,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return <BannedScreen banExpiresAt={banExpiresAt} />;
     }
 
-    return <MainLayout>{children}</MainLayout>;
+    return (
+      <>
+        <ForceLogoutFix />
+        <MainLayout>{children}</MainLayout>
+      </>
+    );
 }

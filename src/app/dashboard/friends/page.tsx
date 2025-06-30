@@ -76,30 +76,36 @@ export default function FriendsPage() {
     const { toast } = useToast();
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             if (!currentUser) {
-                setIsLoadingFriends(true);
+                setIsLoadingFriends(false);
+                setFriends([]);
+                setIncomingRequests([]);
             }
         });
-        return () => unsubscribe();
+        return () => unsubscribeAuth();
     }, []);
 
-    // Listener for friends list
+    // Combined listener for friends and requests
     useEffect(() => {
-        if (!user) return;
+        if (!user) {
+            return; // No user, no listeners
+        }
 
+        setIsLoadingFriends(true);
+
+        // Listener for friends list
         const userDocRef = doc(db, 'users', user.uid);
-        const unsubscribe = onSnapshot(userDocRef, async (userDoc) => {
-            setIsLoadingFriends(true);
-            const friendIds = (userDoc.data()?.friends || []).filter((id): id is string => !!id);
+        const friendsUnsubscribe = onSnapshot(userDocRef, async (userDoc) => {
+            const friendIds = (userDoc.data()?.friends || []).filter((id: any): id is string => !!id);
             if (friendIds.length > 0) {
                 const friendsQuery = query(collection(db, 'users'), where(documentId(), 'in', friendIds));
                 const friendsSnapshot = await getDocs(friendsQuery);
                 const fetchedFriends = friendsSnapshot.docs
                     .map(d => {
                         if (!d.id || !d.exists() || !d.data().displayName) return null;
-                        return { ...d.data(), uid: d.id } as Friend;
+                        return { uid: d.id, ...d.data() } as Friend;
                     })
                     .filter((f): f is Friend => f !== null);
                 setFriends(fetchedFriends);
@@ -109,20 +115,17 @@ export default function FriendsPage() {
             setIsLoadingFriends(false);
         }, (error) => {
             console.error("Error fetching friends:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron cargar los amigos.' });
+            // Don't toast on permission denied, it's expected on logout
+            if (error.code !== 'permission-denied') {
+                toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron cargar los amigos.' });
+            }
             setIsLoadingFriends(false);
         });
 
-        return () => unsubscribe();
-    }, [user, toast]);
-
-    // Listener for incoming friend requests
-    useEffect(() => {
-        if (!user) return;
-
+        // Listener for incoming friend requests
         const requestsQuery = query(collection(db, 'friendRequests'), where('to', '==', user.uid), where('status', '==', 'pending'));
-        const unsubscribe = onSnapshot(requestsQuery, async (snapshot) => {
-            const fromIds = snapshot.docs.map(doc => doc.data().from).filter((id): id is string => !!id);
+        const requestsUnsubscribe = onSnapshot(requestsQuery, async (snapshot) => {
+            const fromIds = snapshot.docs.map(doc => doc.data().from).filter((id: any): id is string => !!id);
 
             if (fromIds.length === 0) {
                 setIncomingRequests([]);
@@ -134,7 +137,7 @@ export default function FriendsPage() {
             const fromUsers = usersSnapshot.docs
                 .map(d => {
                     if (!d.id || !d.exists() || !d.data().displayName) return null;
-                    return { ...d.data(), uid: d.id } as Friend;
+                    return { uid: d.id, ...d.data() } as Friend;
                 })
                 .filter((f): f is Friend => f !== null);
 
@@ -153,10 +156,16 @@ export default function FriendsPage() {
             setIncomingRequests(requests);
         }, (error) => {
             console.error("Error fetching friend requests:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron cargar las solicitudes.' });
+            if (error.code !== 'permission-denied') {
+              toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron cargar las solicitudes.' });
+            }
         });
 
-        return () => unsubscribe();
+        // Cleanup function
+        return () => {
+            friendsUnsubscribe();
+            requestsUnsubscribe();
+        };
     }, [user, toast]);
     
     const handleRespond = async (requestId: string, accept: boolean) => {
@@ -185,7 +194,7 @@ export default function FriendsPage() {
         try {
             await auth.currentUser.getIdToken(true);
             const removeFriend = httpsCallable(functions, 'removeFriend');
-            const result = await removeFriend({ friendId });
+            const result = await removeFriend({ friendId: friendId });
             toast({ title: 'Éxito', description: (result.data as {message: string}).message });
              // The UI will update automatically via the onSnapshot listener
         } catch (error: any) {

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -24,7 +25,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 function LoadingSkeleton() {
@@ -90,11 +90,16 @@ export default function FriendsPage() {
         const userDocRef = doc(db, 'users', user.uid);
         const unsubscribe = onSnapshot(userDocRef, async (userDoc) => {
             setIsLoadingFriends(true);
-            const friendIds = (userDoc.data()?.friends || []).filter(id => id); // Filter out any falsy values
+            const friendIds = (userDoc.data()?.friends || []).filter((id): id is string => !!id);
             if (friendIds.length > 0) {
                 const friendsQuery = query(collection(db, 'users'), where(documentId(), 'in', friendIds));
                 const friendsSnapshot = await getDocs(friendsQuery);
-                const fetchedFriends = friendsSnapshot.docs.map(d => ({ ...d.data(), uid: d.id } as Friend));
+                const fetchedFriends = friendsSnapshot.docs
+                    .map(d => {
+                        if (!d.id || !d.exists() || !d.data().displayName) return null;
+                        return { ...d.data(), uid: d.id } as Friend;
+                    })
+                    .filter((f): f is Friend => f !== null);
                 setFriends(fetchedFriends);
             } else {
                 setFriends([]);
@@ -115,7 +120,7 @@ export default function FriendsPage() {
 
         const requestsQuery = query(collection(db, 'friendRequests'), where('to', '==', user.uid), where('status', '==', 'pending'));
         const unsubscribe = onSnapshot(requestsQuery, async (snapshot) => {
-            const fromIds = snapshot.docs.map(doc => doc.data().from).filter(id => id); // Filter out any falsy values
+            const fromIds = snapshot.docs.map(doc => doc.data().from).filter((id): id is string => !!id);
 
             if (fromIds.length === 0) {
                 setIncomingRequests([]);
@@ -124,7 +129,12 @@ export default function FriendsPage() {
 
             const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', fromIds));
             const usersSnapshot = await getDocs(usersQuery);
-            const fromUsers = usersSnapshot.docs.map(d => ({ ...d.data(), uid: d.id } as Friend));
+            const fromUsers = usersSnapshot.docs
+                .map(d => {
+                    if (!d.id || !d.exists() || !d.data().displayName) return null;
+                    return { ...d.data(), uid: d.id } as Friend;
+                })
+                .filter((f): f is Friend => f !== null);
 
             const requests = snapshot.docs.map(doc => {
                 const data = doc.data();
@@ -153,7 +163,6 @@ export default function FriendsPage() {
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-        // No need to refetch, onSnapshot will handle it.
         setIsProcessing(null);
     };
 
@@ -163,7 +172,6 @@ export default function FriendsPage() {
         if (!result.success) {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-        // No need to refetch, onSnapshot will handle it.
         setIsProcessing(null);
     }
     
@@ -226,16 +234,9 @@ export default function FriendsPage() {
                                         <span className="font-medium">{friend.displayName}</span>
                                     </Link>
                                     <div className="flex gap-2">
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button asChild size="icon" variant="outline" disabled={true}>
-                                                        <Link href={`/dashboard/chat?u=${friend.uid}`}><MessageSquare /></Link>
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent><p>Chatear (Próximamente)</p></TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
+                                        <Button asChild size="icon" variant="outline" >
+                                            <Link href={`/dashboard/chat?u=${friend.uid}`}><MessageSquare /></Link>
+                                        </Button>
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
                                                 <Button size="icon" variant="destructive" disabled={isProcessing === friend.uid}>

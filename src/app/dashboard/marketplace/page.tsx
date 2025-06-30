@@ -21,7 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target, UserPlus, Briefcase, Loader2, MessageSquare, UserCheck } from "lucide-react";
+import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target, Briefcase, Loader2 } from "lucide-react";
 import Image from "next/image";
 import type { Team } from "@/components/team-card";
 import {
@@ -34,11 +34,9 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import {
-    sendFriendRequest,
     getManagedTeams,
     sendTeamInvite,
 } from "./actions";
-import { ChatModal } from "@/components/chat-modal";
 
 // --- DATA & TYPE DEFINITIONS ---
 
@@ -125,12 +123,8 @@ export default function MarketplacePage() {
     const [tempCountryFilter, setTempCountryFilter] = useState('All');
 
     const [playerToInvite, setPlayerToInvite] = useState<Player | null>(null);
-    const [chattingWith, setChattingWith] = useState<Player | null>(null);
     const [managedTeams, setManagedTeams] = useState<ManagedTeam[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<string>("");
-
-    const [friendUids, setFriendUids] = useState<string[]>([]);
-    const [outgoingRequestUids, setOutgoingRequestUids] = useState<string[]>([]);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -139,32 +133,7 @@ export default function MarketplacePage() {
         });
         return () => unsubscribe();
     }, []);
-
-    useEffect(() => {
-        if (!user) return;
-
-        // Listener for user's friends list
-        const userDocRef = doc(db, "users", user.uid);
-        const unsubscribeFriends = onSnapshot(userDocRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const friends = docSnap.data().friends || [];
-                setFriendUids(friends);
-            }
-        });
-
-        // Listener for outgoing friend requests
-        const requestsQuery = query(collection(db, "friendRequests"), where("from", "==", user.uid), where("status", "==", "pending"));
-        const unsubscribeRequests = onSnapshot(requestsQuery, (snapshot) => {
-            const outgoingIds = snapshot.docs.map(d => d.data().to);
-            setOutgoingRequestUids(outgoingIds);
-        });
-
-        return () => {
-            unsubscribeFriends();
-            unsubscribeRequests();
-        };
-    }, [user]);
-
+    
     const isTeamManager = role === 'admin' || role === 'moderator' || role === 'founder';
     
     useEffect(() => {
@@ -228,19 +197,6 @@ export default function MarketplacePage() {
             return rankIndex >= minRankIndex && rankIndex <= maxRankIndex;
         });
     }, [teams, rankFilter]);
-
-    const handleSendFriendRequest = async (receiverId: string) => {
-        if (!user) return;
-        setIsSubmitting(receiverId);
-        const result = await sendFriendRequest(receiverId);
-        if (result.success) {
-            toast({ title: "¡Solicitud de amistad enviada!" });
-            setOutgoingRequestUids(prev => [...prev, receiverId]);
-        } else {
-            toast({ variant: "destructive", title: "Error", description: result.error });
-        }
-        setIsSubmitting(null);
-    };
 
     const handleOpenInviteDialog = (player: Player) => {
         if (managedTeams.length === 0) {
@@ -324,8 +280,6 @@ export default function MarketplacePage() {
                             <TableBody>
                               {players.map((player) => {
                                 const countryCode = getCountryCode(player.country);
-                                const isFriend = friendUids.includes(player.uid);
-                                const isRequestSent = outgoingRequestUids.includes(player.uid);
                                 return (
                                 <TableRow key={player.uid}>
                                     <TableCell>
@@ -377,41 +331,6 @@ export default function MarketplacePage() {
                                      <TableCell className="text-right">
                                         {user && user.uid !== player.uid && (
                                             <div className="flex items-center justify-end gap-1">
-                                                {isFriend ? (
-                                                     <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <Button variant="ghost" size="icon" onClick={() => setChattingWith(player)}>
-                                                                    <MessageSquare className="h-4 w-4" />
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent><p>Enviar Mensaje</p></TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                ) : isRequestSent ? (
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <Button variant="ghost" size="icon" disabled>
-                                                                    <UserCheck className="h-4 w-4" />
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent><p>Solicitud Enviada</p></TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                ) : (
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <Button variant="ghost" size="icon" disabled={isSubmitting === player.uid} onClick={() => handleSendFriendRequest(player.uid)}>
-                                                                    {isSubmitting === player.uid ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent><p>Añadir Amigo</p></TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                )}
-
                                                 {isTeamManager && (
                                                     <TooltipProvider>
                                                         <Tooltip>
@@ -569,14 +488,6 @@ export default function MarketplacePage() {
                 </DialogContent>
             </Dialog>
 
-            {chattingWith && user && (
-                <ChatModal
-                    isOpen={!!chattingWith}
-                    onClose={() => setChattingWith(null)}
-                    friend={chattingWith}
-                    currentUser={{ uid: user.uid, displayName: user.displayName || 'Me', avatarUrl: user.photoURL || '' }}
-                />
-            )}
         </div>
     );
 }

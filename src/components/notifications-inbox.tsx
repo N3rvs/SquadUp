@@ -68,22 +68,6 @@ export function NotificationsInbox() {
     }
     setIsProcessing(null);
   };
-  
-  const onHandleFriendRequest = async (notificationId: string, accept: boolean) => {
-    if (!user) return;
-    setIsProcessing(notificationId);
-    try {
-        const respondToRequestFunc = httpsCallable(functions, 'respondToFriendRequest');
-        await respondToRequestFunc({ requestId: notificationId, accept });
-
-        toast({ title: '¡Decisión procesada!', description: `La solicitud de amistad ha sido ${accept ? 'aceptada' : 'rechazada'}.` });
-        setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Error', description: error.message });
-    }
-    setIsProcessing(null);
-  };
-
 
   const hasNotifications = notifications.length > 0;
 
@@ -143,23 +127,6 @@ export function NotificationsInbox() {
                                     <Tooltip><TooltipTrigger><span tabIndex={0}><Button size="sm" disabled={true}><Check className="h-4 w-4" /><span className="ml-2">Aceptar</span></Button></span></TooltipTrigger><TooltipContent><p>Próximamente</p></TooltipContent></Tooltip>
                                 </TooltipProvider>
                               </div>
-                          </div>
-                        );
-                      }
-                      if (notification.type === 'friend_request' && notification.sender) {
-                        return (
-                          <div key={notification.id} className="p-4 hover:bg-secondary/50">
-                            <div className="flex items-start gap-3">
-                                <Avatar className="h-10 w-10 border"><AvatarImage src={notification.sender.avatarUrl} /><AvatarFallback>{notification.sender.displayName.substring(0, 2)}</AvatarFallback></Avatar>
-                                <div className="flex-1 text-sm">
-                                    <p><Link href={`/dashboard/profile/${notification.sender.uid}`} className="font-semibold hover:underline">{notification.sender.displayName}</Link>{' '}te ha enviado una solicitud de amistad.</p>
-                                    <p className="text-xs text-muted-foreground mt-1">{formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: es })}</p>
-                                </div>
-                            </div>
-                            <div className="flex justify-end gap-2 mt-3">
-                                <Button size="sm" variant="outline" onClick={() => onHandleFriendRequest(notification.id, false)} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}<span className="ml-2">Rechazar</span></Button>
-                                <Button size="sm" onClick={() => onHandleFriendRequest(notification.id, true)} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}<span className="ml-2">Aceptar</span></Button>
-                            </div>
                           </div>
                         );
                       }

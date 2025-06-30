@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, Timestamp, doc, updateDoc, addDoc, s
 
 export interface Notification {
   id: string;
-  type: 'application' | 'invite' | 'friend_request';
+  type: 'application' | 'invite';
   team?: {
     id: string;
     name: string;
@@ -84,7 +84,6 @@ export async function getPendingNotifications(userId: string): Promise<{ success
 
     try {
         const applicationsRef = collection(db, "teamApplications");
-        const friendRequestsRef = collection(db, "friendRequests");
         
         // 1. Get team applications for teams the user owns (SECURELY)
         const applications = await getTeamApplicationsForOwner(userId);
@@ -101,38 +100,8 @@ export async function getPendingNotifications(userId: string): Promise<{ success
                 createdAt: inviteData.createdAt instanceof Timestamp ? inviteData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
             };
         });
-
-        // 3. Get friend requests for the user
-        const friendRequestQuery = query(friendRequestsRef, where("to", "==", userId), where("status", "==", "pending"));
-        const friendRequestSnapshot = await getDocs(friendRequestQuery);
-        let friendRequests: Notification[] = [];
-
-        if (!friendRequestSnapshot.empty) {
-            const senderIds = [...new Set(friendRequestSnapshot.docs.map(doc => doc.data().from))];
-            if (senderIds.length > 0) {
-                const usersRef = collection(db, "users");
-                const sendersQuery = query(usersRef, where("uid", "in", senderIds));
-                const sendersSnapshot = await getDocs(sendersQuery);
-                const sendersData = new Map(sendersSnapshot.docs.map(doc => [doc.id, doc.data()]));
-
-                friendRequests = friendRequestSnapshot.docs.map(doc => {
-                    const requestData = doc.data();
-                    const senderInfo = sendersData.get(requestData.from);
-                    return {
-                        id: doc.id,
-                        type: 'friend_request',
-                        sender: {
-                            uid: requestData.from,
-                            displayName: senderInfo?.displayName || 'Unknown User',
-                            avatarUrl: senderInfo?.avatarUrl || '',
-                        },
-                        createdAt: requestData.createdAt instanceof Timestamp ? requestData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
-                    };
-                });
-            }
-        }
         
-        const allNotifications = [...applications, ...invites, ...friendRequests];
+        const allNotifications = [...applications, ...invites];
         allNotifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         
         return { success: true, notifications: allNotifications };

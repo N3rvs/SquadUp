@@ -7,7 +7,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 import { getPendingNotifications, type Notification } from '@/components/notifications/actions';
-import { respondToFriendRequest } from '@/app/dashboard/friends/actions';
 import { handleApplicationDecision } from '@/components/notifications/actions';
 import { auth, functions } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -86,24 +85,8 @@ export default function InboxPage() {
         setIsProcessing(null);
     };
 
-    const onHandleFriendRequest = async (notificationId: string, accept: boolean) => {
-        if (!user) return;
-        setIsProcessing(notificationId);
-        try {
-            const respondToRequestFunc = httpsCallable(functions, 'respondToFriendRequest');
-            await respondToRequestFunc({ requestId: notificationId, accept });
-
-            toast({ title: '¡Decisión procesada!', description: `La solicitud de amistad ha sido ${accept ? 'aceptada' : 'rechazada'}.` });
-            setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: error.message });
-        }
-        setIsProcessing(null);
-    };
-
     const teamApplications = notifications.filter(n => n.type === 'application');
     const teamInvites = notifications.filter(n => n.type === 'invite');
-    const friendRequests = notifications.filter(n => n.type === 'friend_request');
 
     const renderNotificationCard = (notification: Notification) => {
         if (notification.type === 'invite' && notification.team) {
@@ -150,26 +133,6 @@ export default function InboxPage() {
                 </Card>
             )
         }
-
-        if (notification.type === 'friend_request' && notification.sender) {
-            return (
-                <Card key={notification.id}>
-                    <CardContent className="p-4">
-                        <div className="flex items-start gap-4">
-                            <Avatar className="h-12 w-12 border"><AvatarImage src={notification.sender.avatarUrl} /><AvatarFallback>{notification.sender.displayName.substring(0, 2)}</AvatarFallback></Avatar>
-                            <div className="flex-1 text-sm">
-                                <p><Link href={`/dashboard/profile/${notification.sender.uid}`} className="font-semibold hover:underline">{notification.sender.displayName}</Link>{' '}te ha enviado una solicitud de amistad.</p>
-                                <p className="text-xs text-muted-foreground mt-1">{formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: es })}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Button size="sm" variant="outline" onClick={() => onHandleFriendRequest(notification.id, false)} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}<span className="ml-2 hidden sm:inline">Rechazar</span></Button>
-                                <Button size="sm" onClick={() => onHandleFriendRequest(notification.id, true)} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}<span className="ml-2 hidden sm:inline">Aceptar</span></Button>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            )
-        }
         
         return null;
     }
@@ -180,9 +143,6 @@ export default function InboxPage() {
             {isLoading ? (<div className="space-y-4"><NotificationSkeleton /><NotificationSkeleton /></div>
             ) : notifications.length > 0 ? (
                  <div className="grid gap-8">
-                    {friendRequests.length > 0 && (
-                        <div><h2 className="text-xl font-semibold mb-4 flex items-center gap-2"><UserPlus className="h-5 w-5" /> Solicitudes de Amistad</h2><div className="space-y-4">{friendRequests.map(renderNotificationCard)}</div></div>
-                    )}
                     {teamApplications.length > 0 && (
                         <div><h2 className="text-xl font-semibold mb-4">Solicitudes para unirse a tu equipo</h2><div className="space-y-4">{teamApplications.map(renderNotificationCard)}</div></div>
                     )}

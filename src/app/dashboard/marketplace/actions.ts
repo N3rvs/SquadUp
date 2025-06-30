@@ -4,31 +4,6 @@ import { collection, addDoc, query, where, getDocs, doc, getDoc, serverTimestamp
 import { httpsCallable } from "firebase/functions";
 
 
-export async function sendFriendRequest(receiverId: string) {
-    if (!auth.currentUser) {
-        return { success: false, error: "User not authenticated." };
-    }
-    const senderId = auth.currentUser.uid;
-
-    if (senderId === receiverId) {
-        return { success: false, error: "You cannot send a friend request to yourself." };
-    }
-
-    try {
-        await auth.currentUser.getIdToken(true);
-        const sendRequestFunc = httpsCallable(functions, 'sendFriendRequest');
-        await sendRequestFunc({ to: receiverId });
-        return { success: true };
-    } catch (error: any) {
-        console.error("Error sending friend request:", error);
-         if (error.code && error.message) {
-            return { success: false, error: error.message };
-        }
-        return { success: false, error: "An unknown error occurred while sending the friend request." };
-    }
-}
-
-
 // --- Team Invite Logic ---
 
 export async function getManagedTeams(managerId: string) {

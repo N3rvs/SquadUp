@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
@@ -10,7 +9,7 @@ import { respondToFriendRequest, removeFriend } from './actions';
 import type { Friend, FriendRequest } from './actions';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,6 +27,9 @@ function PageSkeleton() {
             <Skeleton className="h-10 w-48" />
             <Skeleton className="h-5 w-3/4" />
             <Card>
+                <CardHeader>
+                    <Skeleton className="h-10 w-full max-w-sm" />
+                </CardHeader>
                 <CardContent className="p-0">
                     <div className="p-6 space-y-2">
                         {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
@@ -46,17 +48,15 @@ type ChatUser = {
 
 export default function FriendsPage() {
     const [user, setUser] = useState<User | null>(null);
-    const [currentUser, setCurrentUser] = useState<ChatUser | null>(null);
     const [friends, setFriends] = useState<Friend[]>([]);
     const [requests, setRequests] = useState<FriendRequest[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
-    const [isProcessingRemoval, setIsProcessingRemoval] = useState(false);
-    const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
+    
+    const [chattingWith, setChattingWith] = useState<Friend | null>(null);
     const [friendToRemove, setFriendToRemove] = useState<Friend | null>(null);
     const { toast } = useToast();
     
-    // Auth listener
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
@@ -67,44 +67,38 @@ export default function FriendsPage() {
         return () => unsubscribe();
     }, []);
 
-    // Friends listener
+    // Listener for friends and friend requests
     useEffect(() => {
         if (!user) {
             setFriends([]);
-            setCurrentUser(null);
+            setRequests([]);
             setIsLoading(false);
             return;
         }
 
         setIsLoading(true);
-        const userDocRef = doc(db, "users", user.uid);
-        const unsubscribe = onSnapshot(userDocRef, async (docSnap) => {
-            if (docSnap.exists()) {
-                const userData = docSnap.data();
-                setCurrentUser({
-                    uid: user.uid,
-                    displayName: userData.displayName,
-                    avatarUrl: userData.avatarUrl,
-                });
 
-                const friendIds = userData.friends || [];
+        // --- FRIENDS LISTENER ---
+        const userDocRef = doc(db, "users", user.uid);
+        const unsubscribeFriends = onSnapshot(userDocRef, async (docSnap) => {
+            if (docSnap.exists()) {
+                const friendIds = docSnap.data().friends || [];
                 if (friendIds.length > 0) {
+                    // Fetch full profiles for friends in chunks of 10
                     const friendsData: Friend[] = [];
                     for (let i = 0; i < friendIds.length; i += 10) {
                         const chunk = friendIds.slice(i, i + 10);
-                        if (chunk.length > 0) {
-                            const friendsQuery = query(collection(db, "users"), where(documentId(), "in", chunk));
-                            const friendsSnapshot = await getDocs(friendsQuery);
-                            friendsSnapshot.forEach(doc => {
-                                const data = doc.data();
-                                friendsData.push({
-                                    uid: doc.id,
-                                    displayName: data.displayName,
-                                    avatarUrl: data.avatarUrl || '',
-                                    primaryRole: data.primaryRole || 'Player',
-                                });
+                        const friendsQuery = query(collection(db, "users"), where(documentId(), "in", chunk));
+                        const friendsSnapshot = await getDocs(friendsQuery);
+                        friendsSnapshot.forEach(doc => {
+                            const data = doc.data();
+                            friendsData.push({
+                                uid: doc.id,
+                                displayName: data.displayName,
+                                avatarUrl: data.avatarUrl || '',
+                                primaryRole: data.primaryRole || 'Player',
                             });
-                        }
+                        });
                     }
                     setFriends(friendsData);
                 } else {
@@ -112,7 +106,6 @@ export default function FriendsPage() {
                 }
             } else {
                  setFriends([]);
-                 setCurrentUser(null);
             }
             setIsLoading(false);
         }, (error) => {
@@ -121,18 +114,9 @@ export default function FriendsPage() {
             setIsLoading(false);
         });
 
-        return () => unsubscribe();
-    }, [user, toast]);
-
-    // Friend Requests listener
-    useEffect(() => {
-        if (!user) {
-            setRequests([]);
-            return;
-        }
-
+        // --- FRIEND REQUESTS LISTENER ---
         const requestsQuery = query(collection(db, "friendRequests"), where("to", "==", user.uid), where("status", "==", "pending"));
-        const unsubscribe = onSnapshot(requestsQuery, async (snapshot) => {
+        const unsubscribeRequests = onSnapshot(requestsQuery, async (snapshot) => {
             if (snapshot.empty) {
                 setRequests([]);
                 return;
@@ -169,11 +153,13 @@ export default function FriendsPage() {
             toast({ variant: 'destructive', title: 'Error', description: "No se pudieron sincronizar las solicitudes de amistad." });
         });
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribeFriends();
+            unsubscribeRequests();
+        };
     }, [user, toast]);
 
-    const onHandleRequest = async (requestId: string, accept: boolean) => {
-        if (!user) return;
+    const handleRespondToRequest = async (requestId: string, accept: boolean) => {
         setIsProcessing(requestId);
         const result = await respondToFriendRequest(requestId, accept);
         if (result.success) {
@@ -184,38 +170,29 @@ export default function FriendsPage() {
         setIsProcessing(null);
     };
 
-    const handleRemoveFriendConfirm = async () => {
-        if (!friendToRemove || !user) {
-            toast({ variant: 'destructive', title: 'Error', description: 'No se ha seleccionado ningún amigo para eliminar.' });
-            return;
-        }
-
-        const friendIdToRemove = friendToRemove.uid;
-        if (!friendIdToRemove) {
-             toast({
-                variant: "destructive",
-                title: "Error de Datos",
-                description: `El amigo '${friendToRemove.displayName}' no tiene un ID válido y no se puede eliminar.`,
-            });
-            setFriendToRemove(null);
-            return;
-        }
+    const handleRemoveFriend = async () => {
+        if (!friendToRemove) return;
         
-        setIsProcessingRemoval(true);
-        const result = await removeFriend(friendIdToRemove);
+        setIsProcessing(friendToRemove.uid);
+        const result = await removeFriend(friendToRemove.uid);
         if (result.success) {
             toast({ title: 'Amigo eliminado', description: `${friendToRemove.displayName} ya no está en tu lista de amigos.` });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
         setFriendToRemove(null);
-        setIsProcessingRemoval(false);
+        setIsProcessing(null);
     };
-
 
     if (isLoading) {
         return <PageSkeleton />;
     }
+    
+    const currentUserProfile: ChatUser | null = user ? {
+        uid: user.uid,
+        displayName: user.displayName || "Me",
+        avatarUrl: user.photoURL || "",
+    } : null;
 
     return (
         <div className="grid gap-8">
@@ -261,7 +238,7 @@ export default function FriendsPage() {
                                             </TableCell>
                                             <TableCell><Badge variant="outline">{friend.primaryRole}</Badge></TableCell>
                                             <TableCell className="text-right">
-                                                <Button variant="ghost" size="icon" onClick={() => setSelectedFriend(friend)}>
+                                                <Button variant="ghost" size="icon" onClick={() => setChattingWith(friend)}>
                                                     <MessageSquare className="h-4 w-4" />
                                                 </Button>
                                                 <Button variant="ghost" size="icon" onClick={() => setFriendToRemove(friend)}>
@@ -309,10 +286,10 @@ export default function FriendsPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                <Button size="sm" variant="outline" className="mr-2" onClick={() => onHandleRequest(request.id, false)} disabled={isProcessing === request.id}>
+                                                <Button size="sm" variant="outline" className="mr-2" onClick={() => handleRespondToRequest(request.id, false)} disabled={isProcessing === request.id}>
                                                      {isProcessing === request.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="h-4 w-4" />}
                                                 </Button>
-                                                <Button size="sm" onClick={() => onHandleRequest(request.id, true)} disabled={isProcessing === request.id}>
+                                                <Button size="sm" onClick={() => handleRespondToRequest(request.id, true)} disabled={isProcessing === request.id}>
                                                      {isProcessing === request.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4" />}
                                                 </Button>
                                             </TableCell>
@@ -329,14 +306,16 @@ export default function FriendsPage() {
                     </Card>
                 </TabsContent>
             </Tabs>
-            {selectedFriend && currentUser && (
+            
+            {chattingWith && currentUserProfile && (
                 <ChatModal
-                    isOpen={!!selectedFriend}
-                    onClose={() => setSelectedFriend(null)}
-                    friend={selectedFriend}
-                    currentUser={currentUser}
+                    isOpen={!!chattingWith}
+                    onClose={() => setChattingWith(null)}
+                    friend={chattingWith}
+                    currentUser={currentUserProfile}
                 />
             )}
+            
              <AlertDialog open={!!friendToRemove} onOpenChange={(open) => !open && setFriendToRemove(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
@@ -348,11 +327,11 @@ export default function FriendsPage() {
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                         <AlertDialogAction
-                            onClick={handleRemoveFriendConfirm}
-                            disabled={isProcessingRemoval}
+                            onClick={handleRemoveFriend}
+                            disabled={!!isProcessing}
                             className="bg-destructive hover:bg-destructive/90"
                         >
-                            {isProcessingRemoval && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {isProcessing === friendToRemove?.uid && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Sí, eliminar amigo
                         </AlertDialogAction>
                     </AlertDialogFooter>

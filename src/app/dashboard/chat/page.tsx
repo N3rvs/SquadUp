@@ -8,13 +8,13 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Search, MessageSquare, Loader2, User, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getFriends } from './actions';
-import type { Friend } from './actions';
+import type { Friend } from '../friends/actions'; // Reuse type from friends
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { doc, onSnapshot, collection, query, where, documentId, getDocs } from 'firebase/firestore';
 
 
 type Message = {
@@ -56,38 +56,85 @@ export default function ChatPage() {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
+             if (!currentUser) {
+                setIsLoading(false);
+            }
         });
         return () => unsubscribe();
     }, []);
 
-    const fetchContacts = useCallback(async (uid: string) => {
-        setIsLoading(true);
-        const result = await getFriends(uid);
-        if (result.success && result.friends) {
-            // Mocking chat history for now
-            const contactsWithMessages = result.friends.map(friend => ({
-                ...friend,
-                lastMessage: 'Click to start chatting...',
-                messages: [
-                    { id: 1, text: `This is the beginning of your conversation with ${friend.displayName}.`, sender: 'other' }
-                ],
-            }));
-            setContacts(contactsWithMessages);
-        } else {
-            toast({ variant: 'destructive', title: "Error", description: result.error });
-        }
-        setIsLoading(false);
-    }, [toast]);
-
+    // Real-time listener for friends list
     useEffect(() => {
-        if(user) {
-            fetchContacts(user.uid);
+        if (!user) {
+            setContacts([]);
+            setIsLoading(false);
+            return;
         }
-    }, [user, fetchContacts]);
+        setIsLoading(true);
+
+        const userDocRef = doc(db, "users", user.uid);
+        const unsubscribe = onSnapshot(userDocRef, async (docSnap) => {
+            if (docSnap.exists()) {
+                const friendIds = docSnap.data().friends || [];
+                if (friendIds.length > 0) {
+                     const friendsData: Friend[] = [];
+                    for (let i = 0; i < friendIds.length; i += 10) {
+                        const chunk = friendIds.slice(i, i + 10);
+                        const friendsQuery = query(collection(db, "users"), where(documentId(), "in", chunk));
+                        const friendsSnapshot = await getDocs(friendsQuery);
+                        friendsSnapshot.forEach(doc => {
+                            const data = doc.data();
+                            friendsData.push({
+                                uid: doc.id,
+                                displayName: data.displayName,
+                                avatarUrl: data.avatarUrl || '',
+                            });
+                        });
+                    }
+
+                    // Mocking chat history for now
+                    const contactsWithMessages = friendsData.map(friend => ({
+                        ...friend,
+                        lastMessage: 'Click to start chatting...',
+                        messages: [
+                            { id: 1, text: `This is the beginning of your conversation with ${friend.displayName}.`, sender: 'other' }
+                        ],
+                    }));
+                    setContacts(contactsWithMessages);
+
+                } else {
+                    setContacts([]);
+                }
+            } else {
+                setContacts([]);
+            }
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error listening to friend updates for chat:", error);
+            toast({ variant: 'destructive', title: 'Error', description: "Could not sync your contacts." });
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [user, toast]);
+
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }
+
+    useEffect(() => {
+        // When chat is selected, if its data in the main contacts list has changed, update it.
+        if (selectedChat) {
+            const updatedContactData = contacts.find(c => c.uid === selectedChat.uid);
+            if(updatedContactData) {
+                setSelectedChat(currentSelected => ({...updatedContactData, messages: currentSelected?.messages || updatedContactData.messages }));
+            } else {
+                // The friend was removed, so close the chat.
+                setSelectedChat(null);
+            }
+        }
+    }, [contacts, selectedChat]);
 
     useEffect(() => {
         scrollToBottom();
@@ -98,7 +145,7 @@ export default function ChatPage() {
         if (newMessage.trim() === '' || !selectedChat) return;
 
         const message: Message = {
-            id: selectedChat.messages.length + 1,
+            id: Date.now(),
             text: newMessage,
             sender: 'me',
         };

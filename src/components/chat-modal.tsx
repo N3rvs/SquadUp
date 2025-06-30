@@ -1,28 +1,18 @@
-
-'use client';
+"use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import type { User } from 'firebase/auth';
 import { useChatMessages } from '@/hooks/useChatMessages';
 import { getOrCreateChat, sendMessage } from '@/app/dashboard/chat/actions';
 import { cn } from '@/lib/utils';
-
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Loader2, Send } from 'lucide-react';
-import { Form, FormControl, FormField, FormItem } from './ui/form';
 import { Skeleton } from './ui/skeleton';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import type { Friend } from '@/app/dashboard/friends/actions';
 import { useToast } from '@/hooks/use-toast';
-
-const messageSchema = z.object({
-  text: z.string().min(1, { message: "Message cannot be empty." }),
-});
 
 interface ChatModalProps {
   friend: Friend;
@@ -35,11 +25,11 @@ export function ChatModal({ friend, currentUser, open, onOpenChange }: ChatModal
   const [chatId, setChatId] = useState<string | null>(null);
   const { messages, isLoading } = useChatMessages(chatId);
   const [isSending, setIsSending] = useState(false);
+  const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Only try to set up chat if the modal is open and we have valid user/friend data
     if (open && currentUser?.uid && friend?.uid) {
       const setupChat = async () => {
         try {
@@ -52,16 +42,9 @@ export function ChatModal({ friend, currentUser, open, onOpenChange }: ChatModal
       };
       setupChat();
     } else {
-        // Reset chatId if modal is closed or data is missing
         setChatId(null);
     }
   }, [open, currentUser, friend, onOpenChange, toast]);
-
-
-  const form = useForm<z.infer<typeof messageSchema>>({
-    resolver: zodResolver(messageSchema),
-    defaultValues: { text: '' },
-  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -73,11 +56,15 @@ export function ChatModal({ friend, currentUser, open, onOpenChange }: ChatModal
     }
   }, [messages]);
 
-  const onSubmit = async (values: z.infer<typeof messageSchema>) => {
-    if (!chatId) return;
+  const handleSend = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!chatId || !newMessage.trim()) return;
+    
     setIsSending(true);
-    await sendMessage(chatId, values.text, currentUser.uid);
-    form.reset();
+    const textToSend = newMessage;
+    setNewMessage(""); // Clear input immediately
+    
+    await sendMessage(chatId, textToSend, currentUser.uid);
     setIsSending(false);
   };
   
@@ -126,26 +113,20 @@ export function ChatModal({ friend, currentUser, open, onOpenChange }: ChatModal
           <div ref={messagesEndRef} />
         </div>
         <DialogFooter className="p-4 border-t bg-background">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-center gap-2 w-full">
-              <FormField
-                control={form.control}
-                name="text"
-                render={({ field }) => (
-                  <FormItem className="flex-1">
-                    <FormControl>
-                      <Input {...field} placeholder="Escribe un mensaje..." autoComplete="off" disabled={isSending || !chatId} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" size="icon" disabled={isSending || !chatId || !form.formState.isValid}>
-                {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </Button>
-            </form>
-          </Form>
+          <form onSubmit={handleSend} className="flex items-center gap-2 w-full">
+            <Input 
+                placeholder="Escribe un mensaje..." 
+                autoComplete="off" 
+                disabled={isSending || !chatId}
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+            />
+            <Button type="submit" size="icon" disabled={isSending || !chatId || !newMessage.trim()}>
+              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </form>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, Timestamp, doc, updateDoc, addDoc, s
 
 export interface Notification {
   id: string;
-  type: 'application' | 'invite';
+  type: 'application' | 'invite' | 'friend_request';
   team?: {
     id: string;
     name: string;
@@ -76,6 +76,33 @@ async function getTeamApplicationsForOwner(userId: string): Promise<Notification
     }
 }
 
+async function getFriendRequestsForUser(userId: string): Promise<Notification[]> {
+    const requestsRef = collection(db, "friendRequests");
+    const q = query(requestsRef, where("to", "==", userId), where("status", "==", "pending"));
+    const querySnapshot = await getDocs(q);
+
+    const notifications: Notification[] = [];
+    for (const requestDoc of querySnapshot.docs) {
+        const requestData = requestDoc.data();
+        const senderId = requestData.from;
+        const senderDoc = await getDoc(doc(db, "users", senderId));
+        if (senderDoc.exists()) {
+            const senderData = senderDoc.data();
+            notifications.push({
+                id: requestDoc.id,
+                type: 'friend_request',
+                sender: {
+                    uid: senderId,
+                    displayName: senderData.displayName,
+                    avatarUrl: senderData.avatarUrl,
+                },
+                createdAt: requestData.createdAt instanceof Timestamp ? requestData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
+            });
+        }
+    }
+    return notifications;
+}
+
 
 export async function getPendingNotifications(userId: string): Promise<{ success: boolean; notifications?: Notification[]; error?: string; }> {
     if (!userId) {
@@ -83,12 +110,11 @@ export async function getPendingNotifications(userId: string): Promise<{ success
     }
 
     try {
-        const applicationsRef = collection(db, "teamApplications");
-        
-        // 1. Get team applications for teams the user owns (SECURELY)
+        // 1. Get team applications for teams the user owns
         const applications = await getTeamApplicationsForOwner(userId);
 
         // 2. Get team invites for the user
+        const applicationsRef = collection(db, "teamApplications");
         const inviteQuery = query(applicationsRef, where("userId", "==", userId), where("status", "==", "pending"), where("type", "==", "invite"));
         const inviteSnapshot = await getDocs(inviteQuery);
         const invites: Notification[] = inviteSnapshot.docs.map(doc => {
@@ -100,8 +126,11 @@ export async function getPendingNotifications(userId: string): Promise<{ success
                 createdAt: inviteData.createdAt instanceof Timestamp ? inviteData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
             };
         });
+
+        // 3. Get friend requests for the user
+        const friendRequests = await getFriendRequestsForUser(userId);
         
-        const allNotifications = [...applications, ...invites];
+        const allNotifications = [...applications, ...invites, ...friendRequests];
         allNotifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         
         return { success: true, notifications: allNotifications };
@@ -126,5 +155,16 @@ export async function handleApplicationDecision(applicationId: string, decision:
     } catch (error: any) {
         console.error(`Error handling application decision ${decision}:`, error);
         return { success: false, error: error.message || `An unknown error occurred while handling the application.` };
+    }
+}
+
+export async function handleFriendRequestDecision(requestId: string, accept: boolean) {
+    try {
+        const respond = httpsCallable(functions, 'respondToFriendRequest');
+        await respond({ requestId, accept });
+        return { success: true };
+    } catch (error: any) {
+        console.error('Error responding to friend request:', error);
+        return { success: false, error: error.message || 'Ocurrió un error desconocido.' };
     }
 }

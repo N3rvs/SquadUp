@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Inbox, Check, X, Loader2, UserPlus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { getPendingNotifications, handleApplicationDecision } from './notifications/actions';
+import { getPendingNotifications, handleApplicationDecision, handleFriendRequestDecision } from './notifications/actions';
 import type { Notification } from './notifications/actions';
 import { auth, functions } from '@/lib/firebase';
 import { Badge } from './ui/badge';
@@ -26,13 +26,6 @@ export function NotificationsInbox() {
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
-  }, []);
-
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
@@ -46,10 +39,17 @@ export function NotificationsInbox() {
   }, [user, toast]);
 
   useEffect(() => {
-    if (user) {
-      fetchNotifications();
-    }
-  }, [user, fetchNotifications]);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        if(currentUser) {
+            setUser(currentUser);
+            fetchNotifications();
+        } else {
+            setUser(null);
+        }
+    });
+    return () => unsubscribe();
+  }, [fetchNotifications]);
+
 
   const onOpenChange = (open: boolean) => {
     if (open) {
@@ -65,6 +65,18 @@ export function NotificationsInbox() {
       setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
     } else {
       toast({ variant: 'destructive', title: 'Error', description: result.error });
+    }
+    setIsProcessing(null);
+  };
+
+  const onHandleFriendRequest = async (requestId: string, accept: boolean) => {
+    setIsProcessing(requestId);
+    const result = await handleFriendRequestDecision(requestId, accept);
+    if (result.success) {
+        toast({ title: 'Éxito', description: `Solicitud de amistad ${accept ? 'aceptada' : 'rechazada'}.`});
+        fetchNotifications();
+    } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
     }
     setIsProcessing(null);
   };
@@ -129,6 +141,23 @@ export function NotificationsInbox() {
                               </div>
                           </div>
                         );
+                      }
+                      if (notification.type === 'friend_request' && notification.sender) {
+                        return (
+                           <div key={notification.id} className="p-4 hover:bg-secondary/50">
+                            <div className="flex items-start gap-3">
+                                <Avatar className="h-10 w-10 border"><AvatarImage src={notification.sender.avatarUrl} /><AvatarFallback>{notification.sender.displayName.substring(0, 2)}</AvatarFallback></Avatar>
+                                <div className="flex-1 text-sm">
+                                    <p><Link href={`/dashboard/profile/${notification.sender.uid}`} className="font-semibold hover:underline">{notification.sender.displayName}</Link>{' '}quiere ser tu amigo.</p>
+                                    <p className="text-xs text-muted-foreground mt-1">{formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: es })}</p>
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-2 mt-3">
+                                <Button size="sm" variant="outline" onClick={() => onHandleFriendRequest(notification.id, false)} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}<span className="ml-2">Rechazar</span></Button>
+                                <Button size="sm" onClick={() => onHandleFriendRequest(notification.id, true)} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}<span className="ml-2">Aceptar</span></Button>
+                            </div>
+                          </div>
+                        )
                       }
                       return null;
                     })}

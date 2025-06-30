@@ -21,7 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target, Briefcase, Loader2 } from "lucide-react";
+import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target, Briefcase, Loader2, UserPlus } from "lucide-react";
 import Image from "next/image";
 import type { Team } from "@/components/team-card";
 import {
@@ -37,6 +37,8 @@ import {
     getManagedTeams,
     sendTeamInvite,
 } from "./actions";
+import { sendFriendRequestAction } from '../friends/actions';
+
 
 // --- DATA & TYPE DEFINITIONS ---
 
@@ -49,6 +51,7 @@ interface Player {
   country: string;
   bio?: string;
   bannerUrl?: string;
+  friends?: string[];
 }
 
 interface ManagedTeam {
@@ -117,6 +120,7 @@ export default function MarketplacePage() {
     const { toast } = useToast();
     const { role } = useAuthRole();
     const [user, setUser] = useState<FirebaseUser | null>(null);
+    const [currentUserProfile, setCurrentUserProfile] = useState<Player | null>(null);
     const [isAuthReady, setIsAuthReady] = useState(false);
 
     const [tempRankFilter, setTempRankFilter] = useState('All');
@@ -127,14 +131,20 @@ export default function MarketplacePage() {
     const [selectedTeam, setSelectedTeam] = useState<string>("");
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
+            if(currentUser) {
+                const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+                if(userDoc.exists()) {
+                    setCurrentUserProfile({ uid: userDoc.id, ...userDoc.data() } as Player);
+                }
+            }
             setIsAuthReady(true);
         });
         return () => unsubscribe();
     }, []);
     
-    const isTeamManager = role === 'admin' || role === 'moderator' || role === 'founder';
+    const isTeamManager = role === 'admin' || role === 'moderator' || role === 'fundador';
     
     useEffect(() => {
         if (isAuthReady && isTeamManager && user) {
@@ -220,6 +230,17 @@ export default function MarketplacePage() {
         setIsSubmitting(null);
     };
 
+    const handleAddFriend = async (toId: string) => {
+        setIsSubmitting(toId);
+        const result = await sendFriendRequestAction(toId);
+        if (result.success) {
+            toast({ title: 'Solicitud de amistad enviada!' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsSubmitting(null);
+    };
+
     const handleSearch = () => {
         setRankFilter(tempRankFilter);
         setCountryFilter(tempCountryFilter);
@@ -280,18 +301,19 @@ export default function MarketplacePage() {
                             <TableBody>
                               {players.map((player) => {
                                 const countryCode = getCountryCode(player.country);
+                                const isFriend = currentUserProfile?.friends?.includes(player.uid);
                                 return (
                                 <TableRow key={player.uid}>
                                     <TableCell>
                                       <HoverCard>
                                         <HoverCardTrigger asChild>
-                                          <div className="flex items-center gap-3 cursor-pointer">
+                                           <Link href={`/dashboard/profile/${player.uid}`} className="flex items-center gap-3">
                                               <Avatar className="h-10 w-10 border">
                                                   <AvatarImage src={player.avatarUrl} alt={player.displayName} />
                                                   <AvatarFallback>{player.displayName.substring(0,2)}</AvatarFallback>
                                               </Avatar>
-                                              <span className="font-medium">{player.displayName}</span>
-                                          </div>
+                                              <span className="font-medium hover:underline">{player.displayName}</span>
+                                          </Link>
                                         </HoverCardTrigger>
                                         <HoverCardContent className="w-80" align="start">
                                             <div className="flex justify-between space-x-4">
@@ -304,13 +326,6 @@ export default function MarketplacePage() {
                                                 <p className="text-sm text-muted-foreground line-clamp-3">
                                                     {player.bio || 'Este jugador no tiene una biografía.'}
                                                 </p>
-                                                <div className="flex items-center pt-2">
-                                                    <Button asChild variant="link" className="p-0 h-auto">
-                                                        <Link href={`/dashboard/profile/${player.uid}`}>
-                                                            Ver Perfil
-                                                        </Link>
-                                                    </Button>
-                                                </div>
                                             </div>
                                             </div>
                                         </HoverCardContent>
@@ -331,6 +346,18 @@ export default function MarketplacePage() {
                                      <TableCell className="text-right">
                                         {user && user.uid !== player.uid && (
                                             <div className="flex items-center justify-end gap-1">
+                                                {!isFriend && (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button variant="ghost" size="icon" disabled={isSubmitting === player.uid} onClick={() => handleAddFriend(player.uid)}>
+                                                                    {isSubmitting === player.uid ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Añadir Amigo</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
                                                 {isTeamManager && (
                                                     <TooltipProvider>
                                                         <Tooltip>
@@ -378,13 +405,13 @@ export default function MarketplacePage() {
                                           <TableCell>
                                             <HoverCard>
                                               <HoverCardTrigger asChild>
-                                                <div className="flex items-center gap-3 cursor-pointer">
+                                                <Link href={`/dashboard/teams/${team.id}`} className="flex items-center gap-3">
                                                   <Avatar className="h-10 w-10 border">
                                                     <AvatarImage src={team.logoUrl} alt={team.name} />
                                                     <AvatarFallback>{team.name.substring(0,2)}</AvatarFallback>
                                                   </Avatar>
-                                                  <span className="font-medium">{team.name}</span>
-                                                </div>
+                                                  <span className="font-medium hover:underline">{team.name}</span>
+                                                </Link>
                                               </HoverCardTrigger>
                                               <HoverCardContent className="w-80 p-0" align="start">
                                                 <div className="relative h-24 w-full">
@@ -420,13 +447,6 @@ export default function MarketplacePage() {
                                                       </div>
                                                     </div>
                                                   )}
-                                                  <div className="flex items-center pt-2">
-                                                    <Button asChild variant="link" className="p-0 h-auto">
-                                                      <Link href={`/dashboard/teams/${team.id}`}>
-                                                        Ver Equipo
-                                                      </Link>
-                                                    </Button>
-                                                  </div>
                                                 </div>
                                               </HoverCardContent>
                                             </HoverCard>
@@ -491,5 +511,3 @@ export default function MarketplacePage() {
         </div>
     );
 }
-
-    

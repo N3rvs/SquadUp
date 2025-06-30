@@ -589,17 +589,6 @@ export default function TeamsPage() {
                                         </div>
                                       </div>
                                     )}
-                                  <div className="flex items-center pt-2">
-                                    <Button
-                                      asChild
-                                      variant="link"
-                                      className="p-0 h-auto"
-                                    >
-                                      <Link href={`/dashboard/teams/${team.id}`}>
-                                        Ver Equipo
-                                      </Link>
-                                    </Button>
-                                  </div>
                                 </div>
                               </HoverCardContent>
                             </HoverCard>

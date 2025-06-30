@@ -1,6 +1,4 @@
 
-'use server';
-
 import { db } from "@/lib/firebase";
 import { addDoc, collection, doc, getDoc, query, serverTimestamp, where, getDocs, updateDoc, arrayUnion } from "firebase/firestore";
 import { revalidatePath } from "next/cache";

@@ -1,6 +1,4 @@
 
-'use server';
-
 import { auth, functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import type { Timestamp } from 'firebase/firestore';

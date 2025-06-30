@@ -1,6 +1,4 @@
 
-'use server';
-
 import { auth, db, functions } from "@/lib/firebase";
 import { collection, addDoc, query, where, getDocs, doc, getDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";

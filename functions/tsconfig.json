@@ -1,4 +1,3 @@
-
 {
   "compilerOptions": {
     "module": "commonjs",
@@ -7,7 +6,9 @@
     "outDir": "lib",
     "sourceMap": true,
     "strict": true,
-    "target": "es2021"
+    "target": "es2020",
+    "esModuleInterop": true,
+    "resolveJsonModule": true
   },
   "compileOnSave": true,
   "include": [

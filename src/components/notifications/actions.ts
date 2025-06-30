@@ -37,31 +37,27 @@ export async function getPendingNotifications(userId: string): Promise<{ success
         const applicationsRef = collection(db, "teamApplications");
         const friendRequestsRef = collection(db, "friendRequests");
         
-        // 1. Get team applications for teams the user owns by calling the secure cloud function.
-        const teamsRef = collection(db, "teams");
-        const userOwnedTeamsQuery = query(teamsRef, where("ownerId", "==", userId));
-        const userOwnedTeamsSnapshot = await getDocs(userOwnedTeamsQuery);
-        const ownedTeamIds = userOwnedTeamsSnapshot.docs.map(doc => doc.id);
-
-        let applications: Notification[] = [];
-        if (ownedTeamIds.length > 0) {
-            const getAppsFunc = httpsCallable(functions, 'getTeamApplicationsInbox');
-            const appPromises = ownedTeamIds.map(teamId => getAppsFunc({ teamId }));
-            const appResults = await Promise.all(appPromises);
-            const allApplications: any[] = appResults.flatMap(result => (result.data as any)?.applications || []);
-
-            applications = allApplications
-                .filter(app => app.type === 'application' && app.status === 'pending')
-                .map(app => {
-                    return {
-                        id: app.id,
-                        type: 'application',
-                        team: { id: app.teamId, name: app.teamName },
-                        applicant: { uid: app.userId, displayName: app.userDisplayName || 'Unknown User', avatarUrl: app.userAvatarUrl || '' },
-                        createdAt: app.createdAt instanceof Timestamp ? app.createdAt.toDate().toISOString() : new Date(0).toISOString(),
-                    };
-                });
-        }
+        // 1. Get team applications for teams the user owns.
+        const appQuery = query(applicationsRef, 
+            where("teamOwnerId", "==", userId), 
+            where("type", "==", "application"), 
+            where("status", "==", "pending")
+        );
+        const appSnapshot = await getDocs(appQuery);
+        const applications: Notification[] = appSnapshot.docs.map(doc => {
+            const appData = doc.data();
+            return {
+                id: doc.id,
+                type: 'application',
+                team: { id: appData.teamId, name: appData.teamName, logoUrl: appData.teamLogoUrl || '' },
+                applicant: { 
+                    uid: appData.userId, 
+                    displayName: appData.userDisplayName || 'Unknown User', 
+                    avatarUrl: appData.userAvatarUrl || '' 
+                },
+                createdAt: appData.createdAt instanceof Timestamp ? appData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
+            };
+        });
 
 
         // 2. Get team invites for the user

@@ -61,6 +61,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 // --- DATA & TYPE DEFINITIONS ---
 
 interface UserProfile {
+  uid: string;
+  displayName: string;
+  avatarUrl: string;
+  valorantRoles: string[];
   primaryRole?: 'player' | 'moderator' | 'admin' | 'fundador' | 'coach';
 }
 
@@ -301,7 +305,18 @@ export default function TeamsPage() {
       if (currentUser) {
         const userDocRef = doc(db, "users", currentUser.uid);
         const docSnap = await getDoc(userDocRef);
-        setProfile(docSnap.exists() ? (docSnap.data() as UserProfile) : null);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            setProfile({
+                uid: currentUser.uid,
+                displayName: data.displayName || '',
+                avatarUrl: data.avatarUrl || '',
+                valorantRoles: data.valorantRoles || [],
+                primaryRole: data.primaryRole,
+            });
+        } else {
+            setProfile(null);
+        }
       } else {
         setProfile(null);
       }
@@ -361,7 +376,14 @@ export default function TeamsPage() {
   };
   
   const handleFormSubmit = useCallback(async (data: TeamFormValues) => {
-    if (!user) return;
+    if (!user || !profile) {
+        toast({
+            variant: 'destructive',
+            title: 'Perfil no cargado',
+            description: 'Tu perfil de usuario no está disponible. Por favor, recarga la página.',
+        });
+        return;
+    }
     setIsSubmitting(true);
     try {
       if (editingTeam) {
@@ -386,10 +408,19 @@ export default function TeamsPage() {
             return;
         }
 
+        const creatorAsMember = {
+            uid: profile.uid,
+            displayName: profile.displayName,
+            avatarUrl: profile.avatarUrl,
+            valorantRoles: profile.valorantRoles,
+            primaryRole: profile.primaryRole,
+        };
+
         const newTeamRef = await addDoc(collection(db, "teams"), {
             ...data,
             ownerId: user.uid,
             memberIds: [user.uid],
+            members: [creatorAsMember],
             createdAt: Timestamp.now(),
             logoUrl: '',
             bannerUrl: '',
@@ -417,7 +448,7 @@ export default function TeamsPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [user, logoFile, bannerFile, editingTeam, uploadImage, toast, fetchTeams]);
+  }, [user, profile, logoFile, bannerFile, editingTeam, uploadImage, toast, fetchTeams]);
 
   const canCreateTeam = profile?.primaryRole === 'fundador';
   const isPrivilegedUser = userSecurityRole === 'admin' || userSecurityRole === 'moderator';
@@ -726,7 +757,3 @@ export default function TeamsPage() {
     </div>
   );
 }
-
-    
-
-    

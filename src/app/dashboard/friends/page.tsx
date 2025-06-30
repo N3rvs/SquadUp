@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { ChatModal } from '@/components/chat-modal';
 
 
 function LoadingSkeleton() {
@@ -74,6 +75,7 @@ export default function FriendsPage() {
     const [isLoadingFriends, setIsLoadingFriends] = useState(true);
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
     const { toast } = useToast();
+    const [chatWithFriend, setChatWithFriend] = useState<Friend | null>(null);
 
     useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -262,8 +264,8 @@ export default function FriendsPage() {
                                         <span className="font-medium">{friend.displayName}</span>
                                     </Link>
                                     <div className="flex gap-2">
-                                        <Button asChild size="icon" variant="outline" >
-                                            <Link href={`/dashboard/chat?u=${friend.uid}`}><MessageSquare /></Link>
+                                        <Button size="icon" variant="outline" onClick={() => setChatWithFriend(friend)}>
+                                            <MessageSquare />
                                         </Button>
                                         <AlertDialog>
                                             <AlertDialogTrigger asChild>
@@ -296,6 +298,19 @@ export default function FriendsPage() {
                     )}
                 </CardContent>
             </Card>
+
+            {chatWithFriend && user && (
+                <ChatModal
+                    friend={chatWithFriend}
+                    currentUser={user}
+                    open={!!chatWithFriend}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setChatWithFriend(null);
+                        }
+                    }}
+                />
+            )}
         </div>
     );
 }

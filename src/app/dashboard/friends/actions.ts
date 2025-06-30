@@ -1,6 +1,6 @@
 import { db, functions } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
-import { collection, doc, getDoc, query, where, getDocs, Timestamp, addDoc, serverTimestamp, updateDoc, arrayUnion } from "firebase/firestore";
+import { collection, doc, getDoc, query, where, getDocs, Timestamp, addDoc, serverTimestamp, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 
 export interface Friend {
     uid: string;
@@ -186,5 +186,34 @@ export async function respondToFriendRequest(
             return { success: false, error: error.message };
         }
         return { success: false, error: "An unknown error occurred while handling the request." };
+    }
+}
+
+export async function removeFriend(
+    userId: string,
+    friendId: string
+): Promise<{ success: boolean; error?: string; }> {
+    if (!userId || !friendId) {
+        return { success: false, error: "User IDs are required." };
+    }
+
+    const userDocRef = doc(db, "users", userId);
+    const friendDocRef = doc(db, "users", friendId);
+
+    try {
+        await updateDoc(userDocRef, {
+            friends: arrayRemove(friendId)
+        });
+        await updateDoc(friendDocRef, {
+            friends: arrayRemove(userId)
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error removing friend:", error);
+        if (error instanceof Error) {
+            return { success: false, error: error.message };
+        }
+        return { success: false, error: "An unknown error occurred while removing the friend." };
     }
 }

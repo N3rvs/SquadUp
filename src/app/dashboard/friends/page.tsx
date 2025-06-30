@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { getFriendsList, getPendingFriendRequests, respondToFriendRequest } from './actions';
+import { getFriendsList, getPendingFriendRequests, respondToFriendRequest, removeFriend } from './actions';
 import type { Friend, FriendRequest } from './actions';
 
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,8 @@ import { Badge } from '@/components/ui/badge';
 import { Check, X, Loader2, UserPlus, UserMinus, MessageSquare } from 'lucide-react';
 import { ChatModal } from '@/components/chat-modal';
 import { doc, getDoc } from 'firebase/firestore';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+
 
 function PageSkeleton() {
     return (
@@ -50,7 +52,9 @@ export default function FriendsPage() {
     const [requests, setRequests] = useState<FriendRequest[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
+    const [isProcessingRemoval, setIsProcessingRemoval] = useState(false);
     const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
+    const [friendToRemove, setFriendToRemove] = useState<Friend | null>(null);
     const { toast } = useToast();
     
     const fetchData = useCallback(async (uid: string) => {
@@ -112,12 +116,22 @@ export default function FriendsPage() {
         setIsProcessing(null);
     };
 
-    const handleRemoveFriend = async (friendId: string) => {
-        toast({
-            title: 'Función no implementada',
-            description: 'La eliminación de amigos se añadirá próximamente.'
-        });
+    const handleRemoveFriendConfirm = async () => {
+        if (!friendToRemove || !user) return;
+        setIsProcessingRemoval(true);
+        const result = await removeFriend(user.uid, friendToRemove.uid);
+        if (result.success) {
+            toast({ title: 'Amigo eliminado', description: `${friendToRemove.displayName} ya no está en tu lista de amigos.` });
+            if (user) {
+                fetchData(user.uid);
+            }
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setFriendToRemove(null);
+        setIsProcessingRemoval(false);
     };
+
 
     if (isLoading) {
         return <PageSkeleton />;
@@ -170,7 +184,7 @@ export default function FriendsPage() {
                                                 <Button variant="ghost" size="icon" onClick={() => setSelectedFriend(friend)}>
                                                     <MessageSquare className="h-4 w-4" />
                                                 </Button>
-                                                <Button variant="ghost" size="icon" onClick={() => handleRemoveFriend(friend.uid)}>
+                                                <Button variant="ghost" size="icon" onClick={() => setFriendToRemove(friend)}>
                                                     <UserMinus className="h-4 w-4" />
                                                 </Button>
                                             </TableCell>
@@ -243,6 +257,27 @@ export default function FriendsPage() {
                     currentUser={currentUser}
                 />
             )}
+             <AlertDialog open={!!friendToRemove} onOpenChange={(open) => !open && setFriendToRemove(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción eliminará a <span className="font-semibold">{friendToRemove?.displayName}</span> de tu lista de amigos. Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleRemoveFriendConfirm}
+                            disabled={isProcessingRemoval}
+                            className="bg-destructive hover:bg-destructive/90"
+                        >
+                            {isProcessingRemoval && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Sí, eliminar amigo
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

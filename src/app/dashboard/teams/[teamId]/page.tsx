@@ -10,9 +10,6 @@ import { doc, getDoc, collection, query, where, getDocs, type DocumentData } fro
 import { httpsCallable, FunctionsError } from "firebase/functions";
 import { auth, db, functions } from "@/lib/firebase";
 import { getCountryCode } from "@/lib/countries";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -20,16 +17,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, MoreHorizontal, Search, Loader2, Crown, Trash2, Edit } from "lucide-react";
+import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, Search, Loader2, Crown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { applyToTeam } from "./actions";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Checkbox } from "@/components/ui/checkbox";
-import { valorantRoles } from "@/lib/valorant";
 import { useAuthRole } from "@/hooks/useAuthRole";
 
 
@@ -59,16 +50,6 @@ interface TeamMember extends DocumentData {
     valorantRoles: string[];
     primaryRole?: string;
 }
-
-interface UserProfile {
-  primaryRole?: 'player' | 'moderator' | 'admin' | 'founder' | 'coach';
-}
-
-const rolesFormSchema = z.object({
-  roles: z.array(z.string()).refine((value) => value.length > 0, {
-    message: "Debes seleccionar al menos un rol.",
-  }),
-});
 
 function getYoutubeEmbedUrl(url?: string): string | null {
     if (!url) return null;
@@ -113,24 +94,6 @@ function TeamPageSkeleton() {
     );
 }
 
-function getErrorMessage(error: any): string {
-    if (error instanceof FunctionsError) {
-        switch (error.code) {
-            case 'unauthenticated':
-                return "No estás autenticado. Por favor, inicia sesión de nuevo.";
-            case 'permission-denied':
-                return "No tienes los permisos necesarios para realizar esta acción.";
-            case 'not-found':
-                return "El recurso solicitado no fue encontrado. Verifica la información.";
-            case 'invalid-argument':
-                return "Los datos enviados son incorrectos. Por favor, revisa la información.";
-            default:
-                return `Ocurrió un error con la función: ${error.message}`;
-        }
-    }
-    return "Ocurrió un error desconocido al contactar con el servidor.";
-}
-
 // --- MAIN COMPONENT ---
 
 export default function TeamDetailPage() {
@@ -142,31 +105,10 @@ export default function TeamDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const teamId = typeof params.teamId === 'string' ? params.teamId : '';
-  const { role: userRole } = useAuthRole();
 
   const [isApplying, setIsApplying] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState<'idle' | 'applied' | 'member'>('idle');
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
-
-  const [memberToKick, setMemberToKick] = useState<TeamMember | null>(null);
-  const [isKicking, setIsKicking] = useState(false);
-  const [memberToEdit, setMemberToEdit] = useState<TeamMember | null>(null);
-  const [isUpdatingRoles, setIsUpdatingRoles] = useState(false);
-
-  const rolesForm = useForm<z.infer<typeof rolesFormSchema>>({
-    resolver: zodResolver(rolesFormSchema),
-    defaultValues: {
-      roles: [],
-    },
-  });
-
-  useEffect(() => {
-    if (memberToEdit) {
-      rolesForm.reset({
-        roles: memberToEdit.valorantRoles || [],
-      });
-    }
-  }, [memberToEdit, rolesForm]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -242,47 +184,6 @@ export default function TeamDetailPage() {
     }
     setIsApplying(false);
   };
-  
-  const handleKickMember = async () => {
-    if (!memberToKick || !team || !auth.currentUser) return;
-    setIsKicking(true);
-    try {
-        await auth.currentUser.getIdToken(true);
-        const kickTeamMemberFunc = httpsCallable(functions, 'kickTeamMember');
-        await kickTeamMemberFunc({ teamId: team.id, memberId: memberToKick.uid });
-        toast({ title: "Miembro expulsado", description: `${memberToKick.displayName} ha sido eliminado del equipo.` });
-        setMemberToKick(null);
-        fetchTeamAndMembers();
-    } catch (error: any) {
-        toast({ variant: "destructive", title: "Error al expulsar", description: getErrorMessage(error) });
-    } finally {
-        setIsKicking(false);
-    }
-  };
-
-  const handleUpdateRoles = async (data: z.infer<typeof rolesFormSchema>) => {
-    if (!memberToEdit || !team || !auth.currentUser) return;
-    
-    setIsUpdatingRoles(true);
-    try {
-        await auth.currentUser.getIdToken(true); // Force token refresh
-        const updateRolesFunc = httpsCallable(functions, 'updateTeamMemberRoles');
-        
-        await updateRolesFunc({ 
-            teamId: team.id, 
-            memberId: memberToEdit.uid,
-            roles: data.roles 
-        });
-
-        toast({ title: "Roles actualizados", description: `Los roles de juego de ${memberToEdit.displayName} han sido actualizados.` });
-        setMemberToEdit(null);
-        fetchTeamAndMembers(); // Refresh data
-    } catch (error: any) {
-        toast({ variant: "destructive", title: "Error al actualizar roles", description: getErrorMessage(error) });
-    } finally {
-        setIsUpdatingRoles(false);
-    }
-  };
 
   if (isLoading) {
     return <TeamPageSkeleton />;
@@ -299,7 +200,6 @@ export default function TeamDetailPage() {
 
   const countryCode = getCountryCode(team.country);
   const embedUrl = getYoutubeEmbedUrl(team.videoUrl);
-  const isManager = user && team && (user.uid === team.ownerId || userRole === 'admin' || userRole === 'moderator');
   
   const canApply = user && team.isRecruiting && applicationStatus === 'idle';
 
@@ -373,7 +273,6 @@ export default function TeamDetailPage() {
                                 <TableRow>
                                     <TableHead>Jugador</TableHead>
                                     <TableHead>Roles de Juego</TableHead>
-                                    {isManager && <TableHead className="text-right">Acciones</TableHead>}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -411,30 +310,6 @@ export default function TeamDetailPage() {
                                                 ))}
                                             </div>
                                         </TableCell>
-                                        {isManager && (
-                                            <TableCell className="text-right">
-                                                {user?.uid !== member.uid && team.ownerId !== member.uid && (
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="icon">
-                                                                <MoreHorizontal className="h-4 w-4" />
-                                                                <span className="sr-only">Abrir menú</span>
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem onClick={() => setMemberToEdit(member)}>
-                                                                <Edit className="mr-2 h-4 w-4" />
-                                                                Cambiar Rol de Juego
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem className="text-destructive" onClick={() => setMemberToKick(member)}>
-                                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                                Expulsar
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                )}
-                                            </TableCell>
-                                        )}
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -504,83 +379,6 @@ export default function TeamDetailPage() {
             )}
         </div>
       </div>
-
-       <AlertDialog open={!!memberToKick} onOpenChange={(open) => !open && setMemberToKick(null)}>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro de que quieres expulsar a {memberToKick?.displayName}?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Esta acción no se puede deshacer. El jugador será eliminado permanentemente del equipo.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleKickMember} disabled={isKicking} className="bg-destructive hover:bg-destructive/90">
-                        {isKicking && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Sí, expulsar
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-
-        <Dialog open={!!memberToEdit} onOpenChange={(open) => !open && setMemberToEdit(null)}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Cambiar Roles de Juego de {memberToEdit?.displayName}</DialogTitle>
-                    <DialogDescription>
-                        Selecciona los roles que este jugador desempeñará en el equipo.
-                    </DialogDescription>
-                </DialogHeader>
-                <Form {...rolesForm}>
-                    <form onSubmit={rolesForm.handleSubmit(handleUpdateRoles)} className="space-y-6 pt-4">
-                        <FormField
-                            control={rolesForm.control}
-                            name="roles"
-                            render={() => (
-                                <FormItem>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                    {valorantRoles.map((role) => (
-                                    <FormField
-                                        key={role}
-                                        control={rolesForm.control}
-                                        name="roles"
-                                        render={({ field }) => {
-                                        return (
-                                            <FormItem key={role} className="flex flex-row items-start space-x-3 space-y-0">
-                                                <FormControl>
-                                                    <Checkbox
-                                                        checked={field.value?.includes(role)}
-                                                        onCheckedChange={(checked) => {
-                                                            return checked
-                                                            ? field.onChange([...field.value, role])
-                                                            : field.onChange(field.value?.filter((value) => value !== role));
-                                                        }}
-                                                    />
-                                                </FormControl>
-                                                <FormLabel className="font-normal">{role}</FormLabel>
-                                            </FormItem>
-                                        );
-                                        }}
-                                    />
-                                    ))}
-                                </div>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         <DialogFooter>
-                            <Button type="button" variant="ghost" onClick={() => setMemberToEdit(null)}>Cancelar</Button>
-                            <Button type="submit" disabled={rolesForm.formState.isSubmitting || isUpdatingRoles}>
-                                {(rolesForm.formState.isSubmitting || isUpdatingRoles) && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                                Guardar Cambios
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </Form>
-            </DialogContent>
-        </Dialog>
     </div>
   );
 }
-
-    

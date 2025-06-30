@@ -38,19 +38,9 @@ import {
     DialogTitle,
     DialogClose,
 } from '@/components/ui/dialog';
-import { MoreHorizontal, Loader2, Trash2, Edit, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { MoreHorizontal, Loader2, Edit, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { useAuthRole } from '@/hooks/useAuthRole';
 import { Card, CardContent } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -67,7 +57,7 @@ type UserData = {
     createdAt: string;
 };
 
-const securityRoles = ['admin', 'moderator', 'player'];
+const securityRoles = ['admin', 'moderator', 'player', 'coach', 'fundador'];
 const banOptions = {
     'none': 'No Baneado',
     '1day': 'Banear 24 horas',
@@ -158,13 +148,13 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
             const isBanned = banExpiresAt !== null;
 
             // Call Cloud Functions for security changes
-            const setUserRoleFunc = httpsCallable(functions, 'setUserRole');
+            const setUserRoleFunc = httpsCallable(functions, 'setUserRoleAndSync');
             await setUserRoleFunc({ uid: user.uid, role: data.role });
 
             const banUserFunc = httpsCallable(functions, 'banUser');
             await banUserFunc({ uid: user.uid, isBanned });
             
-            toast({ title: 'Usuario actualizado', description: 'Los cambios se han guardado.' });
+            toast({ title: 'Usuario actualizado', description: 'Los cambios se han guardado. La interfaz puede tardar en reflejar todos los cambios.' });
             onUserUpdate();
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error al actualizar', description: getErrorMessage(error) });
@@ -207,7 +197,7 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
                                             ))}
                                         </SelectContent>
                                     </Select>
-                                    <FormDescription>Este es el rol de seguridad para permisos.</FormDescription>
+                                    <FormDescription>Este rol de seguridad se sincronizará con el rol principal.</FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -284,35 +274,7 @@ export default function UsersAdminPage() {
         fetchUsers();
     }, [fetchUsers]);
     
-    const [isDeleting, setIsDeleting] = useState(false);
-    const [userToDelete, setUserToDelete] = useState<UserData | null>(null);
     const [userToEdit, setUserToEdit] = useState<UserData | null>(null);
-
-    const handleDelete = async () => {
-        if (!userToDelete) return;
-        setIsDeleting(true);
-
-        if (!auth.currentUser) {
-            toast({ variant: 'destructive', title: 'Error de Autenticación', description: 'No estás autenticado.' });
-            setIsDeleting(false);
-            setUserToDelete(null);
-            return;
-        }
-
-        try {
-            await auth.currentUser.getIdToken(true); // Force token refresh
-            const deleteUserFunc = httpsCallable(functions, 'deleteUser');
-            await deleteUserFunc({ uid: userToDelete.uid });
-            toast({ title: 'Usuario Eliminado', description: `El usuario ${userToDelete.displayName} ha sido eliminado.` });
-            fetchUsers();
-        } catch (error: any) {
-            console.error("Error deleting user:", error);
-            toast({ variant: 'destructive', title: 'Error al eliminar', description: getErrorMessage(error) });
-        } finally {
-            setIsDeleting(false);
-            setUserToDelete(null);
-        }
-    };
 
     return (
         <div className="grid gap-8">
@@ -389,10 +351,6 @@ export default function UsersAdminPage() {
                                                         <Edit className="mr-2 h-4 w-4"/>
                                                         Editar Usuario
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem className="text-destructive" onSelect={() => setUserToDelete(user)} disabled={isCurrentUser}>
-                                                        <Trash2 className="mr-2 h-4 w-4"/>
-                                                        Eliminar Usuario
-                                                    </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         )}
@@ -414,28 +372,6 @@ export default function UsersAdminPage() {
                     setUserToEdit(null);
                 }}
             />
-
-            <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Esta acción no se puede deshacer. Esto eliminará permanentemente al usuario
-                             <span className="font-bold"> {userToDelete?.displayName} </span> 
-                            y todos sus datos asociados de nuestros servidores.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-                           {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                           Sí, eliminar usuario
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
         </div>
     );
 }
-
-    

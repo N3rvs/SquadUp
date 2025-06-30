@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { getDocs, query, where, collection, doc, updateDoc } from "firebase/firestore";
+import { getDocs, query, where, collection } from "firebase/firestore";
 import { functions, db, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,14 +55,10 @@ export function AssignRoleWithEmail() {
     setLoading(true);
     try {
       await auth.currentUser.getIdToken(true); // Force token refresh
-      const assignRole = httpsCallable(functions, "setUserRole");
+      const assignRole = httpsCallable(functions, "setUserRoleAndSync");
       await assignRole({ uid, role });
 
-      // Also update the user's document in Firestore to keep it in sync
-      const userDocRef = doc(db, "users", uid);
-      await updateDoc(userDocRef, { primaryRole: role });
-
-      toast({ title: "Rol asignado", description: `El rol '${role}' fue asignado a ${email}` });
+      toast({ title: "Rol asignado", description: `El rol '${role}' fue asignado y sincronizado para ${email}` });
       setCurrentRole(role);
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error al asignar", description: err.message });
@@ -93,7 +89,7 @@ export function AssignRoleWithEmail() {
             <SelectContent>
               <SelectItem value="admin">Admin</SelectItem>
               <SelectItem value="moderator">Moderator</SelectItem>
-              <SelectItem value="founder">Founder</SelectItem>
+              <SelectItem value="fundador">Founder</SelectItem>
               <SelectItem value="coach">Coach</SelectItem>
               <SelectItem value="player">Player</SelectItem>
             </SelectContent>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -16,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { Inbox, Check, X, Loader2 } from 'lucide-react';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 function NotificationSkeleton() {
     return (
@@ -71,14 +73,12 @@ export default function InboxPage() {
         }
     }, [user, fetchNotifications]);
 
-    const onHandleNotification = async (
+    const onHandleApplication = async (
         notificationId: string,
-        userId: string,
-        teamId: string,
         decision: 'accept' | 'reject'
     ) => {
         setIsProcessing(notificationId);
-        const result = await handleNotification(notificationId, userId, teamId, decision);
+        const result = await handleNotification(notificationId, decision);
         if (result.success) {
             toast({
                 title: '¡Decisión procesada!',
@@ -106,6 +106,7 @@ export default function InboxPage() {
             ) : notifications.length > 0 ? (
                 <div className="space-y-4">
                     {notifications.map((notification) => {
+                        const isInvite = notification.type === 'invite';
                         if (notification.type === 'application' && notification.applicant) {
                             return (
                                 <Card key={notification.id}>
@@ -129,7 +130,7 @@ export default function InboxPage() {
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
-                                                    onClick={() => onHandleNotification(notification.id, notification.applicant!.uid, notification.team.id, 'reject')}
+                                                    onClick={() => onHandleApplication(notification.id, 'reject')}
                                                     disabled={isProcessing === notification.id}
                                                 >
                                                     {isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
@@ -137,7 +138,7 @@ export default function InboxPage() {
                                                 </Button>
                                                 <Button
                                                     size="sm"
-                                                    onClick={() => onHandleNotification(notification.id, notification.applicant!.uid, notification.team.id, 'accept')}
+                                                    onClick={() => onHandleApplication(notification.id, 'accept')}
                                                     disabled={isProcessing === notification.id}
                                                 >
                                                     {isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
@@ -149,7 +150,7 @@ export default function InboxPage() {
                                 </Card>
                             );
                         }
-                         if (notification.type === 'invite' && user) {
+                         if (isInvite) {
                             return (
                                 <Card key={notification.id}>
                                     <CardContent className="p-4">
@@ -169,23 +170,34 @@ export default function InboxPage() {
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => onHandleNotification(notification.id, user.uid, notification.team.id, 'reject')}
-                                                    disabled={isProcessing === notification.id}
-                                                >
-                                                    {isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-                                                    <span className="ml-2 hidden sm:inline">Rechazar</span>
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => onHandleNotification(notification.id, user.uid, notification.team.id, 'accept')}
-                                                    disabled={isProcessing === notification.id}
-                                                >
-                                                    {isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                                                     <span className="ml-2 hidden sm:inline">Aceptar</span>
-                                                </Button>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger>
+                                                            <span tabIndex={0}>
+                                                                <Button size="sm" variant="outline" disabled={true}>
+                                                                    <X className="h-4 w-4" />
+                                                                    <span className="ml-2 hidden sm:inline">Rechazar</span>
+                                                                </Button>
+                                                            </span>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Próximamente</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                     <Tooltip>
+                                                        <TooltipTrigger>
+                                                            <span tabIndex={0}>
+                                                                <Button size="sm" disabled={true}>
+                                                                    <Check className="h-4 w-4" />
+                                                                     <span className="ml-2 hidden sm:inline">Aceptar</span>
+                                                                </Button>
+                                                            </span>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Próximamente</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
                                             </div>
                                         </div>
                                     </CardContent>

@@ -17,6 +17,7 @@ import type { Notification } from './notifications/actions';
 import { auth } from '@/lib/firebase';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 export function NotificationsInbox() {
   const [user, setUser] = useState<User | null>(null);
@@ -56,14 +57,12 @@ export function NotificationsInbox() {
     }
   };
 
-  const onHandleNotification = async (
+  const onHandleApplication = async (
     notificationId: string,
-    userId: string,
-    teamId: string,
     decision: 'accept' | 'reject'
   ) => {
     setIsProcessing(notificationId);
-    const result = await handleNotification(notificationId, userId, teamId, decision);
+    const result = await handleNotification(notificationId, decision);
     if (result.success) {
       toast({
         title: '¡Decisión procesada!',
@@ -95,8 +94,11 @@ export function NotificationsInbox() {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-96 p-0" align="end">
-        <div className="p-4">
+        <div className="p-4 flex justify-between items-center">
             <h3 className="font-semibold">Notificaciones</h3>
+             <Button asChild variant="link" className="p-0 h-auto text-xs">
+                <Link href="/dashboard/inbox">Ver todo</Link>
+            </Button>
         </div>
         <Separator />
         <div className="max-h-96 overflow-y-auto">
@@ -107,6 +109,7 @@ export function NotificationsInbox() {
             ) : notifications.length > 0 ? (
                 <div className="flex flex-col">
                     {notifications.map((notification) => {
+                      const isInvite = notification.type === 'invite';
                       if (notification.type === 'application' && notification.applicant) {
                         return (
                           <div key={notification.id} className="p-4 hover:bg-secondary/50">
@@ -130,7 +133,7 @@ export function NotificationsInbox() {
                                 <Button 
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => onHandleNotification(notification.id, notification.applicant!.uid, notification.team.id, 'reject')}
+                                    onClick={() => onHandleApplication(notification.id, 'reject')}
                                     disabled={isProcessing === notification.id}
                                 >
                                     {isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
@@ -138,7 +141,7 @@ export function NotificationsInbox() {
                                 </Button>
                                 <Button 
                                     size="sm"
-                                    onClick={() => onHandleNotification(notification.id, notification.applicant!.uid, notification.team.id, 'accept')}
+                                    onClick={() => onHandleApplication(notification.id, 'accept')}
                                     disabled={isProcessing === notification.id}
                                 >
                                     {isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
@@ -148,7 +151,7 @@ export function NotificationsInbox() {
                           </div>
                         );
                       }
-                      if (notification.type === 'invite' && user) {
+                      if (isInvite) {
                         return (
                           <div key={notification.id} className="p-4 hover:bg-secondary/50">
                               <div className="flex items-start gap-3">
@@ -167,24 +170,35 @@ export function NotificationsInbox() {
                                       </p>
                                   </div>
                               </div>
-                              <div className="flex justify-end gap-2 mt-3">
-                                  <Button 
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => onHandleNotification(notification.id, user.uid, notification.team.id, 'reject')}
-                                      disabled={isProcessing === notification.id}
-                                  >
-                                      {isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-                                      <span className="ml-2">Rechazar</span>
-                                  </Button>
-                                  <Button 
-                                      size="sm"
-                                      onClick={() => onHandleNotification(notification.id, user.uid, notification.team.id, 'accept')}
-                                      disabled={isProcessing === notification.id}
-                                  >
-                                      {isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                                      <span className="ml-2">Aceptar</span>
-                                  </Button>
+                               <div className="flex justify-end gap-2 mt-3">
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger>
+                                            <span tabIndex={0}>
+                                                <Button size="sm" variant="outline" disabled={true}>
+                                                    <X className="h-4 w-4" />
+                                                    <span className="ml-2">Rechazar</span>
+                                                </Button>
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Próximamente</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                        <TooltipTrigger>
+                                            <span tabIndex={0}>
+                                                <Button size="sm" disabled={true}>
+                                                    <Check className="h-4 w-4" />
+                                                    <span className="ml-2">Aceptar</span>
+                                                </Button>
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Próximamente</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
                               </div>
                           </div>
                         );

@@ -1,7 +1,8 @@
 
 'use server';
 
-import { db } from '@/lib/firebase';
+import { db, functions } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { collection, query, where, getDocs, doc, writeBatch, Timestamp, getDoc, arrayUnion } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 
@@ -99,47 +100,17 @@ export async function getPendingNotifications(userId: string): Promise<{ success
 
 export async function handleNotification(
   notificationId: string,
-  userId: string, 
-  teamId: string,
   decision: 'accept' | 'reject'
 ): Promise<{ success: boolean; error?: string; }> {
     try {
-        const batch = writeBatch(db);
-        const notificationRef = doc(db, "teamApplications", notificationId);
-
-        if (decision === 'accept') {
-            const teamRef = doc(db, "teams", teamId);
-            const teamDoc = await getDoc(teamRef);
-            if (!teamDoc.exists()) {
-                return { success: false, error: "Team not found." };
-            }
-            const teamData = teamDoc.data();
-            if (teamData.memberIds && teamData.memberIds.length >= 5) {
-                batch.update(notificationRef, { status: "rejected", reason: "Team is full" });
-                await batch.commit();
-                return { success: false, error: "Team is already full. The notification has been rejected." };
-            }
-
-            batch.update(teamRef, {
-                memberIds: arrayUnion(userId)
-            });
-
-            batch.update(notificationRef, { status: "accepted" });
-
-        } else {
-            batch.update(notificationRef, { status: "rejected" });
-        }
-
-        await batch.commit();
+        const processAppFunc = httpsCallable(functions, 'processTeamApplication');
+        await processAppFunc({ applicationId: notificationId, approved: decision === 'accept' });
         
         revalidatePath('/dashboard', 'layout'); 
         return { success: true };
 
-    } catch (error) {
+    } catch (error: any) {
         console.error(`Error handling notification ${decision}:`, error);
-        if (error instanceof Error) {
-            return { success: false, error: `Failed to ${decision} the application: ${error.message}` };
-        }
-        return { success: false, error: `An unknown error occurred while handling the application.` };
+        return { success: false, error: error.message || `An unknown error occurred while handling the application.` };
     }
 }

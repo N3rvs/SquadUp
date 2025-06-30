@@ -1,8 +1,9 @@
 
 'use server';
 
-import { auth, db } from "@/lib/firebase";
+import { auth, db, functions } from "@/lib/firebase";
 import { collection, addDoc, query, where, getDocs, doc, getDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 import { revalidatePath } from "next/cache";
 
 // --- Friend Request Logic ---
@@ -17,29 +18,15 @@ export async function sendFriendRequest(senderId: string, receiverId: string) {
     }
 
     try {
-        const requestsRef = collection(db, "friendRequests");
-        // Check for existing pending request (either way)
-        const q1 = query(requestsRef, where("senderId", "==", senderId), where("receiverId", "==", receiverId));
-        const q2 = query(requestsRef, where("senderId", "==", receiverId), where("receiverId", "==", senderId));
-
-        const [snapshot1, snapshot2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-
-        if (!snapshot1.empty || !snapshot2.empty) {
-            // We can check status here if we want to allow re-sending declined requests. For now, any request is a blocker.
-            return { success: false, error: "A friend request already exists between you and this player." };
-        }
-
-        await addDoc(requestsRef, {
-            senderId,
-            receiverId,
-            status: "pending",
-            createdAt: serverTimestamp(),
-        });
-        
+        const sendFriendRequestFunc = httpsCallable(functions, 'sendFriendRequest');
+        await sendFriendRequestFunc({ to: receiverId });
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error sending friend request:", error);
-        return { success: false, error: "An unknown error occurred while sending the friend request." };
+        if (error.code === 'already-exists') {
+            return { success: false, error: "A friend request has already been sent." };
+        }
+        return { success: false, error: error.message || "An unknown error occurred while sending the friend request." };
     }
 }
 

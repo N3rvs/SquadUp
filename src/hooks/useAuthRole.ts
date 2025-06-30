@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
-export type SecurityRole = 'player' | 'moderator' | 'admin' | 'founder' | 'coach';
+export type SecurityRole = 'player' | 'moderator' | 'admin' | 'fundador' | 'coach';
 
 export function useAuthRole() {
   const [role, setRole] = useState<SecurityRole | null>(null);
@@ -32,3 +33,5 @@ export function useAuthRole() {
 
   return { role, isLoading };
 }
+
+    

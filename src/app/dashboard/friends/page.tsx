@@ -10,7 +10,7 @@ import { respondToFriendRequest, removeFriend } from './actions';
 import type { Friend, FriendRequest } from './actions';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,11 +28,8 @@ function PageSkeleton() {
             <Skeleton className="h-10 w-48" />
             <Skeleton className="h-5 w-3/4" />
             <Card>
-                <CardHeader>
-                    <Skeleton className="h-10 w-full max-w-sm" />
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-2">
+                <CardContent className="p-0">
+                    <div className="p-6 space-y-2">
                         {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
                     </div>
                 </CardContent>
@@ -188,9 +185,24 @@ export default function FriendsPage() {
     };
 
     const handleRemoveFriendConfirm = async () => {
-        if (!friendToRemove || !user) return;
+        if (!friendToRemove || !user) {
+            toast({ variant: 'destructive', title: 'Error', description: 'No se ha seleccionado ningún amigo para eliminar.' });
+            return;
+        }
+
+        const friendIdToRemove = friendToRemove.uid;
+        if (!friendIdToRemove) {
+             toast({
+                variant: "destructive",
+                title: "Error de Datos",
+                description: `El amigo '${friendToRemove.displayName}' no tiene un ID válido y no se puede eliminar.`,
+            });
+            setFriendToRemove(null);
+            return;
+        }
+        
         setIsProcessingRemoval(true);
-        const result = await removeFriend(friendToRemove.uid);
+        const result = await removeFriend(friendIdToRemove);
         if (result.success) {
             toast({ title: 'Amigo eliminado', description: `${friendToRemove.displayName} ya no está en tu lista de amigos.` });
         } else {

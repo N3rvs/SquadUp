@@ -61,7 +61,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 // --- DATA & TYPE DEFINITIONS ---
 
 interface UserProfile {
-  primaryRole?: 'player' | 'moderator' | 'admin' | 'founder' | 'coach';
+  primaryRole?: 'player' | 'moderator' | 'admin' | 'fundador' | 'coach';
 }
 
 const valorantRanks = ["Any", ...allValorantRanks.filter(r => r !== 'Unranked')];
@@ -419,7 +419,7 @@ export default function TeamsPage() {
     }
   }, [user, logoFile, bannerFile, editingTeam, uploadImage, toast, fetchTeams]);
 
-  const canCreateTeam = profile?.primaryRole === 'founder';
+  const canCreateTeam = profile?.primaryRole === 'fundador';
   const isPrivilegedUser = userSecurityRole === 'admin' || userSecurityRole === 'moderator';
   const myTeams = teams.filter(team => user && team.memberIds.includes(user.uid));
 
@@ -737,5 +737,7 @@ export default function TeamsPage() {
     </div>
   );
 }
+
+    
 
     

@@ -37,7 +37,7 @@ export async function getPendingNotifications(userId: string): Promise<{ success
         const applicationsRef = collection(db, "teamApplications");
         const friendRequestsRef = collection(db, "friendRequests");
         
-        // 1. Get team applications for teams the user owns
+        // 1. Get team applications for teams the user owns by calling the secure cloud function.
         const teamsRef = collection(db, "teams");
         const userOwnedTeamsQuery = query(teamsRef, where("ownerId", "==", userId));
         const userOwnedTeamsSnapshot = await getDocs(userOwnedTeamsQuery);
@@ -45,23 +45,24 @@ export async function getPendingNotifications(userId: string): Promise<{ success
 
         let applications: Notification[] = [];
         if (ownedTeamIds.length > 0) {
-            const appQuery = query(applicationsRef, 
-                where("teamId", "in", ownedTeamIds), 
-                where("status", "==", "pending"),
-                where("type", "==", "application")
-            );
-            const appSnapshot = await getDocs(appQuery);
-            applications = appSnapshot.docs.map(doc => {
-                const appData = doc.data();
-                return {
-                    id: doc.id,
-                    type: 'application',
-                    team: { id: appData.teamId, name: appData.teamName },
-                    applicant: { uid: appData.userId, displayName: appData.userDisplayName || 'Unknown User', avatarUrl: appData.userAvatarUrl || '' },
-                    createdAt: appData.createdAt instanceof Timestamp ? appData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
-                };
-            });
+            const getAppsFunc = httpsCallable(functions, 'getTeamApplicationsInbox');
+            const appPromises = ownedTeamIds.map(teamId => getAppsFunc({ teamId }));
+            const appResults = await Promise.all(appPromises);
+            const allApplications: any[] = appResults.flatMap(result => (result.data as any)?.applications || []);
+
+            applications = allApplications
+                .filter(app => app.type === 'application' && app.status === 'pending')
+                .map(app => {
+                    return {
+                        id: app.id,
+                        type: 'application',
+                        team: { id: app.teamId, name: app.teamName },
+                        applicant: { uid: app.userId, displayName: app.userDisplayName || 'Unknown User', avatarUrl: app.userAvatarUrl || '' },
+                        createdAt: app.createdAt instanceof Timestamp ? app.createdAt.toDate().toISOString() : new Date(0).toISOString(),
+                    };
+                });
         }
+
 
         // 2. Get team invites for the user
         const inviteQuery = query(applicationsRef, where("userId", "==", userId), where("status", "==", "pending"), where("type", "==", "invite"));

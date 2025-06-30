@@ -136,7 +136,7 @@ export default function MarketplacePage() {
             if(currentUser) {
                 const userDoc = await getDoc(doc(db, "users", currentUser.uid));
                 if(userDoc.exists()) {
-                    setCurrentUserProfile({ uid: userDoc.id, ...userDoc.data() } as Player);
+                    setCurrentUserProfile({ ...userDoc.data(), uid: userDoc.id } as Player);
                 }
             }
             setIsAuthReady(true);
@@ -175,7 +175,7 @@ export default function MarketplacePage() {
                         playerQuery = query(playerQuery, where("valorantRank", "==", rankFilter));
                     }
                     const querySnapshot = await getDocs(playerQuery);
-                    const fetchedPlayers = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as Player));
+                    const fetchedPlayers = querySnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as Player));
                     const otherPlayers = fetchedPlayers.filter(p => p.uid !== user?.uid);
                     setPlayers(otherPlayers);
                 } else {

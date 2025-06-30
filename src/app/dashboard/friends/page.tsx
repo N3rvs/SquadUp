@@ -5,14 +5,14 @@ import Link from 'next/link';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, where, onSnapshot, doc, getDoc, documentId, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, documentId, getDocs } from 'firebase/firestore';
 
 import { respondToFriendRequestAction, removeFriendAction, type Friend, type FriendRequest } from './actions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, UserPlus, Users, Check, X, MessageSquare, UserMinus } from 'lucide-react';
+import { Loader2, Users, Check, X, MessageSquare, UserMinus } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -94,7 +94,7 @@ export default function FriendsPage() {
             if (friendIds.length > 0) {
                 const friendsQuery = query(collection(db, 'users'), where(documentId(), 'in', friendIds));
                 const friendsSnapshot = await getDocs(friendsQuery);
-                const fetchedFriends = friendsSnapshot.docs.map(d => ({ uid: d.id, ...d.data() } as Friend));
+                const fetchedFriends = friendsSnapshot.docs.map(d => ({ ...d.data(), uid: d.id } as Friend));
                 setFriends(fetchedFriends);
             } else {
                 setFriends([]);
@@ -124,7 +124,7 @@ export default function FriendsPage() {
 
             const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', fromIds));
             const usersSnapshot = await getDocs(usersQuery);
-            const fromUsers = usersSnapshot.docs.map(d => ({ uid: d.id, ...d.data() } as Friend));
+            const fromUsers = usersSnapshot.docs.map(d => ({ ...d.data(), uid: d.id } as Friend));
 
             const requests = snapshot.docs.map(doc => {
                 const data = doc.data();

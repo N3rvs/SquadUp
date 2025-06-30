@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -95,7 +96,7 @@ export default function ChatPage() {
                     toast({ variant: 'destructive', title: 'Error', description: 'User not found.' });
                     return;
                 }
-                const friendData = { uid: friendId, ...friendDoc.data() } as Friend;
+                const friendData = { ...friendDoc.data(), uid: friendId } as Friend;
                 const chatId = await getOrCreateChat(user.uid, friendId);
                 setSelectedChat({ friend: friendData, chatId });
             } catch(e) {

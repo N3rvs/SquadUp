@@ -137,6 +137,9 @@ export async function handleNotification(
 
     } catch (error) {
         console.error(`Error handling notification ${decision}:`, error);
-        return { success: false, error: `Failed to ${decision} notification.` };
+        if (error instanceof Error) {
+            return { success: false, error: `Failed to ${decision} the application: ${error.message}` };
+        }
+        return { success: false, error: `An unknown error occurred while handling the application.` };
     }
 }

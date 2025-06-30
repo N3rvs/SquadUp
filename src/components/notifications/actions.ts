@@ -60,7 +60,7 @@ export async function getPendingNotifications(userId: string): Promise<{ success
                     displayName: appData.userDisplayName || 'Unknown User',
                     avatarUrl: appData.userAvatarUrl || '',
                 },
-                createdAt: (appData.createdAt as Timestamp).toDate().toISOString(),
+                createdAt: appData.createdAt instanceof Timestamp ? appData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
             };
         });
 
@@ -74,7 +74,7 @@ export async function getPendingNotifications(userId: string): Promise<{ success
                     name: inviteData.teamName,
                     logoUrl: inviteData.teamLogoUrl || '',
                 },
-                createdAt: (inviteData.createdAt as Timestamp).toDate().toISOString(),
+                createdAt: inviteData.createdAt instanceof Timestamp ? inviteData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
             };
         });
 
@@ -86,10 +86,13 @@ export async function getPendingNotifications(userId: string): Promise<{ success
 
     } catch (error) {
         console.error("Error fetching notifications:", error);
-        if (error instanceof Error && error.message.includes('composite index')) {
-             return { success: false, error: 'Database requires a new index. Please check the browser console for a link to create it.' };
+        if (error instanceof Error) {
+            if (error.message.includes('composite index')) {
+                return { success: false, error: 'Database requires a new index. Please check the browser console for a link to create it.' };
+            }
+            return { success: false, error: `Failed to fetch notifications: ${error.message}` };
         }
-        return { success: false, error: 'Failed to fetch notifications.' };
+        return { success: false, error: 'An unknown error occurred while fetching notifications.' };
     }
 }
 

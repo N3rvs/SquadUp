@@ -58,10 +58,11 @@ export async function getManagedTeams(managerId: string) {
 }
 
 
-export async function sendTeamInvite(senderId: string, teamId: string, receiverId: string) {
-    if (!senderId) {
+export async function sendTeamInvite(teamId: string, receiverId: string) {
+    if (!auth.currentUser) {
         return { success: false, error: "User not authenticated." };
     }
+    const senderId = auth.currentUser.uid;
 
     try {
         const teamDocRef = doc(db, "teams", teamId);
@@ -74,10 +75,12 @@ export async function sendTeamInvite(senderId: string, teamId: string, receiverI
         const teamData = teamDoc.data();
 
         // Check permissions (must be owner, admin or mod)
-        const userDoc = await getDoc(doc(db, "users", senderId));
-        const userRole = userDoc.data()?.primaryRole;
-        if (teamData.ownerId !== senderId && userRole !== 'admin' && userRole !== 'moderator' && userRole !== 'fundador') {
-            return { success: false, error: "You don't have permission to invite players to this team." };
+        if (teamData.ownerId !== senderId) {
+             const userDoc = await getDoc(doc(db, "users", senderId));
+             const userRole = userDoc.data()?.primaryRole;
+             if (userRole !== 'admin' && userRole !== 'moderator' && userRole !== 'fundador') {
+                return { success: false, error: "You don't have permission to invite players to this team." };
+             }
         }
 
         // Check if player is already in team
@@ -87,7 +90,7 @@ export async function sendTeamInvite(senderId: string, teamId: string, receiverI
         
         // Check for existing pending invite
         const invitesRef = collection(db, "teamApplications");
-        const q = query(invitesRef, where("teamId", "==", teamId), where("userId", "==", receiverId), where("status", "==", "pending"));
+        const q = query(invitesRef, where("teamId", "==", teamId), where("userId", "==", receiverId), where("status", "==", "pending"), where("type", "==", "invite"));
         const querySnapshot = await getDocs(q);
 
         if (!querySnapshot.empty) {
@@ -112,3 +115,5 @@ export async function sendTeamInvite(senderId: string, teamId: string, receiverI
         return { success: false, error: "An unknown error occurred while sending the invite." };
     }
 }
+
+    

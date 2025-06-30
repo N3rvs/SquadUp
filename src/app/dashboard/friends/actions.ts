@@ -1,6 +1,8 @@
-import { db, functions, auth } from "@/lib/firebase";
+
+'use server';
+
+import { functions } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
-import type { User as FirebaseUser } from "firebase/auth";
 
 export interface Friend {
     uid: string;
@@ -41,12 +43,7 @@ function getErrorMessage(error: any): string {
 export async function sendFriendRequest(
     receiverId: string
 ): Promise<{ success: boolean; error?: string }> {
-    if (!auth.currentUser) {
-        return { success: false, error: "User not authenticated." };
-    }
-    
     try {
-        await auth.currentUser.getIdToken(true);
         const sendRequestFunc = httpsCallable(functions, 'sendFriendRequest');
         await sendRequestFunc({ to: receiverId });
         return { success: true };
@@ -61,12 +58,7 @@ export async function respondToFriendRequest(
     requestId: string,
     accept: boolean
 ): Promise<{ success: boolean; error?: string; }> {
-    if (!auth.currentUser) {
-        return { success: false, error: "User not authenticated." };
-    }
-    
     try {
-        await auth.currentUser.getIdToken(true);
         const respondToRequestFunc = httpsCallable(functions, 'respondToFriendRequest');
         await respondToRequestFunc({ requestId, accept });
         return { success: true };
@@ -80,14 +72,10 @@ export async function respondToFriendRequest(
 export async function removeFriend(
     friendId: string
 ): Promise<{ success: boolean; error?: string; }> {
-     if (!auth.currentUser) {
-        return { success: false, error: "User not authenticated." };
-    }
     if (!friendId) {
         return { success: false, error: "Friend ID is required." };
     }
     try {
-        await auth.currentUser.getIdToken(true);
         const removeFriendFunc = httpsCallable(functions, 'removeFriend');
         await removeFriendFunc({ friendId });
         return { success: true };
@@ -96,3 +84,5 @@ export async function removeFriend(
         return { success: false, error: getErrorMessage(error) };
     }
 }
+
+    

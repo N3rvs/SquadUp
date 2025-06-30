@@ -197,7 +197,8 @@ export default function MarketplacePage() {
                     }
                     const querySnapshot = await getDocs(playerQuery);
                     const fetchedPlayers = querySnapshot.docs.map(doc => doc.data() as Player);
-                    setPlayers(fetchedPlayers);
+                    const otherPlayers = fetchedPlayers.filter(p => p.uid !== user?.uid);
+                    setPlayers(otherPlayers);
                 } else {
                     let teamQuery = query(collection(db, "teams"), where("isRecruiting", "==", true));
                      if(countryFilter !== 'All') {
@@ -216,7 +217,7 @@ export default function MarketplacePage() {
         };
 
         fetchData();
-    }, [activeTab, rankFilter, countryFilter, toast, isAuthReady]);
+    }, [activeTab, rankFilter, countryFilter, toast, isAuthReady, user]);
     
     const filteredTeams = React.useMemo(() => {
         if (rankFilter === 'All') return teams;
@@ -231,7 +232,7 @@ export default function MarketplacePage() {
     const handleSendFriendRequest = async (receiverId: string) => {
         if (!user) return;
         setIsSubmitting(receiverId);
-        const result = await sendFriendRequest(user.uid, receiverId);
+        const result = await sendFriendRequest(receiverId);
         if (result.success) {
             toast({ title: "¡Solicitud de amistad enviada!" });
             setOutgoingRequestUids(prev => [...prev, receiverId]);
@@ -253,7 +254,7 @@ export default function MarketplacePage() {
     const handleSendInvite = async () => {
         if (!playerToInvite || !selectedTeam || !user) return;
         setIsSubmitting(playerToInvite.uid);
-        const result = await sendTeamInvite(user.uid, selectedTeam, playerToInvite.uid);
+        const result = await sendTeamInvite(selectedTeam, playerToInvite.uid);
         if (result.success) {
             toast({ title: "¡Invitación enviada!" });
             setPlayerToInvite(null);
@@ -579,3 +580,5 @@ export default function MarketplacePage() {
         </div>
     );
 }
+
+    

@@ -130,33 +130,16 @@ export default function FriendsPage() {
 
         // Listener for incoming friend requests
         const requestsQuery = query(collection(db, 'friendRequests'), where('to', '==', user.uid), where('status', '==', 'pending'));
-        const requestsUnsubscribe = onSnapshot(requestsQuery, async (snapshot) => {
-            const fromIds = snapshot.docs.map(doc => doc.data().from).filter((id: any): id is string => !!id);
-
-            if (fromIds.length === 0) {
-                setIncomingRequests([]);
-                return;
-            }
-
-            const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', fromIds));
-            const usersSnapshot = await getDocs(usersQuery);
-            const fromUsers = usersSnapshot.docs
-                .map(d => {
-                    if (!d.id || !d.exists() || !d.data().displayName) return null;
-                    return { uid: d.id, ...d.data() } as Friend;
-                })
-                .filter((f): f is Friend => f !== null);
-
+        const requestsUnsubscribe = onSnapshot(requestsQuery, (snapshot) => {
             const requests = snapshot.docs.map(doc => {
                 const data = doc.data();
-                const sender = fromUsers.find(u => u.uid === data.from);
                 return {
                     id: doc.id,
                     from: data.from,
                     to: data.to,
                     status: data.status,
-                    fromDisplayName: sender?.displayName || 'Usuario Desconocido',
-                    fromAvatarUrl: sender?.avatarUrl,
+                    fromDisplayName: data.fromDisplayName || 'Usuario Desconocido',
+                    fromAvatarUrl: data.fromAvatarUrl,
                 } as FriendRequest;
             });
             setIncomingRequests(requests);

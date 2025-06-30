@@ -54,32 +54,16 @@ export async function getFriendsPageData(userId: string): Promise<{
             friends = friendSnapshots.flatMap(snap => snap.docs.map(d => ({ uid: d.id, ...d.data() } as Friend)));
         }
 
-        // 3. Fetch incoming friend requests
+        // 3. Fetch incoming friend requests (with denormalized data)
         const incomingQuery = query(collection(db, 'friendRequests'), where('to', '==', userId), where('status', '==', 'pending'));
         const incomingSnapshot = await getDocs(incomingQuery);
-        const incomingRequestsData = incomingSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        const fromIds = [...new Set(incomingRequestsData.map(req => req.from))].filter(id => !!id);
-        let fromUsers: Friend[] = [];
-        if (fromIds.length > 0) {
-            // Use documentId() for querying by UID, as UID is the document ID in 'users' collection
-             const fromUsersQuery = query(collection(db, 'users'), where(documentId(), 'in', fromIds));
-             const fromUsersSnapshot = await getDocs(fromUsersQuery);
-             fromUsers = fromUsersSnapshot.docs.map(d => ({ uid: d.id, ...d.data() } as Friend));
-        }
-
-        const incomingRequests = incomingRequestsData.map(req => {
-            const sender = fromUsers.find(u => u.uid === req.from);
+        const incomingRequests = incomingSnapshot.docs.map(doc => {
+            const data = doc.data();
             return {
-                id: req.id,
-                from: req.from,
-                to: req.to,
-                status: req.status,
-                fromDisplayName: sender?.displayName || 'Usuario Desconocido',
-                fromAvatarUrl: sender?.avatarUrl,
-            };
-        }) as FriendRequest[];
-
+                id: doc.id,
+                ...data
+            } as FriendRequest;
+        });
 
         // 4. Fetch outgoing friend requests
         const outgoingQuery = query(collection(db, 'friendRequests'), where('from', '==', userId), where('status', '==', 'pending'));

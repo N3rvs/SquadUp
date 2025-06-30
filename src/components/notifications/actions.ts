@@ -81,25 +81,19 @@ async function getFriendRequestsForUser(userId: string): Promise<Notification[]>
     const q = query(requestsRef, where("to", "==", userId), where("status", "==", "pending"));
     const querySnapshot = await getDocs(q);
 
-    const notifications: Notification[] = [];
-    for (const requestDoc of querySnapshot.docs) {
+    const notifications: Notification[] = querySnapshot.docs.map(requestDoc => {
         const requestData = requestDoc.data();
-        const senderId = requestData.from;
-        const senderDoc = await getDoc(doc(db, "users", senderId));
-        if (senderDoc.exists()) {
-            const senderData = senderDoc.data();
-            notifications.push({
-                id: requestDoc.id,
-                type: 'friend_request',
-                sender: {
-                    uid: senderId,
-                    displayName: senderData.displayName,
-                    avatarUrl: senderData.avatarUrl,
-                },
-                createdAt: requestData.createdAt instanceof Timestamp ? requestData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
-            });
-        }
-    }
+        return {
+            id: requestDoc.id,
+            type: 'friend_request',
+            sender: {
+                uid: requestData.from,
+                displayName: requestData.fromDisplayName,
+                avatarUrl: requestData.fromAvatarUrl,
+            },
+            createdAt: requestData.createdAt instanceof Timestamp ? requestData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
+        };
+    });
     return notifications;
 }
 

@@ -1,9 +1,7 @@
 'use server';
 
-import { auth, db, functions } from '@/lib/firebase';
-import { httpsCallable } from 'firebase/functions';
+import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, getDoc, documentId } from 'firebase/firestore';
-import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
 
 // Types
 export interface FriendRequest {
@@ -22,45 +20,9 @@ export interface Friend {
     primaryRole?: string;
 }
 
-// Action wrappers for Cloud Functions
-export async function sendFriendRequestAction(toId: string) {
-    if (!auth.currentUser || auth.currentUser.uid === toId) {
-        return { success: false, error: 'Acción no válida.' };
-    }
-    try {
-        const sendRequest = httpsCallable(functions, 'sendFriendRequest');
-        await sendRequest({ to: toId });
-        return { success: true };
-    } catch (error: any) {
-        console.error('Error sending friend request:', error);
-        return { success: false, error: getFirebaseErrorMessage(error) };
-    }
-}
-
-export async function respondToFriendRequestAction(requestId: string, accept: boolean) {
-    try {
-        const respond = httpsCallable(functions, 'respondToFriendRequest');
-        await respond({ requestId, accept });
-        return { success: true };
-    } catch (error: any) {
-        console.error('Error responding to friend request:', error);
-        return { success: false, error: getFirebaseErrorMessage(error) };
-    }
-}
-
-export async function removeFriendAction(friendId: string) {
-    if (!auth.currentUser) {
-        return { success: false, error: "Debes estar autenticado." };
-    }
-    try {
-        const removeFriend = httpsCallable(functions, 'removeFriend');
-        const result = await removeFriend({ friendId });
-        return { success: true, message: (result.data as { message: string }).message };
-    } catch (error: any) {
-        console.error('Error removing friend:', error);
-        return { success: false, error: getFirebaseErrorMessage(error) };
-    }
-}
+// Action wrappers for Cloud Functions have been moved into their respective
+// client components (e.g., friends/page.tsx) to ensure the Firebase auth
+// token is refreshed immediately before the call, resolving permission issues.
 
 // Data fetching function for the friends page
 export async function getFriendsPageData(userId: string): Promise<{
@@ -89,7 +51,7 @@ export async function getFriendsPageData(userId: string): Promise<{
                 friendPromises.push(getDocs(q));
             }
             const friendSnapshots = await Promise.all(friendPromises);
-            friends = friendSnapshots.flatMap(snap => snap.docs.map(d => ({ ...d.data(), uid: d.id } as Friend)));
+            friends = friendSnapshots.flatMap(snap => snap.docs.map(d => ({ uid: d.id, ...d.data() } as Friend)));
         }
 
         // 3. Fetch incoming friend requests
@@ -103,7 +65,7 @@ export async function getFriendsPageData(userId: string): Promise<{
             // Use documentId() for querying by UID, as UID is the document ID in 'users' collection
              const fromUsersQuery = query(collection(db, 'users'), where(documentId(), 'in', fromIds));
              const fromUsersSnapshot = await getDocs(fromUsersQuery);
-             fromUsers = fromUsersSnapshot.docs.map(d => ({ ...d.data(), uid: d.id } as Friend));
+             fromUsers = fromUsersSnapshot.docs.map(d => ({ uid: d.id, ...d.data() } as Friend));
         }
 
         const incomingRequests = incomingRequestsData.map(req => {

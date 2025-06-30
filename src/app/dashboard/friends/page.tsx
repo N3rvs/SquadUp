@@ -4,11 +4,13 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, functions } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { collection, query, where, onSnapshot, doc, documentId, getDocs } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
 
-import { respondToFriendRequestAction, removeFriendAction, type Friend, type FriendRequest } from './actions';
+import type { Friend, FriendRequest } from './actions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -158,21 +160,36 @@ export default function FriendsPage() {
     }, [user, toast]);
     
     const handleRespond = async (requestId: string, accept: boolean) => {
+        if (!auth.currentUser) {
+            toast({ variant: 'destructive', title: 'Error', description: "Debes estar autenticado." });
+            return;
+        }
         setIsProcessing(requestId);
-        const result = await respondToFriendRequestAction(requestId, accept);
-        if (!result.success) {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        try {
+            await auth.currentUser.getIdToken(true);
+            const respondToFriendRequest = httpsCallable(functions, 'respondToFriendRequest');
+            await respondToFriendRequest({ requestId, accept });
+            // The UI will update automatically via the onSnapshot listener
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: getFirebaseErrorMessage(error) });
         }
         setIsProcessing(null);
     };
 
     const handleRemove = async (friendId: string) => {
+        if (!auth.currentUser) {
+            toast({ variant: 'destructive', title: 'Error', description: "Debes estar autenticado." });
+            return;
+        }
         setIsProcessing(friendId);
-        const result = await removeFriendAction(friendId);
-        if (result.success) {
-            toast({ title: 'Éxito', description: result.message });
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        try {
+            await auth.currentUser.getIdToken(true);
+            const removeFriend = httpsCallable(functions, 'removeFriend');
+            const result = await removeFriend({ friendId });
+            toast({ title: 'Éxito', description: (result.data as {message: string}).message });
+             // The UI will update automatically via the onSnapshot listener
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: getFirebaseErrorMessage(error) });
         }
         setIsProcessing(null);
     }

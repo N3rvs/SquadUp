@@ -4,11 +4,13 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { collection, query, where, getDocs, DocumentData, onSnapshot, doc, documentId } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, functions } from "@/lib/firebase";
 import { countries as allCountries, getCountryCode } from "@/lib/countries";
 import { valorantRanks as allValorantRanks } from "@/lib/valorant";
 import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import { useAuthRole } from "@/hooks/useAuthRole";
+import { httpsCallable } from "firebase/functions";
+import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -37,7 +39,6 @@ import {
     getManagedTeams,
     sendTeamInvite,
 } from "./actions";
-import { sendFriendRequestAction } from '../friends/actions';
 
 
 // --- DATA & TYPE DEFINITIONS ---
@@ -136,7 +137,7 @@ export default function MarketplacePage() {
             if(currentUser) {
                 const userDoc = await getDoc(doc(db, "users", currentUser.uid));
                 if(userDoc.exists()) {
-                    setCurrentUserProfile({ ...userDoc.data(), uid: userDoc.id } as Player);
+                    setCurrentUserProfile({ uid: userDoc.id, ...userDoc.data() } as Player);
                 }
             }
             setIsAuthReady(true);
@@ -175,7 +176,7 @@ export default function MarketplacePage() {
                         playerQuery = query(playerQuery, where("valorantRank", "==", rankFilter));
                     }
                     const querySnapshot = await getDocs(playerQuery);
-                    const fetchedPlayers = querySnapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as Player));
+                    const fetchedPlayers = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as Player));
                     const otherPlayers = fetchedPlayers.filter(p => p.uid !== user?.uid);
                     setPlayers(otherPlayers);
                 } else {
@@ -231,12 +232,18 @@ export default function MarketplacePage() {
     };
 
     const handleAddFriend = async (toId: string) => {
+        if (!auth.currentUser) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Debes estar autenticado para añadir amigos.' });
+            return;
+        }
         setIsSubmitting(toId);
-        const result = await sendFriendRequestAction(toId);
-        if (result.success) {
+        try {
+            await auth.currentUser.getIdToken(true);
+            const sendRequest = httpsCallable(functions, 'sendFriendRequest');
+            await sendRequest({ to: toId });
             toast({ title: 'Solicitud de amistad enviada!' });
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        } catch(error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: getFirebaseErrorMessage(error) });
         }
         setIsSubmitting(null);
     };
@@ -403,53 +410,13 @@ export default function MarketplacePage() {
                                       return (
                                         <TableRow key={team.id}>
                                           <TableCell>
-                                            <HoverCard>
-                                              <HoverCardTrigger asChild>
-                                                <Link href={`/dashboard/teams/${team.id}`} className="flex items-center gap-3">
-                                                  <Avatar className="h-10 w-10 border">
-                                                    <AvatarImage src={team.logoUrl} alt={team.name} />
-                                                    <AvatarFallback>{team.name.substring(0,2)}</AvatarFallback>
-                                                  </Avatar>
-                                                  <span className="font-medium hover:underline">{team.name}</span>
-                                                </Link>
-                                              </HoverCardTrigger>
-                                              <HoverCardContent className="w-80 p-0" align="start">
-                                                <div className="relative h-24 w-full">
-                                                  <Image
-                                                    src={team.bannerUrl || 'https://placehold.co/320x96.png'}
-                                                    alt={`${team.name} banner`}
-                                                    fill
-                                                    className="object-cover rounded-t-lg"
-                                                    data-ai-hint="team banner abstract"
-                                                  />
-                                                </div>
-                                                <div className="p-4 flex flex-col gap-4">
-                                                  <div className="flex items-center gap-4">
-                                                    <Avatar className="h-12 w-12">
-                                                      <AvatarImage src={team.logoUrl} />
-                                                      <AvatarFallback>{team.name.substring(0,2)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <h4 className="text-sm font-semibold">{team.name}</h4>
-                                                  </div>
-                                                  <p className="text-sm text-muted-foreground line-clamp-3">
-                                                    {team.bio || 'Este equipo no tiene una biografía.'}
-                                                  </p>
-                                                  {team.seekingRoles && team.seekingRoles.length > 0 && (
-                                                    <div>
-                                                      <h5 className="mb-2 text-sm font-semibold flex items-center gap-1.5">
-                                                        <Target className="h-4 w-4" />
-                                                        Buscando Roles
-                                                      </h5>
-                                                      <div className="flex flex-wrap gap-1">
-                                                        {team.seekingRoles.map(role => (
-                                                          <Badge key={role} variant="default">{role}</Badge>
-                                                        ))}
-                                                      </div>
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              </HoverCardContent>
-                                            </HoverCard>
+                                            <Link href={`/dashboard/teams/${team.id}`} className="flex items-center gap-3">
+                                              <Avatar className="h-10 w-10 border">
+                                                <AvatarImage src={team.logoUrl} alt={team.name} />
+                                                <AvatarFallback>{team.name.substring(0,2)}</AvatarFallback>
+                                              </Avatar>
+                                              <span className="font-medium hover:underline">{team.name}</span>
+                                            </Link>
                                           </TableCell>
                                           <TableCell>
                                             <div className="flex items-center gap-2">

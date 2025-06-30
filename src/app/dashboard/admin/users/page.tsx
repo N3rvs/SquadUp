@@ -75,11 +75,13 @@ const editUserFormSchema = z.object({
   banOption: z.custom<BanOptionKey>(val => typeof val === 'string' && Object.keys(banOptions).includes(val)),
 });
 
+type EditUserFormValues = z.infer<typeof editUserFormSchema>;
+
 function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: UserData | null, open: boolean, onOpenChange: (open: boolean) => void, onUserUpdate: () => void }) {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
 
-    const form = useForm<z.infer<typeof editUserFormSchema>>({
+    const form = useForm<EditUserFormValues>({
         resolver: zodResolver(editUserFormSchema),
         defaultValues: {
             role: 'player',
@@ -109,7 +111,7 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
 
     const isTemporarilyBanned = user.isBanned && user.banExpiresAt && user.banExpiresAt.toDate() > new Date() && user.banExpiresAt.toDate().getFullYear() < 3000;
 
-    const onSubmit = async (data: z.infer<typeof editUserFormSchema>) => {
+    const onSubmit = async (data: EditUserFormValues) => {
         setIsSaving(true);
         
         if (!auth.currentUser) {
@@ -239,7 +241,7 @@ export default function UsersAdminPage() {
     const [users, setUsers] = useState<UserData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
-    const { role: adminRole } = useAuthRole();
+    const { role: adminRole, isLoading: isRoleLoading } = useAuthRole();
 
     const fetchUsers = useCallback(async () => {
         setIsLoading(true);
@@ -265,8 +267,15 @@ export default function UsersAdminPage() {
     }, [toast]);
 
     useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
+        if (isRoleLoading) {
+            return;
+        }
+        if (adminRole === 'admin' || adminRole === 'moderator') {
+            fetchUsers();
+        } else {
+            setIsLoading(false);
+        }
+    }, [fetchUsers, adminRole, isRoleLoading]);
     
     const [userToEdit, setUserToEdit] = useState<UserData | null>(null);
 

@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Mail, ArrowLeft } from 'lucide-react';
+import { useAuthRole } from '@/hooks/useAuthRole';
 
 interface SupportTicket {
   id: string;
@@ -27,11 +28,20 @@ interface SupportTicket {
 type TicketStatus = 'new' | 'in-progress' | 'resolved';
 
 export default function SupportTicketsPage() {
+  const { role, isLoading: isRoleLoading } = useAuthRole();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TicketStatus>('new');
 
   useEffect(() => {
+    if (isRoleLoading) {
+        return;
+    }
+    if (role !== 'admin' && role !== 'moderator') {
+        setIsLoading(false);
+        return;
+    }
+
     const fetchTickets = async () => {
       setIsLoading(true);
       try {
@@ -58,7 +68,7 @@ export default function SupportTicketsPage() {
       }
     };
     fetchTickets();
-  }, [activeTab]);
+  }, [activeTab, role, isRoleLoading]);
 
   const getStatusVariant = (status: TicketStatus) => {
     switch (status) {

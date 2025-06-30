@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { auth, functions, db } from '@/lib/firebase';
 import { ArrowLeft, Check, Loader2, Trophy, X } from 'lucide-react';
 import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
+import { useAuthRole } from '@/hooks/useAuthRole';
 
 type TournamentStatus = 'Pending' | 'Open' | 'In Progress' | 'Finished' | 'Rejected';
 
@@ -45,6 +46,7 @@ const getStatusVariant = (status: Tournament['status']) => {
 };
 
 export default function TournamentsAdminPage() {
+    const { role, isLoading: isRoleLoading } = useAuthRole();
     const [tournaments, setTournaments] = useState<Tournament[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState<string | null>(null);
@@ -76,8 +78,15 @@ export default function TournamentsAdminPage() {
     }, [toast]);
 
     useEffect(() => {
+        if (isRoleLoading) {
+            return;
+        }
+        if (role !== 'admin' && role !== 'moderator') {
+            setIsLoading(false);
+            return;
+        }
         fetchTournaments();
-    }, [fetchTournaments]);
+    }, [fetchTournaments, role, isRoleLoading]);
 
     const handleUpdateStatus = async (tournamentId: string, status: 'Open' | 'Rejected') => {
         setIsUpdating(tournamentId);

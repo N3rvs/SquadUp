@@ -130,32 +130,18 @@ export default function FriendsPage() {
 
         // Listener for incoming friend requests
         const requestsQuery = query(collection(db, 'friendRequests'), where('to', '==', user.uid), where('status', '==', 'pending'));
-        const requestsUnsubscribe = onSnapshot(requestsQuery, async (snapshot) => {
-            const requestDocs = snapshot.docs;
-            const senderIds = [...new Set(requestDocs.map(doc => doc.data().from))].filter(id => !!id);
-
-            const senderProfiles = new Map<string, any>();
-            if (senderIds.length > 0) {
-                const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', senderIds));
-                const usersSnapshot = await getDocs(usersQuery);
-                usersSnapshot.forEach(doc => {
-                    senderProfiles.set(doc.id, doc.data());
-                });
-            }
-            
-            const requests = requestDocs.map(doc => {
+        const requestsUnsubscribe = onSnapshot(requestsQuery, (snapshot) => {
+            const requests = snapshot.docs.map(doc => {
                 const data = doc.data();
-                const senderProfile = senderProfiles.get(data.from) || {};
                 return {
                     id: doc.id,
                     from: data.from,
                     to: data.to,
                     status: data.status,
-                    fromDisplayName: senderProfile.displayName || data.fromDisplayName || 'Usuario Desconocido',
-                    fromAvatarUrl: senderProfile.avatarUrl || data.fromAvatarUrl || '',
+                    fromDisplayName: data.fromDisplayName || 'Usuario Desconocido',
+                    fromAvatarUrl: data.fromAvatarUrl || '',
                 } as FriendRequest;
             });
-
             setIncomingRequests(requests);
         }, (error) => {
             console.error("Error fetching friend requests:", error);

@@ -1,7 +1,9 @@
 
-import { db, functions } from '@/lib/firebase';
+'use server';
+
+import { db, functions, auth } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
-import { collection, query, where, getDocs, Timestamp, doc, getDoc, documentId } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, doc, getDoc, documentId, type DocumentData } from 'firebase/firestore';
 
 export interface Notification {
   id: string;

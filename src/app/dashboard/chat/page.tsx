@@ -1,41 +1,96 @@
 "use client"
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Send } from "lucide-react";
+import { Send, Search, MessageSquare, Loader2, User, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getFriends } from './actions';
+import type { Friend } from './actions';
+import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
+import Link from 'next/link';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+
 
 type Message = {
   id: number;
   text: string;
-  sender: 'user' | 'other';
-  avatarHint: string;
-  senderName: string;
+  sender: 'me' | 'other';
 };
 
-type Chat = {
-  name: string;
-  msg: string;
-  avatarHint: string;
+type Contact = Friend & {
+  lastMessage: string;
   messages: Message[];
 };
 
+function ChatSkeleton() {
+    return (
+        <div className="p-4 space-y-4">
+            {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-3 w-40" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
+}
+
 export default function ChatPage() {
-    const [chats, setChats] = useState<Chat[]>([]);
-    const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
+    const [user, setUser] = useState<FirebaseUser | null>(null);
+    const [contacts, setContacts] = useState<Contact[]>([]);
+    const [selectedChat, setSelectedChat] = useState<Contact | null>(null);
     const [newMessage, setNewMessage] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
+    const { toast } = useToast();
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const fetchContacts = useCallback(async (uid: string) => {
+        setIsLoading(true);
+        const result = await getFriends(uid);
+        if (result.success && result.friends) {
+            // Mocking chat history for now
+            const contactsWithMessages = result.friends.map(friend => ({
+                ...friend,
+                lastMessage: 'Click to start chatting...',
+                messages: [
+                    { id: 1, text: `This is the beginning of your conversation with ${friend.displayName}.`, sender: 'other' }
+                ],
+            }));
+            setContacts(contactsWithMessages);
+        } else {
+            toast({ variant: 'destructive', title: "Error", description: result.error });
+        }
+        setIsLoading(false);
+    }, [toast]);
+
+    useEffect(() => {
+        if(user) {
+            fetchContacts(user.uid);
+        }
+    }, [user, fetchContacts]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }
 
     useEffect(() => {
-        scrollToBottom()
+        scrollToBottom();
     }, [selectedChat?.messages]);
 
     const handleSendMessage = (e: React.FormEvent) => {
@@ -45,91 +100,114 @@ export default function ChatPage() {
         const message: Message = {
             id: selectedChat.messages.length + 1,
             text: newMessage,
-            sender: 'user',
-            avatarHint: 'male avatar', // Assuming current user avatar
-            senderName: 'You',
+            sender: 'me',
         };
 
         const updatedMessages = [...selectedChat.messages, message];
-        const updatedChat = { ...selectedChat, messages: updatedMessages, msg: newMessage };
+        const updatedChat = { ...selectedChat, messages: updatedMessages, lastMessage: newMessage };
         
         setSelectedChat(updatedChat);
 
-        const otherChats = chats.filter(c => c.name !== selectedChat.name);
-        const newChats = [updatedChat, ...otherChats];
-        setChats(newChats);
-        
+        const updatedContacts = contacts.map(c => 
+            c.uid === updatedChat.uid ? updatedChat : c
+        );
+        // Move updated chat to the top
+        const finalContacts = [updatedChat, ...updatedContacts.filter(c => c.uid !== updatedChat.uid)];
+
+        setContacts(finalContacts);
         setNewMessage('');
     };
+
+    const me = {
+        displayName: user?.displayName || 'Me',
+        avatarUrl: user?.photoURL || ''
+    }
 
   return (
     <div className="grid h-[calc(100vh-theme(spacing.24))] grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
       <Card className="md:col-span-1 lg:col-span-1 h-full flex flex-col">
         <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-6 w-6"/> Chats
+          </CardTitle>
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search chats..." className="pl-8" />
+            <Input placeholder="Search friends..." className="pl-8" />
           </div>
         </CardHeader>
         <ScrollArea className="flex-1">
-          <CardContent className="space-y-2">
-            {chats.map((chat) => (
-              <div 
-                key={chat.name} 
-                className={cn(
-                    "flex items-center gap-3 p-2 rounded-lg cursor-pointer", 
-                    selectedChat?.name === chat.name ? 'bg-secondary' : 'hover:bg-secondary/50'
-                )}
-                onClick={() => setSelectedChat(chat)}
-              >
-                <Avatar>
-                  <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint={chat.avatarHint} alt={chat.name} />
-                  <AvatarFallback>{chat.name.substring(0, 2)}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1 truncate">
-                  <p className="font-semibold">{chat.name}</p>
-                  <p className="text-sm text-muted-foreground truncate">{chat.msg}</p>
+          <CardContent className="p-2">
+            {isLoading ? <ChatSkeleton /> : contacts.length > 0 ? (
+                <div className="space-y-1">
+                    {contacts.map((contact) => (
+                    <button
+                        key={contact.uid} 
+                        className={cn(
+                            "flex items-center gap-3 p-2 rounded-lg cursor-pointer text-left w-full", 
+                            selectedChat?.uid === contact.uid ? 'bg-secondary' : 'hover:bg-secondary/50'
+                        )}
+                        onClick={() => setSelectedChat(contact)}
+                    >
+                        <Avatar>
+                        <AvatarImage src={contact.avatarUrl} alt={contact.displayName} />
+                        <AvatarFallback>{contact.displayName.substring(0, 2)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 truncate">
+                        <p className="font-semibold">{contact.displayName}</p>
+                        <p className="text-sm text-muted-foreground truncate">{contact.lastMessage}</p>
+                        </div>
+                    </button>
+                    ))}
                 </div>
-              </div>
-            ))}
+            ) : (
+                <div className="text-center text-muted-foreground p-8">
+                    <User className="h-10 w-10 mx-auto mb-2" />
+                    <p className="font-semibold">No friends yet</p>
+                    <p className="text-sm">Find players in the marketplace to start chatting.</p>
+                     <Button asChild variant="link" className="mt-2">
+                        <Link href="/dashboard/marketplace">Go to Marketplace</Link>
+                    </Button>
+                </div>
+            )}
           </CardContent>
         </ScrollArea>
       </Card>
+
       <Card className="md:col-span-2 lg:col-span-3 h-full flex flex-col">
         {selectedChat ? (
             <>
                 <CardHeader className="border-b">
                     <div className="flex items-center gap-3">
                          <Avatar>
-                            <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint={selectedChat.avatarHint} alt={selectedChat.name} />
-                            <AvatarFallback>{selectedChat.name.substring(0, 2)}</AvatarFallback>
+                            <AvatarImage src={selectedChat.avatarUrl} alt={selectedChat.displayName} />
+                            <AvatarFallback>{selectedChat.displayName.substring(0, 2)}</AvatarFallback>
                         </Avatar>
-                        <p className="font-semibold">{selectedChat.name}</p>
+                        <p className="font-semibold">{selectedChat.displayName}</p>
                     </div>
                 </CardHeader>
-                <ScrollArea className="flex-1 p-4 space-y-4">
+                <ScrollArea className="flex-1 p-4 space-y-4 bg-muted/20">
                 {selectedChat.messages.map((message) => (
-                    <div key={message.id} className={cn("flex items-end gap-2", message.sender === 'user' && "justify-end")}>
+                    <div key={message.id} className={cn("flex items-end gap-2 w-full", message.sender === 'me' && "justify-end")}>
                         {message.sender === 'other' && (
                             <Avatar className="h-8 w-8">
-                                <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint={message.avatarHint} />
-                                <AvatarFallback>{message.senderName.substring(0,2)}</AvatarFallback>
+                                <AvatarImage src={selectedChat.avatarUrl} />
+                                <AvatarFallback>{selectedChat.displayName.substring(0,2)}</AvatarFallback>
                             </Avatar>
                         )}
-                        <div className={cn("p-3 rounded-lg max-w-md", message.sender === 'user' ? 'bg-primary text-primary-foreground' : 'bg-secondary' )}>
-                            <p>{message.text}</p>
+                        <div className={cn("p-3 rounded-xl max-w-[70%]", message.sender === 'me' ? 'bg-primary text-primary-foreground rounded-br-none' : 'bg-secondary rounded-bl-none' )}>
+                            <p className="text-sm">{message.text}</p>
                         </div>
-                         {message.sender === 'user' && (
+                         {message.sender === 'me' && (
                             <Avatar className="h-8 w-8">
-                                <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint="male avatar" />
-                                <AvatarFallback>{message.senderName.substring(0,2)}</AvatarFallback>
+                                <AvatarImage src={me.avatarUrl} />
+                                <AvatarFallback>{me.displayName.substring(0,2)}</AvatarFallback>
                             </Avatar>
                         )}
                     </div>
                 ))}
                 <div ref={messagesEndRef} />
                 </ScrollArea>
-                <div className="p-4 border-t">
+                <div className="p-4 border-t bg-background">
                 <form onSubmit={handleSendMessage} className="relative">
                     <Input 
                         placeholder="Type a message..." 
@@ -144,8 +222,10 @@ export default function ChatPage() {
                 </div>
             </>
         ) : (
-            <div className="flex flex-1 items-center justify-center">
-                <p className="text-muted-foreground">Select a chat to start messaging</p>
+            <div className="flex flex-1 flex-col items-center justify-center text-center p-4">
+                <MessageSquare className="h-16 w-16 text-muted-foreground" />
+                <h3 className="mt-4 text-xl font-semibold">Select a chat</h3>
+                <p className="text-muted-foreground">Choose one of your friends to start a conversation.</p>
             </div>
         )}
       </Card>

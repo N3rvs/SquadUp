@@ -34,6 +34,10 @@ export interface Chat {
 
 
 export async function getOrCreateChat(currentUserId: string, friendId: string): Promise<string> {
+  if (!currentUserId || !friendId) {
+    throw new Error("User IDs cannot be empty.");
+  }
+
   const ids = [currentUserId, friendId].sort();
   const chatId = ids.join('_');
 
@@ -45,6 +49,12 @@ export async function getOrCreateChat(currentUserId: string, friendId: string): 
     const q = query(usersRef, where(documentId(), 'in', ids));
     const usersSnap = await getDocs(q);
     const participantDetails: Record<string, ChatParticipant> = {};
+    
+    if (usersSnap.size !== 2) {
+        console.error("Could not find both users for chat.", { ids });
+        throw new Error("One or more chat participants could not be found.");
+    }
+
     usersSnap.forEach(doc => {
         const data = doc.data();
         participantDetails[doc.id] = {

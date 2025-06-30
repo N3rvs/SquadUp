@@ -30,20 +30,32 @@ export function ChatModal({ friend, currentUser, open, onOpenChange }: ChatModal
   const { toast } = useToast();
 
   useEffect(() => {
-    if (open && currentUser?.uid && friend?.uid) {
-      const setupChat = async () => {
-        try {
-            const id = await getOrCreateChat(currentUser.uid, friend.uid);
-            setChatId(id);
-        } catch(e) {
-            toast({ variant: 'destructive', title: 'Error', description: 'No se pudo abrir el chat.' });
-            onOpenChange(false);
-        }
-      };
-      setupChat();
-    } else {
-        setChatId(null);
+    if (!open) {
+      setChatId(null);
+      return;
     }
+
+    if (!currentUser?.uid || !friend?.uid) {
+        toast({
+            variant: 'destructive',
+            title: 'Error de Datos',
+            description: 'No se puede iniciar el chat por falta de datos de usuario.',
+        });
+        onOpenChange(false);
+        return;
+    }
+
+    const setupChat = async () => {
+      try {
+        const id = await getOrCreateChat(currentUser.uid, friend.uid);
+        setChatId(id);
+      } catch (e) {
+        console.error("Error setting up chat:", e);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo abrir el chat.' });
+        onOpenChange(false);
+      }
+    };
+    setupChat();
   }, [open, currentUser, friend, onOpenChange, toast]);
 
   const scrollToBottom = () => {

@@ -262,7 +262,7 @@ export default function UsersAdminPage() {
     const [users, setUsers] = useState<UserData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
-    const { role: adminRole, isLoading: isRoleLoading } = useAuthRole();
+    const { role: adminRole } = useAuthRole();
 
     const fetchUsers = useCallback(async () => {
         setIsLoading(true);
@@ -288,9 +288,8 @@ export default function UsersAdminPage() {
     }, [toast]);
 
     useEffect(() => {
-        if (isRoleLoading) return;
         fetchUsers();
-    }, [isRoleLoading, fetchUsers]);
+    }, [fetchUsers]);
     
     const [isDeleting, setIsDeleting] = useState(false);
     const [userToDelete, setUserToDelete] = useState<UserData | null>(null);
@@ -445,5 +444,3 @@ export default function UsersAdminPage() {
         </div>
     );
 }
-
-

@@ -256,10 +256,11 @@ export default function TeamsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
-  const { role: userSecurityRole } = useAuthRole();
+  const { role: userSecurityRole, isLoading: isRoleLoading } = useAuthRole();
 
   const { toast } = useToast();
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -289,6 +290,7 @@ export default function TeamsPage() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
+        setIsProfileLoading(true);
         const userDocRef = doc(db, "users", currentUser.uid);
         const docSnap = await getDoc(userDocRef);
         if (docSnap.exists()) {
@@ -303,11 +305,13 @@ export default function TeamsPage() {
         } else {
           setProfile(null);
         }
+        setIsProfileLoading(false);
       } else {
         // User is logged out, clear all user-specific data
         setProfile(null);
         setTeams([]);
         setIsLoading(false);
+        setIsProfileLoading(false);
       }
     });
     return () => unsubscribeAuth();
@@ -474,9 +478,11 @@ export default function TeamsPage() {
   }, [user, profile, logoFile, bannerFile, editingTeam, uploadImage, toast]);
 
   const canCreateTeam =
-    userSecurityRole === 'admin' ||
-    userSecurityRole === 'moderator' ||
-    profile?.primaryRole === 'fundador';
+    !isRoleLoading && !isProfileLoading && (
+        userSecurityRole === 'admin' ||
+        userSecurityRole === 'moderator' ||
+        profile?.primaryRole === 'fundador'
+    );
     
   const myTeams = teams.filter(team => user && team.memberIds.includes(user.uid));
 
@@ -499,7 +505,12 @@ export default function TeamsPage() {
             }}
           >
             <DialogTrigger asChild>
-                {canCreateTeam ? (
+                {isRoleLoading || isProfileLoading ? (
+                    <Button disabled>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Cargando...
+                    </Button>
+                ) : canCreateTeam ? (
                     <Button onClick={() => setIsFormDialogOpen(true)}>
                       <PlusCircle className="mr-2 h-4 w-4" />
                       Crear Equipo

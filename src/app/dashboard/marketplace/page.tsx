@@ -10,7 +10,7 @@ import { valorantRanks as allValorantRanks } from "@/lib/valorant";
 import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import { useAuthRole } from "@/hooks/useAuthRole";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -118,6 +118,9 @@ export default function MarketplacePage() {
     const { role } = useAuthRole();
     const [user, setUser] = useState<FirebaseUser | null>(null);
     const [isAuthReady, setIsAuthReady] = useState(false);
+
+    const [tempRankFilter, setTempRankFilter] = useState('All');
+    const [tempCountryFilter, setTempCountryFilter] = useState('All');
 
     const [playerToInvite, setPlayerToInvite] = useState<Player | null>(null);
     const [managedTeams, setManagedTeams] = useState<ManagedTeam[]>([]);
@@ -228,6 +231,11 @@ export default function MarketplacePage() {
         setIsSubmitting(null);
     };
 
+    const handleSearch = () => {
+        setRankFilter(tempRankFilter);
+        setCountryFilter(tempCountryFilter);
+    };
+
     return (
         <div className="flex flex-col gap-8">
             <div>
@@ -237,22 +245,31 @@ export default function MarketplacePage() {
            
             <Card>
                 <CardHeader>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <h2 className="text-lg font-semibold sm:col-span-3 flex items-center gap-2"><Search className="h-5 w-5"/> Filters</h2>
-                         <Select value={countryFilter} onValueChange={setCountryFilter}>
+                    <CardTitle className="flex items-center gap-2"><Search className="h-5 w-5"/> Find Players & Teams</CardTitle>
+                    <CardDescription>Use the filters below to narrow down your search.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Select value={tempCountryFilter} onValueChange={setTempCountryFilter}>
                             <SelectTrigger><SelectValue placeholder="Filter by Country" /></SelectTrigger>
                             <SelectContent>
                                 {countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                             </SelectContent>
                         </Select>
-                         <Select value={rankFilter} onValueChange={setRankFilter}>
+                        <Select value={tempRankFilter} onValueChange={setTempRankFilter}>
                             <SelectTrigger><SelectValue placeholder="Filter by Rank" /></SelectTrigger>
                             <SelectContent>
-                               {valorantRanks.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                            {valorantRanks.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                             </SelectContent>
                         </Select>
                     </div>
-                </CardHeader>
+                </CardContent>
+                <CardFooter>
+                    <Button onClick={handleSearch} className="w-full sm:w-auto">
+                        <Search className="mr-2 h-4 w-4" />
+                        Search
+                    </Button>
+                </CardFooter>
             </Card>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

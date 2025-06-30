@@ -154,7 +154,14 @@ export default function TeamDetailPage() {
         const q = query(usersRef, where("uid", "in", teamData.memberIds));
         const querySnapshot = await getDocs(q);
         const fetchedMembers = querySnapshot.docs.map(doc => doc.data() as TeamMember);
-        setMembers(fetchedMembers);
+        
+        const sortedMembers = [...fetchedMembers].sort((a, b) => {
+            if (a.uid === teamData.ownerId) return -1;
+            if (b.uid === teamData.ownerId) return 1;
+            return a.displayName.localeCompare(b.displayName);
+        });
+        
+        setMembers(sortedMembers);
       }
 
     } catch (error) {

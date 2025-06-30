@@ -6,47 +6,43 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // USERS
-    // Anyone can see user profiles, but a user can only edit their own.
+    // Users can read any profile, but only write to their own.
+    // This is needed for signup and profile updates.
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // TEAMS & TOURNAMENTS
-    // Anyone can see teams and tournaments.
-    // Creating is allowed from the client, but updates/deletes are protected by functions.
+    // Authenticated users can read and create teams, tournaments, and various requests.
+    // Critical updates (approving, deleting) should be handled by Cloud Functions.
     match /teams/{teamId} {
       allow read, create: if isAuthenticated();
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.ownerId;
     }
+
     match /tournaments/{tournamentId} {
       allow read, create: if isAuthenticated();
     }
-
-    // APPLICATIONS & REQUESTS
-    // These are mostly managed by Cloud Functions.
-    // We allow create from the client for applications, and reads for notifications.
-    match /teamApplications/{appId} {
-      allow read, create: if isAuthenticated();
-    }
-    match /friendRequests/{reqId} {
-      allow read: if isAuthenticated(); // Writes are handled by functions
-    }
-
-    // CHATS
-    // As requested, chats are open to authenticated users.
-    // For more security, you could restrict this to members only.
-    match /chats/{chatId} {
-      allow read, write: if isAuthenticated();
-      match /messages/{messageId} {
-        allow read, write: if isAuthenticated();
-      }
+    
+    match /friendRequests/{requestId} {
+        allow read, create: if isAuthenticated();
     }
     
-    // SUPPORT TICKETS
-    // Users can create their own tickets. Admins will read them via functions.
+    match /teamApplications/{applicationId} {
+        allow read, create: if isAuthenticated();
+    }
+    
     match /supportTickets/{ticketId} {
-        allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+        allow read, create: if isAuthenticated();
+    }
+    
+    // Chats are restricted to members of the chat.
+    match /chats/{chatId} {
+      allow read, write: if isAuthenticated() && request.auth.uid in resource.data.members;
+
+      match /messages/{messageId} {
+        allow read, write: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members;
+      }
     }
   }
 }

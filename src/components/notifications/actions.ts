@@ -43,23 +43,14 @@ export async function getPendingNotifications(): Promise<{ success: boolean; not
         where('type', '==', 'invite')
     );
 
-    const userOwnedTeamsQuery = query(
-        collection(db, 'teams'),
-        where('ownerId', '==', uid)
+    // This query now directly checks for applications to teams owned by the current user.
+    // This is more efficient and aligns with Firestore security rules, preventing permission errors.
+    const teamApplicationsQuery = query(
+        collection(db, 'teamApplications'),
+        where('teamOwnerId', '==', uid),
+        where('status', '==', 'pending'),
+        where('type', '==', 'application')
     );
-    const ownedTeamsSnapshot = await getDocs(userOwnedTeamsQuery);
-    const ownedTeamIds = ownedTeamsSnapshot.docs.map(doc => doc.id);
-
-    let teamApplicationsPromise = Promise.resolve({ docs: [] as any[] });
-    if (ownedTeamIds.length > 0) {
-        const teamApplicationsQuery = query(
-            collection(db, 'teamApplications'),
-            where('teamId', 'in', ownedTeamIds),
-            where('status', '==', 'pending'),
-            where('type', '==', 'application')
-        );
-        teamApplicationsPromise = getDocs(teamApplicationsQuery);
-    }
     
     const [
       friendRequestsSnapshot,
@@ -68,7 +59,7 @@ export async function getPendingNotifications(): Promise<{ success: boolean; not
     ] = await Promise.all([
       getDocs(friendRequestsQuery),
       getDocs(teamInvitesQuery),
-      teamApplicationsPromise,
+      getDocs(teamApplicationsQuery),
     ]);
 
     const friendNotifications: Notification[] = friendRequestsSnapshot.docs.map(doc => {

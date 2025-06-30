@@ -1,269 +1,302 @@
-
+import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { logger } from "firebase-functions";
+import {FieldValue} from "firebase-admin/firestore";
 
 admin.initializeApp();
 const db = admin.firestore();
 
-// Helper to check for authentication and roles
-const ensureAuthenticated = (context: any, requiredRoles: string[] = []) => {
-    if (!context.auth) {
-        throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
-    }
-    
-    if (requiredRoles.length > 0) {
-        const userRole = context.auth.token.role;
-        if (!userRole || !requiredRoles.includes(userRole)) {
-            throw new HttpsError("permission-denied", "You do not have the required role to perform this action.");
-        }
-    }
-    return context.auth.uid;
+// Helper to check for admin/moderator roles
+const isPrivilegedUser = (context: functions.https.CallableContext): boolean => {
+  return (
+    context.auth?.token?.role === "admin" ||
+    context.auth?.token?.role === "moderator"
+  );
 };
 
-/* ------------------ FRIEND MANAGEMENT ------------------ */
+// Helper to check for admin role
+const isAdmin = (context: functions.https.CallableContext): boolean => {
+  return context.auth?.token?.role === "admin";
+};
 
-export const sendFriendRequest = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
-    const fromId = ensureAuthenticated({auth});
-    const { to: toId } = data;
 
-    if (!toId || typeof toId !== 'string') {
-        throw new HttpsError('invalid-argument', 'The function must be called with a "to" user ID string.');
-    }
-    if (fromId === toId) {
-        throw new HttpsError('invalid-argument', 'You cannot send a friend request to yourself.');
-    }
-    
-    const fromUserDoc = await db.collection('users').doc(fromId).get();
-    if (!fromUserDoc.exists) {
-        throw new HttpsError('not-found', 'Your user profile could not be found.');
-    }
+// --- AUTH & USER MANAGEMENT FUNCTIONS ---
 
-    const toUserDoc = await db.collection('users').doc(toId).get();
-    if (!toUserDoc.exists) {
-        throw new HttpsError('not-found', 'The target user could not be found.');
-    }
-    
-    const friends = fromUserDoc.data()?.friends || [];
-    if (friends.includes(toId)) {
-        throw new HttpsError('already-exists', 'You are already friends with this user.');
-    }
+/**
+ * Sets a user's role as a custom claim and syncs it to their Firestore profile.
+ * Only callable by admins.
+ */
+export const setUserRoleAndSync = functions
+    .region("europe-west1")
+    .https.onCall(async (data, context) => {
+      if (!isAdmin(context)) {
+        throw new functions.https.HttpsError("permission-denied", "You must be an admin to set user roles.");
+      }
 
-    const requestsRef = db.collection('friendRequests');
-    const q1 = requestsRef.where('from', '==', fromId).where('to', '==', toId);
-    const q2 = requestsRef.where('from', '==', toId).where('to', '==', fromId);
+      const {uid, role} = data;
+      if (!uid || !role) {
+        throw new functions.https.HttpsError("invalid-argument", "The function must be called with 'uid' and 'role'.");
+      }
 
-    const [snap1, snap2] = await Promise.all([q1.get(), q2.get()]);
+      try {
+        await admin.auth().setCustomUserClaims(uid, {role});
+        await db.collection("users").doc(uid).update({primaryRole: role});
+        return {success: true, message: `Role '${role}' assigned to user ${uid}.`};
+      } catch (error) {
+        console.error("Error setting user role:", error);
+        throw new functions.https.HttpsError("internal", "Unable to set user role.");
+      }
+    });
 
-    if (!snap1.empty || !snap2.empty) {
-        throw new HttpsError('already-exists', 'A friend request already exists between you and this user.');
-    }
 
-    const fromData = fromUserDoc.data();
-    await requestsRef.add({
+/**
+ * Bans or un-bans a user by disabling/enabling their Auth account
+ * and updating their Firestore document. Only callable by admins.
+ */
+export const banUser = functions
+    .region("europe-west1")
+    .https.onCall(async (data, context) => {
+      if (!isAdmin(context)) {
+        throw new functions.https.HttpsError("permission-denied", "You must be an admin to ban users.");
+      }
+
+      const {uid, isBanned} = data;
+      if (!uid || typeof isBanned !== "boolean") {
+        throw new functions.https.HttpsError("invalid-argument", "The function must be called with 'uid' and 'isBanned'.");
+      }
+
+      try {
+        await admin.auth().updateUser(uid, {disabled: isBanned});
+        await db.collection("users").doc(uid).update({isBanned});
+        return {success: true, message: `User ${uid} has been ${isBanned ? "banned" : "unbanned"}.`};
+      } catch (error) {
+        console.error("Error updating ban status:", error);
+        throw new functions.https.HttpsError("internal", "Unable to update user ban status.");
+      }
+    });
+
+// --- FRIEND MANAGEMENT FUNCTIONS ---
+
+/**
+ * Creates a friend request, denormalizing the sender's info.
+ */
+export const sendFriendRequest = functions
+    .region("europe-west1")
+    .https.onCall(async (data, context) => {
+      if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+      }
+
+      const {to: toId} = data;
+      const fromId = context.auth.uid;
+
+      if (fromId === toId) {
+        throw new functions.https.HttpsError("invalid-argument", "You cannot send a friend request to yourself.");
+      }
+
+      // Denormalize sender's data
+      const fromUserDoc = await db.collection("users").doc(fromId).get();
+      if (!fromUserDoc.exists) {
+        throw new functions.https.HttpsError("not-found", "Sender's profile not found.");
+      }
+      const {displayName, avatarUrl} = fromUserDoc.data()!;
+
+      const requestData = {
         from: fromId,
-        fromDisplayName: fromData?.displayName || 'Unknown User',
-        fromAvatarUrl: fromData?.avatarUrl || '',
+        fromDisplayName: displayName,
+        fromAvatarUrl: avatarUrl || "",
         to: toId,
-        status: 'pending',
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        status: "pending",
+        createdAt: FieldValue.serverTimestamp(),
+      };
+
+      await db.collection("friendRequests").add(requestData);
+      return {success: true, message: "Friend request sent."};
     });
 
-    return { success: true, message: 'Friend request sent.' };
-});
+/**
+ * Responds to a friend request (accept/reject). If accepted, adds both users
+ * to each other's friends list.
+ */
+export const respondToFriendRequest = functions
+    .region("europe-west1")
+    .https.onCall(async (data, context) => {
+      if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+      }
+      const {requestId, accept} = data;
+      const currentUserId = context.auth.uid;
 
-export const respondToFriendRequest = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
-    const userId = ensureAuthenticated({ auth });
-    const { requestId, accept } = data;
+      const requestRef = db.collection("friendRequests").doc(requestId);
+      const requestDoc = await requestRef.get();
 
-    if (typeof requestId !== 'string' || typeof accept !== 'boolean') {
-        throw new HttpsError('invalid-argument', 'Invalid data provided.');
-    }
-    
-    const requestRef = db.collection('friendRequests').doc(requestId);
-    const requestSnap = await requestRef.get();
+      if (!requestDoc.exists || requestDoc.data()?.to !== currentUserId) {
+        throw new functions.https.HttpsError("permission-denied", "You cannot respond to this request.");
+      }
 
-    if (!requestSnap.exists || requestSnap.data()?.to !== userId) {
-        throw new HttpsError('permission-denied', 'This request is not for you or does not exist.');
-    }
+      if (accept) {
+        const fromId = requestDoc.data()?.from;
+        const toId = requestDoc.data()?.to;
+        const fromRef = db.collection("users").doc(fromId);
+        const toRef = db.collection("users").doc(toId);
 
-    if (accept) {
-        const fromId = requestSnap.data()?.from;
-        const userRef = db.collection('users').doc(userId);
-        const friendRef = db.collection('users').doc(fromId);
-        
-        const batch = db.batch();
-        batch.update(userRef, { friends: admin.firestore.FieldValue.arrayUnion(fromId) });
-        batch.update(friendRef, { friends: admin.firestore.FieldValue.arrayUnion(userId) });
-        batch.delete(requestRef);
-        await batch.commit();
-
-        return { success: true, message: 'Friend added.' };
-    } else {
-        await requestRef.delete();
-        return { success: true, message: 'Request rejected.' };
-    }
-});
-
-export const removeFriend = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
-  const { friendId } = data;
-  const userId = ensureAuthenticated({auth});
-
-  if (!userId || !friendId || typeof friendId !== 'string' || friendId.length < 10) {
-    logger.error("Invalid ID received:", friendId);
-    throw new HttpsError("invalid-argument", "Datos inválidos.");
-  }
-
-  const userRef = db.collection("users").doc(userId);
-  const friendRef = db.collection("users").doc(friendId);
-  const batch = db.batch();
-
-  batch.update(userRef, { friends: admin.firestore.FieldValue.arrayRemove(friendId) });
-  batch.update(friendRef, { friends: admin.firestore.FieldValue.arrayRemove(userId) });
-
-  const requestsRef = db.collection("friendRequests");
-  const query1 = requestsRef.where("from", "==", userId).where("to", "==", friendId);
-  const query2 = requestsRef.where("from", "==", friendId).where("to", "==", userId);
-  const [snap1, snap2] = await Promise.all([query1.get(), query2.get()]);
-  [...snap1.docs, ...snap2.docs].forEach(doc => batch.delete(doc.ref));
-
-  await batch.commit();
-
-  logger.info(`Friendship and requests between ${userId} and ${friendId} removed.`);
-  return { message: "Amigo eliminado correctamente." };
-});
-
-
-/* ------------------ TEAM MANAGEMENT ------------------ */
-
-export const processTeamApplication = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
-    const managerId = ensureAuthenticated({auth});
-    const { applicationId, approved } = data;
-
-    if (typeof applicationId !== 'string' || typeof approved !== 'boolean') {
-        throw new HttpsError('invalid-argument', 'Invalid data provided.');
-    }
-
-    const applicationRef = db.collection('teamApplications').doc(applicationId);
-    const applicationSnap = await applicationRef.get();
-
-    if (!applicationSnap.exists) { throw new HttpsError('not-found', 'Application not found.'); }
-
-    const applicationData = applicationSnap.data()!;
-    const teamId = applicationData.teamId;
-    const applicantId = applicationData.userId;
-    
-    const teamRef = db.collection('teams').doc(teamId);
-    const teamSnap = await teamRef.get();
-    if (!teamSnap.exists) { throw new HttpsError('not-found', 'Team not found.'); }
-    const teamData = teamSnap.data()!;
-    
-    const userRole = auth?.token.role;
-    if (teamData.ownerId !== managerId && userRole !== 'admin' && userRole !== 'moderator') {
-        throw new HttpsError('permission-denied', 'You do not have permission to manage this team.');
-    }
-    
-    if (approved) {
-        const applicantRef = db.collection('users').doc(applicantId);
-        const applicantSnap = await applicantRef.get();
-        if (!applicantSnap.exists) { throw new HttpsError('not-found', 'Applicant user profile not found.'); }
-        const applicantData = applicantSnap.data()!;
-
-        const newMemberData = {
-            uid: applicantId,
-            displayName: applicantData.displayName || 'Unnamed User',
-            avatarUrl: applicantData.avatarUrl || '',
-            valorantRoles: applicantData.valorantRoles || ['Flex'],
-            primaryRole: applicantData.primaryRole || 'player',
-        };
-
-        const batch = db.batch();
-        batch.update(teamRef, {
-            memberIds: admin.firestore.FieldValue.arrayUnion(applicantId),
-            members: admin.firestore.FieldValue.arrayUnion(newMemberData)
+        await db.runTransaction(async (t) => {
+          t.update(fromRef, {friends: FieldValue.arrayUnion(toId)});
+          t.update(toRef, {friends: FieldValue.arrayUnion(fromId)});
+          t.update(requestRef, {status: "accepted"});
         });
-        batch.update(applicationRef, { status: 'approved' });
-        await batch.commit();
+      } else {
+        await requestRef.update({status: "rejected"});
+      }
 
-        return { success: true, message: 'Application approved.' };
-    } else {
-        await applicationRef.update({ status: 'rejected' });
-        return { success: true, message: 'Application rejected.' };
-    }
-});
-
-export const getTeamApplicationsInbox = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
-    ensureAuthenticated({auth});
-    const { teamId } = data;
-    if (!teamId) { throw new HttpsError("invalid-argument", "Team ID is required."); }
-
-    const applicationsRef = db.collection("teamApplications");
-    const q = applicationsRef.where("teamId", "==", teamId).where("status", "==", "pending");
-    const querySnapshot = await q.get();
-    const applications = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-    return { applications };
-});
-
-export const deleteTeam = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
-    ensureAuthenticated({auth}, ['admin', 'moderator']);
-    const { teamId } = data;
-    if (!teamId) { throw new HttpsError("invalid-argument", "Team ID is required."); }
-
-    await db.collection("teams").doc(teamId).delete();
-    return { success: true, message: "Team deleted successfully." };
-});
-
-
-/* ------------------ ADMIN/MODERATOR ACTIONS ------------------ */
-
-export const approveTournament = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
-    ensureAuthenticated({auth}, ['admin', 'moderator']);
-    const { tournamentId, approved } = data;
-
-    if (typeof tournamentId !== 'string' || typeof approved !== 'boolean') {
-        throw new HttpsError('invalid-argument', 'Invalid data provided.');
-    }
-    
-    await db.collection('tournaments').doc(tournamentId).update({
-        approved: approved,
-        status: approved ? 'Open' : 'Rejected',
+      return {success: true, message: `Request ${accept ? "accepted" : "rejected"}.`};
     });
-    return { success: true };
-});
 
-export const deleteTournament = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
-    ensureAuthenticated({auth}, ['admin']);
-    const { tournamentId } = data;
-    if (!tournamentId) { throw new HttpsError("invalid-argument", "Tournament ID is required."); }
+/**
+ * Removes a friend from both users' friends lists.
+ */
+export const removeFriend = functions
+    .region("europe-west1")
+    .https.onCall(async (data, context) => {
+      if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+      }
+      const {friendId} = data;
+      const currentUserId = context.auth.uid;
 
-    await db.collection("tournaments").doc(tournamentId).delete();
-    return { success: true, message: "Tournament deleted successfully." };
-});
+      const currentUserRef = db.collection("users").doc(currentUserId);
+      const friendRef = db.collection("users").doc(friendId);
 
-export const banUser = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
-    ensureAuthenticated({auth}, ['admin', 'moderator']);
-    const { uid, isBanned } = data;
+      await db.runTransaction(async (t) => {
+        t.update(currentUserRef, {friends: FieldValue.arrayRemove(friendId)});
+        t.update(friendRef, {friends: FieldValue.arrayRemove(currentUserId)});
+      });
 
-    if (typeof uid !== 'string' || typeof isBanned !== 'boolean') {
-        throw new HttpsError('invalid-argument', 'Invalid data provided.');
-    }
-    await admin.auth().updateUser(uid, { disabled: isBanned });
-    await db.collection('users').doc(uid).update({ isBanned: isBanned });
+      return {success: true, message: "Friend removed."};
+    });
 
-    return { success: true };
-});
+// --- TEAM MANAGEMENT FUNCTIONS ---
 
-export const setUserRoleAndSync = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
-    ensureAuthenticated({auth}, ['admin']);
-    const { uid, role } = data;
+/**
+ * Gets all pending applications for a given team. Callable by team owner/staff.
+ */
+export const getTeamApplicationsInbox = functions
+    .region("europe-west1")
+    .https.onCall(async (data, context) => {
+      if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+      }
+      const {teamId} = data;
+      const teamDoc = await db.collection("teams").doc(teamId).get();
+      if (!teamDoc.exists || (teamDoc.data()?.ownerId !== context.auth.uid && !isPrivilegedUser(context))) {
+        throw new functions.https.HttpsError("permission-denied", "You do not manage this team.");
+      }
 
-    if (typeof uid !== 'string' || typeof role !== 'string') {
-        throw new HttpsError('invalid-argument', 'Invalid data provided.');
-    }
-    
-    await admin.auth().setCustomUserClaims(uid, { role });
-    await db.collection('users').doc(uid).update({ primaryRole: role });
+      const appsSnapshot = await db.collection("teamApplications")
+          .where("teamId", "==", teamId)
+          .where("status", "==", "pending")
+          .get();
 
-    return { success: true };
-});
+      const applications = appsSnapshot.docs.map((doc) => ({id: doc.id, ...doc.data()}));
+      return {applications};
+    });
+
+/**
+ * Processes a team application. If approved, adds user to team members
+ * and denormalizes their data into the team document.
+ */
+export const processTeamApplication = functions
+    .region("europe-west1")
+    .https.onCall(async (data, context) => {
+      if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+      }
+
+      const {applicationId, approved} = data;
+      const appRef = db.collection("teamApplications").doc(applicationId);
+      const appDoc = await appRef.get();
+
+      if (!appDoc.exists) {
+        throw new functions.https.HttpsError("not-found", "Application not found.");
+      }
+
+      const {teamId, userId} = appDoc.data()!;
+      const teamRef = db.collection("teams").doc(teamId);
+      const teamDoc = await teamRef.get();
+
+      if (teamDoc.data()?.ownerId !== context.auth.uid && !isPrivilegedUser(context)) {
+        throw new functions.https.HttpsError("permission-denied", "You cannot manage this team's applications.");
+      }
+
+      if (approved) {
+        const userDoc = await db.collection("users").doc(userId).get();
+        if (!userDoc.exists) {
+          throw new functions.https.HttpsError("not-found", "Applicant's profile does not exist.");
+        }
+        const {displayName, avatarUrl, valorantRoles, primaryRole} = userDoc.data()!;
+        const memberData = {uid: userId, displayName, avatarUrl, valorantRoles, primaryRole};
+
+        await db.runTransaction(async (t) => {
+          t.update(teamRef, {
+            memberIds: FieldValue.arrayUnion(userId),
+            members: FieldValue.arrayUnion(memberData),
+          });
+          t.update(appRef, {status: "approved"});
+        });
+      } else {
+        await appRef.update({status: "rejected"});
+      }
+
+      return {success: true, message: `Application ${approved ? "approved" : "rejected"}.`};
+    });
+
+/**
+ * Deletes a team. Callable only by admins.
+ */
+export const deleteTeam = functions
+    .region("europe-west1")
+    .https.onCall(async (data, context) => {
+      if (!isAdmin(context)) {
+        throw new functions.https.HttpsError("permission-denied", "You must be an admin to delete teams.");
+      }
+      const {teamId} = data;
+      await db.collection("teams").doc(teamId).delete();
+      return {success: true, message: "Team deleted."};
+    });
+
+
+// --- TOURNAMENT MANAGEMENT FUNCTIONS ---
+
+/**
+ * Approves or rejects a tournament. Callable by admin/moderator.
+ */
+export const approveTournament = functions
+    .region("europe-west1")
+    .https.onCall(async (data, context) => {
+      if (!isPrivilegedUser(context)) {
+        throw new functions.https.HttpsError("permission-denied", "You must be an admin or moderator.");
+      }
+      const {tournamentId, approved} = data;
+      if (!tournamentId || typeof approved !== "boolean") {
+        throw new functions.https.HttpsError("invalid-argument", "Missing tournamentId or approved status.");
+      }
+
+      const tournamentRef = db.doc(`tournaments/${tournamentId}`);
+      const status = approved ? "Open" : "Rejected";
+
+      await tournamentRef.update({approved, status});
+      return {success: true, message: "Tournament status updated."};
+    });
+
+/**
+ * Deletes a tournament. Callable by admin.
+ */
+export const deleteTournament = functions
+    .region("europe-west1")
+    .https.onCall(async (data, context) => {
+      if (!isAdmin(context)) {
+        throw new functions.https.HttpsError("permission-denied", "You must be an admin to delete tournaments.");
+      }
+      const {tournamentId} = data;
+      await db.collection("tournaments").doc(tournamentId).delete();
+      return {success: true, message: "Tournament deleted."};
+    });

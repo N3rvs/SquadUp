@@ -1,19 +1,221 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+"use client";
+
+import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { useToast } from '@/hooks/use-toast';
+import { handleFriendRequestDecision } from '@/components/notifications/actions';
+import { getFriendsList, getPendingFriendRequests } from './actions';
+import type { Friend, FriendRequest } from './actions';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Check, X, Loader2, UserPlus, UserMinus, MessageSquare } from 'lucide-react';
+
+function PageSkeleton() {
+    return (
+        <div className="space-y-4">
+            <Skeleton className="h-10 w-48" />
+            <Skeleton className="h-5 w-3/4" />
+            <Card>
+                <CardHeader><Skeleton className="h-10 w-full max-w-sm" /></CardHeader>
+                <CardContent>
+                    <div className="space-y-2">
+                        {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
 
 export default function FriendsPage() {
-  return (
-    <div className="flex flex-col gap-8">
-      <h1 className="text-3xl font-bold font-headline">Friends</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>Coming Soon</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">
-            The friends section is under construction. Check back later!
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
+    const [user, setUser] = useState<User | null>(null);
+    const [friends, setFriends] = useState<Friend[]>([]);
+    const [requests, setRequests] = useState<FriendRequest[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isProcessing, setIsProcessing] = useState<string | null>(null);
+    const { toast } = useToast();
+    
+    const fetchData = useCallback(async (uid: string) => {
+        setIsLoading(true);
+        const [friendsResult, requestsResult] = await Promise.all([
+            getFriendsList(uid),
+            getPendingFriendRequests(uid)
+        ]);
+
+        if (friendsResult.success && friendsResult.friends) {
+            setFriends(friendsResult.friends);
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: friendsResult.error });
+        }
+        
+        if (requestsResult.success && requestsResult.requests) {
+            setRequests(requestsResult.requests);
+        } else {
+             toast({ variant: 'destructive', title: 'Error', description: requestsResult.error });
+        }
+        
+        setIsLoading(false);
+    }, [toast]);
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+            if (currentUser) {
+                fetchData(currentUser.uid);
+            } else {
+                setIsLoading(false);
+            }
+        });
+        return () => unsubscribe();
+    }, [fetchData]);
+
+    const onHandleRequest = async (requestId: string, decision: 'accept' | 'reject') => {
+        setIsProcessing(requestId);
+        const result = await handleFriendRequestDecision(requestId, decision);
+        if (result.success) {
+            toast({ title: '¡Decisión procesada!', description: `La solicitud ha sido ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
+            // Refetch data to update both lists
+            if (user) {
+                await fetchData(user.uid);
+            }
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+        setIsProcessing(null);
+    };
+
+    const handleRemoveFriend = async (friendId: string) => {
+        // This is a placeholder for future functionality
+        toast({
+            title: 'Función no implementada',
+            description: 'La eliminación de amigos se añadirá próximamente.'
+        });
+    };
+
+    if (isLoading) {
+        return <PageSkeleton />;
+    }
+
+    return (
+        <div className="grid gap-8">
+            <div>
+                <h1 className="text-3xl font-bold font-headline">Amigos</h1>
+                <p className="text-muted-foreground">Gestiona tu lista de amigos y solicitudes pendientes.</p>
+            </div>
+            
+            <Tabs defaultValue="friends" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="friends">Mis Amigos ({friends.length})</TabsTrigger>
+                    <TabsTrigger value="requests">
+                        Solicitudes Pendientes
+                        {requests.length > 0 && <Badge className="ml-2">{requests.length}</Badge>}
+                    </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="friends" className="pt-4">
+                    <Card>
+                        <CardContent className="p-0">
+                           {friends.length > 0 ? (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Usuario</TableHead>
+                                        <TableHead>Rol</TableHead>
+                                        <TableHead className="text-right">Acciones</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {friends.map((friend) => (
+                                        <TableRow key={friend.uid}>
+                                            <TableCell>
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar className="h-10 w-10 border">
+                                                        <AvatarImage src={friend.avatarUrl} />
+                                                        <AvatarFallback>{friend.displayName.substring(0, 2)}</AvatarFallback>
+                                                    </Avatar>
+                                                    <Link href={`/dashboard/profile/${friend.uid}`} className="font-medium hover:underline">
+                                                        {friend.displayName}
+                                                    </Link>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell><Badge variant="outline">{friend.primaryRole}</Badge></TableCell>
+                                            <TableCell className="text-right">
+                                                <Button variant="ghost" size="icon" asChild>
+                                                    <Link href="/dashboard/chat"><MessageSquare className="h-4 w-4" /></Link>
+                                                </Button>
+                                                <Button variant="ghost" size="icon" onClick={() => handleRemoveFriend(friend.uid)}>
+                                                    <UserMinus className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                           ) : (
+                                <div className="text-center p-10 text-muted-foreground">
+                                    <p>Tu lista de amigos está vacía.</p>
+                                    <p className="text-sm">¡Busca jugadores en el Marketplace para empezar a conectar!</p>
+                                    <Button asChild variant="link" className="mt-2"><Link href="/dashboard/marketplace">Ir al Marketplace</Link></Button>
+                                </div>
+                           )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="requests" className="pt-4">
+                     <Card>
+                        <CardContent className="p-0">
+                           {requests.length > 0 ? (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Usuario</TableHead>
+                                        <TableHead className="text-right">Acciones</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {requests.map((request) => (
+                                        <TableRow key={request.id}>
+                                            <TableCell>
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar className="h-10 w-10 border">
+                                                        <AvatarImage src={request.sender?.avatarUrl} />
+                                                        <AvatarFallback>{request.sender?.displayName.substring(0, 2)}</AvatarFallback>
+                                                    </Avatar>
+                                                    <Link href={`/dashboard/profile/${request.from}`} className="font-medium hover:underline">
+                                                        {request.sender?.displayName}
+                                                    </Link>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button size="sm" variant="outline" className="mr-2" onClick={() => onHandleRequest(request.id, 'reject')} disabled={isProcessing === request.id}>
+                                                     {isProcessing === request.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="h-4 w-4" />}
+                                                </Button>
+                                                <Button size="sm" onClick={() => onHandleRequest(request.id, 'accept')} disabled={isProcessing === request.id}>
+                                                     {isProcessing === request.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4" />}
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                           ) : (
+                                <div className="text-center p-10 text-muted-foreground">
+                                    <p>No tienes solicitudes de amistad pendientes.</p>
+                                </div>
+                           )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
+        </div>
+    );
 }

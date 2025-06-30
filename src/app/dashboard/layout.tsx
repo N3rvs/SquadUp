@@ -18,6 +18,7 @@ import {
   LifeBuoy,
   Circle,
   Shield,
+  UserPlus,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -144,6 +145,7 @@ export default function DashboardLayout({
   const navItems = [
     { href: "/dashboard/profile", icon: User, label: "Perfil" },
     { href: "/dashboard/teams", icon: Users, label: "Mi Equipo" },
+    { href: "/dashboard/friends", icon: UserPlus, label: "Amigos" },
     { href: "/dashboard/marketplace", icon: Store, label: "Marketplace" },
     { href: "/dashboard/tournaments", icon: Trophy, label: "Torneos" },
     { href: "/dashboard/scrims", icon: Swords, label: "Scrims" },

@@ -4,7 +4,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { User } from 'firebase/auth';
 import { useChatMessages } from '@/hooks/useChatMessages';
-import { getOrCreateChat, sendMessage, type ChatParticipantInfo } from '@/app/dashboard/chat/actions';
+import { getOrCreateChat, sendMessage } from '@/app/dashboard/chat/actions';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -49,17 +49,7 @@ export function ChatModal({ friend, currentUser, open, onOpenChange }: ChatModal
 
     const setupChat = async () => {
       try {
-        const currentUserInfo: ChatParticipantInfo = {
-            uid: currentUser.uid,
-            displayName: currentUser.displayName,
-            avatarUrl: currentUser.photoURL,
-        };
-        const friendInfo: ChatParticipantInfo = {
-            uid: friend.uid,
-            displayName: friend.displayName,
-            avatarUrl: friend.avatarUrl,
-        };
-        const id = await getOrCreateChat(currentUserInfo, friendInfo);
+        const id = await getOrCreateChat(currentUser.uid, friend.uid);
         setChatId(id);
       } catch (e: any) {
         console.error("Error setting up chat:", e);

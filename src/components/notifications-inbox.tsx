@@ -9,16 +9,15 @@ import { es } from 'date-fns/locale';
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Inbox, Check, X, Loader2, UserPlus } from 'lucide-react';
+import { Inbox, Check, X, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { getPendingNotifications, handleApplicationDecision, handleFriendRequestDecision } from './notifications/actions';
 import type { Notification } from './notifications/actions';
-import { auth, functions } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { httpsCallable } from 'firebase/functions';
 
 export function NotificationsInbox() {
   const [user, setUser] = useState<User | null>(null);
@@ -75,7 +74,9 @@ export function NotificationsInbox() {
     const result = await handleFriendRequestDecision(requestId, accept);
     if (result.success) {
         toast({ title: 'Éxito', description: `Solicitud de amistad ${accept ? 'aceptada' : 'rechazada'}.`});
-        fetchNotifications();
+        // The local state will be updated by the onSnapshot listener on the friends page.
+        // For immediate feedback here, we filter it out.
+        setNotifications((prev) => prev.filter((n) => n.id !== requestId));
     } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
     }

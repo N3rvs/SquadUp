@@ -22,13 +22,13 @@ export interface ChatParticipant {
 
 export interface Chat {
     id: string;
-    participants: string[];
+    members: string[]; // Changed from participants
     lastMessage?: {
         text: string;
         timestamp: any; // Firestore Timestamp
         senderId: string;
     }
-    participantDetails: Record<string, ChatParticipant>;
+    // No longer storing participantDetails directly in chat doc for this model
     createdAt: any; // Firestore Timestamp
 }
 
@@ -39,32 +39,21 @@ export interface ChatParticipantInfo {
 }
 
 
-export async function getOrCreateChat(currentUserInfo: ChatParticipantInfo, friendInfo: ChatParticipantInfo): Promise<string> {
-  if (!currentUserInfo.uid || !friendInfo.uid) {
+export async function getOrCreateChat(currentUserUid: string, friendUid: string): Promise<string> {
+  if (!currentUserUid || !friendUid) {
     throw new Error("User IDs cannot be empty.");
   }
 
-  const ids = [currentUserInfo.uid, friendInfo.uid].sort();
+  const ids = [currentUserUid, friendUid].sort();
   const chatId = ids.join('_');
 
   const chatRef = doc(db, 'chats', chatId);
   const chatSnap = await getDoc(chatRef);
 
   if (!chatSnap.exists()) {
-    const participantDetails: Record<string, ChatParticipant> = {
-      [currentUserInfo.uid]: {
-        displayName: currentUserInfo.displayName || 'Usuario',
-        avatarUrl: currentUserInfo.avatarUrl || '',
-      },
-      [friendInfo.uid]: {
-        displayName: friendInfo.displayName || 'Usuario',
-        avatarUrl: friendInfo.avatarUrl || '',
-      },
-    };
-
+    // Create a chat with just the members array
     await setDoc(chatRef, {
-      participants: ids,
-      participantDetails,
+      members: ids,
       createdAt: serverTimestamp(),
     });
   }
@@ -89,6 +78,7 @@ export async function sendMessage(chatId: string, text: string, senderId: string
     
     await addDoc(messagesRef, messageData);
     
+    // Update the lastMessage field for chat list previews
     await updateDoc(chatRef, {
         lastMessage: messageData
     });

@@ -1,7 +1,7 @@
+
 'use server';
 
-import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, getDoc, documentId } from 'firebase/firestore';
+import type { Timestamp } from 'firebase/firestore';
 
 // Types
 export interface FriendRequest {
@@ -11,6 +11,7 @@ export interface FriendRequest {
     fromAvatarUrl?: string;
     to: string;
     status: 'pending' | 'accepted' | 'rejected';
+    createdAt: Timestamp;
 }
 
 export interface Friend {
@@ -24,55 +25,4 @@ export interface Friend {
 // client components (e.g., friends/page.tsx) to ensure the Firebase auth
 // token is refreshed immediately before the call, resolving permission issues.
 
-// Data fetching function for the friends page
-export async function getFriendsPageData(userId: string): Promise<{
-    friends: Friend[];
-    incomingRequests: FriendRequest[];
-    outgoingRequests: FriendRequest[];
-    error?: string;
-}> {
-    try {
-        // 1. Get user's friend list
-        const userDocRef = doc(db, 'users', userId);
-        const userDocSnap = await getDoc(userDocRef);
-        if (!userDocSnap.exists()) {
-            throw new Error('User not found');
-        }
-        const friendIds = (userDocSnap.data().friends || []).filter((id): id is string => !!id);
-
-        // 2. Fetch friend profiles
-        let friends: Friend[] = [];
-        if (friendIds.length > 0) {
-            // Firestore 'in' queries are limited to 30 elements in latest versions. We will chunk in 10s to be safe.
-            const friendPromises = [];
-            for (let i = 0; i < friendIds.length; i += 10) {
-                const batch = friendIds.slice(i, i + 10);
-                const q = query(collection(db, 'users'), where(documentId(), 'in', batch));
-                friendPromises.push(getDocs(q));
-            }
-            const friendSnapshots = await Promise.all(friendPromises);
-            friends = friendSnapshots.flatMap(snap => snap.docs.map(d => ({ uid: d.id, ...d.data() } as Friend)));
-        }
-
-        // 3. Fetch incoming friend requests (with denormalized data)
-        const incomingQuery = query(collection(db, 'friendRequests'), where('to', '==', userId), where('status', '==', 'pending'));
-        const incomingSnapshot = await getDocs(incomingQuery);
-        const incomingRequests = incomingSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data
-            } as FriendRequest;
-        });
-
-        // 4. Fetch outgoing friend requests
-        const outgoingQuery = query(collection(db, 'friendRequests'), where('from', '==', userId), where('status', '==', 'pending'));
-        const outgoingSnapshot = await getDocs(outgoingQuery);
-        const outgoingRequests = outgoingSnapshot.docs.map(d => ({ id: d.id, ...d.data() })) as FriendRequest[];
-
-        return { friends, incomingRequests, outgoingRequests };
-    } catch (error: any) {
-        console.error("Error fetching friends data:", error);
-        return { friends: [], incomingRequests: [], outgoingRequests: [], error: error.message };
-    }
-}
+// Data fetching is now handled in real-time with onSnapshot in the client component.

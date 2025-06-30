@@ -1,6 +1,7 @@
+
 import { db, functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
-import { collection, query, where, getDocs, Timestamp, doc, updateDoc, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore';
 
 export interface Notification {
   id: string;
@@ -83,6 +84,7 @@ async function getFriendRequestsForUser(userId: string): Promise<Notification[]>
 
     const notifications: Notification[] = querySnapshot.docs.map(requestDoc => {
         const requestData = requestDoc.data();
+        const createdAt = requestData.createdAt instanceof Timestamp ? requestData.createdAt.toDate() : new Date();
         return {
             id: requestDoc.id,
             type: 'friend_request',
@@ -91,7 +93,7 @@ async function getFriendRequestsForUser(userId: string): Promise<Notification[]>
                 displayName: requestData.fromDisplayName,
                 avatarUrl: requestData.fromAvatarUrl,
             },
-            createdAt: requestData.createdAt instanceof Timestamp ? requestData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
+            createdAt: createdAt.toISOString(),
         };
     });
     return notifications;
@@ -113,11 +115,12 @@ export async function getPendingNotifications(userId: string): Promise<{ success
         const inviteSnapshot = await getDocs(inviteQuery);
         const invites: Notification[] = inviteSnapshot.docs.map(doc => {
             const inviteData = doc.data();
+            const createdAt = inviteData.createdAt instanceof Timestamp ? inviteData.createdAt.toDate() : new Date();
             return {
                 id: doc.id,
                 type: 'invite',
                 team: { id: inviteData.teamId, name: inviteData.teamName, logoUrl: inviteData.teamLogoUrl || '' },
-                createdAt: inviteData.createdAt instanceof Timestamp ? inviteData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
+                createdAt: createdAt.toISOString(),
             };
         });
 
@@ -153,7 +156,11 @@ export async function handleApplicationDecision(applicationId: string, decision:
 }
 
 export async function handleFriendRequestDecision(requestId: string, accept: boolean) {
+    if (!auth.currentUser) {
+        return { success: false, error: 'You must be logged in.' };
+    }
     try {
+        await auth.currentUser.getIdToken(true);
         const respond = httpsCallable(functions, 'respondToFriendRequest');
         await respond({ requestId, accept });
         return { success: true };

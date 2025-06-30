@@ -1,10 +1,10 @@
 import { db, functions } from '@/lib/firebase';
-import { httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase-functions/v2';
 import { collection, query, where, getDocs, Timestamp, doc, updateDoc, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 
 export interface Notification {
   id: string;
-  type: 'application' | 'invite' | 'friend_request' | 'friend_request_accepted';
+  type: 'application' | 'invite' | 'friend_request';
   team?: {
     id: string;
     name: string;
@@ -16,11 +16,6 @@ export interface Notification {
     avatarUrl?: string;
   };
   sender?: {
-    uid: string;
-    displayName: string;
-    avatarUrl?: string;
-  };
-  acceptedBy?: {
     uid: string;
     displayName: string;
     avatarUrl?: string;
@@ -130,37 +125,7 @@ export async function getPendingNotifications(userId: string): Promise<{ success
             });
         }
         
-        // 4. Get 'friend request accepted' notifications for the user.
-        const notificationsRef = collection(db, "notifications");
-        const acceptedRequestQuery = query(notificationsRef, where("to", "==", userId), where("type", "==", "friend_request_accepted"), where("read", "==", false));
-        const acceptedRequestSnapshot = await getDocs(acceptedRequestQuery);
-        let acceptedRequests: Notification[] = [];
-        if (!acceptedRequestSnapshot.empty) {
-            const accepterIds = [...new Set(acceptedRequestSnapshot.docs.map(doc => doc.data().from))];
-            if (accepterIds.length > 0) {
-                const usersRef = collection(db, "users");
-                const acceptersQuery = query(usersRef, where("uid", "in", accepterIds));
-                const acceptersSnapshot = await getDocs(acceptersQuery);
-                const acceptersData = new Map(acceptersSnapshot.docs.map(doc => [doc.id, doc.data()]));
-        
-                acceptedRequests = acceptedRequestSnapshot.docs.map(doc => {
-                    const notifData = doc.data();
-                    const accepterInfo = acceptersData.get(notifData.from);
-                    return {
-                        id: doc.id,
-                        type: 'friend_request_accepted',
-                        acceptedBy: {
-                            uid: notifData.from,
-                            displayName: accepterInfo?.displayName || 'Unknown User',
-                            avatarUrl: accepterInfo?.avatarUrl || '',
-                        },
-                        createdAt: notifData.createdAt instanceof Timestamp ? notifData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
-                    };
-                });
-            }
-        }
-
-        const allNotifications = [...applications, ...invites, ...friendRequests, ...acceptedRequests];
+        const allNotifications = [...applications, ...invites, ...friendRequests];
         allNotifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         
         return { success: true, notifications: allNotifications };

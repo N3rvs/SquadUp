@@ -10,7 +10,7 @@ import { respondToFriendRequest, removeFriend } from './actions';
 import type { Friend, FriendRequest } from './actions';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,7 +28,9 @@ function PageSkeleton() {
             <Skeleton className="h-10 w-48" />
             <Skeleton className="h-5 w-3/4" />
             <Card>
-                <CardHeader><Skeleton className="h-10 w-full max-w-sm" /></CardHeader>
+                <CardContent className="p-4">
+                    <Skeleton className="h-10 w-full max-w-sm" />
+                </CardContent>
                 <CardContent>
                     <div className="space-y-2">
                         {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
@@ -92,17 +94,24 @@ export default function FriendsPage() {
 
                 const friendIds = userData.friends || [];
                 if (friendIds.length > 0) {
-                    const friendsQuery = query(collection(db, "users"), where("uid", "in", friendIds));
-                    const friendsSnapshot = await getDocs(friendsQuery);
-                    const friendsData = friendsSnapshot.docs.map(doc => {
-                        const data = doc.data();
-                        return {
-                            uid: data.uid,
-                            displayName: data.displayName,
-                            avatarUrl: data.avatarUrl || '',
-                            primaryRole: data.primaryRole || 'Player',
-                        };
-                    });
+                    const friendsData: Friend[] = [];
+                    // Fetch friends in chunks to avoid firestore limitations if the list grows
+                    for (let i = 0; i < friendIds.length; i += 10) {
+                        const chunk = friendIds.slice(i, i + 10);
+                        if (chunk.length > 0) {
+                            const friendsQuery = query(collection(db, "users"), where("uid", "in", chunk));
+                            const friendsSnapshot = await getDocs(friendsQuery);
+                            friendsSnapshot.forEach(doc => {
+                                const data = doc.data();
+                                friendsData.push({
+                                    uid: data.uid,
+                                    displayName: data.displayName,
+                                    avatarUrl: data.avatarUrl || '',
+                                    primaryRole: data.primaryRole || 'Player',
+                                });
+                            });
+                        }
+                    }
                     setFriends(friendsData);
                 } else {
                     setFriends([]);
@@ -166,12 +175,12 @@ export default function FriendsPage() {
         };
     }, [user, toast]);
 
-    const onHandleRequest = async (request: FriendRequest, decision: 'accept' | 'reject') => {
+    const onHandleRequest = async (requestId: string, accept: boolean) => {
         if (!user) return;
-        setIsProcessing(request.id);
-        const result = await respondToFriendRequest(request.id, decision);
+        setIsProcessing(requestId);
+        const result = await respondToFriendRequest(requestId, accept);
         if (result.success) {
-            toast({ title: '¡Decisión procesada!', description: `La solicitud ha sido ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
+            toast({ title: '¡Decisión procesada!', description: `La solicitud ha sido ${accept ? 'aceptada' : 'rechazada'}.` });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -288,10 +297,10 @@ export default function FriendsPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                <Button size="sm" variant="outline" className="mr-2" onClick={() => onHandleRequest(request, 'reject')} disabled={isProcessing === request.id}>
+                                                <Button size="sm" variant="outline" className="mr-2" onClick={() => onHandleRequest(request.id, false)} disabled={isProcessing === request.id}>
                                                      {isProcessing === request.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="h-4 w-4" />}
                                                 </Button>
-                                                <Button size="sm" onClick={() => onHandleRequest(request, 'accept')} disabled={isProcessing === request.id}>
+                                                <Button size="sm" onClick={() => onHandleRequest(request.id, true)} disabled={isProcessing === request.id}>
                                                      {isProcessing === request.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4" />}
                                                 </Button>
                                             </TableCell>

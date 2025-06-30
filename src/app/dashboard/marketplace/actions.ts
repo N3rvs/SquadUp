@@ -3,49 +3,25 @@ import { auth, db, functions } from "@/lib/firebase";
 import { collection, addDoc, query, where, getDocs, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 
-// --- Friend Request Logic ---
 
-export async function sendFriendRequest(senderId: string, receiverId: string) {
-    if (!senderId) {
+export async function sendFriendRequest(receiverId: string) {
+    if (!auth.currentUser) {
         return { success: false, error: "User not authenticated." };
     }
+    const senderId = auth.currentUser.uid;
 
     if (senderId === receiverId) {
         return { success: false, error: "You cannot send a friend request to yourself." };
     }
 
     try {
-        // Check if they are already friends
-        const senderDocRef = doc(db, "users", senderId);
-        const senderDocSnap = await getDoc(senderDocRef);
-        const senderData = senderDocSnap.data();
-        if (senderData?.friends?.includes(receiverId)) {
-            return { success: false, error: "You are already friends with this user." };
-        }
-        
-        // Check for existing pending request (either way)
-        const requestsRef = collection(db, "friendRequests");
-        const q1 = query(requestsRef, where("from", "==", senderId), where("to", "==", receiverId), where("status", "==", "pending"));
-        const q2 = query(requestsRef, where("from", "==", receiverId), where("to", "==", senderId), where("status", "==", "pending"));
-        
-        const [snapshot1, snapshot2] = await Promise.all([getDocs(q1), getDocs(q2)]);
-
-        if (!snapshot1.empty || !snapshot2.empty) {
-            return { success: false, error: "There is already a pending friend request." };
-        }
-
-        // Create the friend request
-        await addDoc(requestsRef, {
-            from: senderId,
-            to: receiverId,
-            status: "pending",
-            createdAt: serverTimestamp(),
-        });
-
+        await auth.currentUser.getIdToken(true);
+        const sendRequestFunc = httpsCallable(functions, 'sendFriendRequest');
+        await sendRequestFunc({ to: receiverId });
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error sending friend request:", error);
-        if (error instanceof Error) {
+         if (error.code && error.message) {
             return { success: false, error: error.message };
         }
         return { success: false, error: "An unknown error occurred while sending the friend request." };
@@ -100,7 +76,7 @@ export async function sendTeamInvite(senderId: string, teamId: string, receiverI
         // Check permissions (must be owner, admin or mod)
         const userDoc = await getDoc(doc(db, "users", senderId));
         const userRole = userDoc.data()?.primaryRole;
-        if (teamData.ownerId !== senderId && userRole !== 'admin' && userRole !== 'moderator') {
+        if (teamData.ownerId !== senderId && userRole !== 'admin' && userRole !== 'moderator' && userRole !== 'fundador') {
             return { success: false, error: "You don't have permission to invite players to this team." };
         }
 
@@ -111,7 +87,7 @@ export async function sendTeamInvite(senderId: string, teamId: string, receiverI
         
         // Check for existing pending invite
         const invitesRef = collection(db, "teamApplications");
-        const q = query(invitesRef, where("teamId", "==", teamId), where("receiverId", "==", receiverId), where("status", "==", "pending"));
+        const q = query(invitesRef, where("teamId", "==", teamId), where("userId", "==", receiverId), where("status", "==", "pending"));
         const querySnapshot = await getDocs(q);
 
         if (!querySnapshot.empty) {

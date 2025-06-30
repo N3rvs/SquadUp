@@ -12,12 +12,12 @@ import { Inbox, Check, X, Loader2, UserPlus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { getPendingNotifications, handleApplicationDecision } from './notifications/actions';
-import { respondToFriendRequest } from '@/app/dashboard/friends/actions';
 import type { Notification } from './notifications/actions';
-import { auth } from '@/lib/firebase';
+import { auth, functions } from '@/lib/firebase';
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { httpsCallable } from 'firebase/functions';
 
 export function NotificationsInbox() {
   const [user, setUser] = useState<User | null>(null);
@@ -69,22 +69,21 @@ export function NotificationsInbox() {
     setIsProcessing(null);
   };
   
-  const onHandleFriendRequest = async (notification: Notification, decision: 'accept' | 'reject') => {
-    if (!user || !notification.sender) return;
-    setIsProcessing(notification.id);
-    const result = await respondToFriendRequest(notification.id, decision);
-    if (result.success) {
-        toast({ title: '¡Decisión procesada!', description: `La solicitud de amistad ha sido ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
-        setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
-    } else {
-        toast({ variant: 'destructive', title: 'Error', description: result.error });
+  const onHandleFriendRequest = async (notificationId: string, accept: boolean) => {
+    if (!user) return;
+    setIsProcessing(notificationId);
+    try {
+        const respondToRequestFunc = httpsCallable(functions, 'respondToFriendRequest');
+        await respondToRequestFunc({ requestId: notificationId, accept });
+
+        toast({ title: '¡Decisión procesada!', description: `La solicitud de amistad ha sido ${accept ? 'aceptada' : 'rechazada'}.` });
+        setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message });
     }
     setIsProcessing(null);
   };
 
-  const handleDismissNotification = (notificationId: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
-  };
 
   const hasNotifications = notifications.length > 0;
 
@@ -158,28 +157,9 @@ export function NotificationsInbox() {
                                 </div>
                             </div>
                             <div className="flex justify-end gap-2 mt-3">
-                                <Button size="sm" variant="outline" onClick={() => onHandleFriendRequest(notification, 'reject')} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}<span className="ml-2">Rechazar</span></Button>
-                                <Button size="sm" onClick={() => onHandleFriendRequest(notification, 'accept')} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}<span className="ml-2">Aceptar</span></Button>
+                                <Button size="sm" variant="outline" onClick={() => onHandleFriendRequest(notification.id, false)} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}<span className="ml-2">Rechazar</span></Button>
+                                <Button size="sm" onClick={() => onHandleFriendRequest(notification.id, true)} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}<span className="ml-2">Aceptar</span></Button>
                             </div>
-                          </div>
-                        );
-                      }
-                      if (notification.type === 'friend_request_accepted' && notification.acceptedBy) {
-                        return (
-                          <div key={notification.id} className="p-4 hover:bg-secondary/50">
-                              <div className="flex items-start gap-3">
-                                  <Avatar className="h-10 w-10 border"><AvatarImage src={notification.acceptedBy.avatarUrl} /><AvatarFallback>{notification.acceptedBy.displayName.substring(0, 2)}</AvatarFallback></Avatar>
-                                  <div className="flex-1 text-sm">
-                                      <p><Link href={`/dashboard/profile/${notification.acceptedBy.uid}`} className="font-semibold hover:underline">{notification.acceptedBy.displayName}</Link>{' '}ha aceptado tu solicitud de amistad.</p>
-                                      <p className="text-xs text-muted-foreground mt-1">{formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: es })}</p>
-                                  </div>
-                              </div>
-                               <div className="flex justify-end gap-2 mt-3">
-                                 <Button size="sm" onClick={() => handleDismissNotification(notification.id)}>
-                                    <Check className="h-4 w-4" />
-                                    <span className="ml-2">Ok</span>
-                                  </Button>
-                              </div>
                           </div>
                         );
                       }

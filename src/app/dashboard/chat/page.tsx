@@ -14,9 +14,9 @@ export default function ChatPage() {
                     <div className="mx-auto bg-secondary p-3 rounded-full w-fit mb-4">
                         <MessageSquare className="h-10 w-10 text-primary" />
                     </div>
-                    <CardTitle className="text-2xl font-headline">El Chat ha Cambiado de Lugar</CardTitle>
+                    <CardTitle className="text-2xl font-headline">Sistema de Chat</CardTitle>
                     <CardDescription>
-                        Para una experiencia más integrada, ahora puedes iniciar un chat directamente desde tu lista de amigos.
+                        Para chatear con un amigo, ve a tu lista de amigos y haz clic en el botón de chat.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>

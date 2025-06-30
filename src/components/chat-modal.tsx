@@ -76,7 +76,7 @@ export function ChatModal({ friend, currentUser, open, onOpenChange }: ChatModal
     
     setIsSending(true);
     const textToSend = newMessage;
-    setNewMessage(""); // Clear input immediately
+    setNewMessage("");
     
     await sendMessage(chatId, textToSend, currentUser.uid);
     setIsSending(false);

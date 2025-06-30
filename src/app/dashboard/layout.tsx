@@ -15,6 +15,8 @@ import {
   Circle,
   Shield,
   Loader2,
+  Heart,
+  Inbox,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -61,8 +63,8 @@ import {
   SidebarMenuButton,
   SidebarInset,
   SidebarTrigger,
-  useSidebar,
 } from '@/components/ui/sidebar';
+import { NotificationsInbox } from '@/components/notifications-inbox';
 
 interface UserProfile {
   displayName: string;
@@ -235,7 +237,9 @@ function MainLayout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { href: "/dashboard/profile", icon: User, label: "Perfil" },
-    { href: "/dashboard/teams", icon: Users, label: "Mi Equipo" },
+    { href: "/dashboard/teams", icon: Users, label: "Equipos" },
+    { href: "/dashboard/friends", icon: Heart, label: "Amigos" },
+    { href: "/dashboard/inbox", icon: Inbox, label: "Bandeja de Entrada" },
     { href: "/dashboard/marketplace", icon: Store, label: "Marketplace" },
     { href: "/dashboard/tournaments", icon: Trophy, label: "Torneos" },
     { href: "/dashboard/scrims", icon: Swords, label: "Scrims" },
@@ -278,6 +282,7 @@ function MainLayout({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
           <SidebarTrigger />
           <div className="flex w-full items-center justify-end gap-2 md:gap-4">
+            <NotificationsInbox />
             <ProfileDropdown />
           </div>
         </header>

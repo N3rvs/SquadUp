@@ -10,7 +10,7 @@ import { respondToFriendRequest, removeFriend } from './actions';
 import type { Friend, FriendRequest } from './actions';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -28,9 +28,9 @@ function PageSkeleton() {
             <Skeleton className="h-10 w-48" />
             <Skeleton className="h-5 w-3/4" />
             <Card>
-                <CardContent className="p-4">
+                <CardHeader>
                     <Skeleton className="h-10 w-full max-w-sm" />
-                </CardContent>
+                </CardHeader>
                 <CardContent>
                     <div className="space-y-2">
                         {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
@@ -70,32 +70,29 @@ export default function FriendsPage() {
         return () => unsubscribe();
     }, []);
 
-    // Data listeners
+    // Friends listener
     useEffect(() => {
         if (!user) {
             setFriends([]);
-            setRequests([]);
             setCurrentUser(null);
+            setIsLoading(false);
             return;
         }
 
         setIsLoading(true);
-
-        // --- Realtime listener for Friends ---
         const userDocRef = doc(db, "users", user.uid);
-        const unsubscribeFriends = onSnapshot(userDocRef, async (docSnap) => {
+        const unsubscribe = onSnapshot(userDocRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const userData = docSnap.data();
                 setCurrentUser({
                     uid: user.uid,
                     displayName: userData.displayName,
-                    avatarUrl: userData.avatarUrl
+                    avatarUrl: userData.avatarUrl,
                 });
 
                 const friendIds = userData.friends || [];
                 if (friendIds.length > 0) {
                     const friendsData: Friend[] = [];
-                    // Fetch friends in chunks to avoid firestore limitations if the list grows
                     for (let i = 0; i < friendIds.length; i += 10) {
                         const chunk = friendIds.slice(i, i + 10);
                         if (chunk.length > 0) {
@@ -120,17 +117,27 @@ export default function FriendsPage() {
                  setFriends([]);
                  setCurrentUser(null);
             }
+            setIsLoading(false);
         }, (error) => {
             console.error("Error listening to friend updates:", error);
             toast({ variant: 'destructive', title: 'Error', description: "No se pudo sincronizar tu lista de amigos." });
+            setIsLoading(false);
         });
 
-        // --- Realtime listener for Friend Requests ---
+        return () => unsubscribe();
+    }, [user, toast]);
+
+    // Friend Requests listener
+    useEffect(() => {
+        if (!user) {
+            setRequests([]);
+            return;
+        }
+
         const requestsQuery = query(collection(db, "friendRequests"), where("to", "==", user.uid), where("status", "==", "pending"));
-        const unsubscribeRequests = onSnapshot(requestsQuery, async (snapshot) => {
+        const unsubscribe = onSnapshot(requestsQuery, async (snapshot) => {
             if (snapshot.empty) {
                 setRequests([]);
-                setIsLoading(false);
                 return;
             }
 
@@ -138,7 +145,6 @@ export default function FriendsPage() {
             
             if (senderIds.length === 0) {
                 setRequests([]);
-                setIsLoading(false);
                 return;
             }
 
@@ -160,19 +166,13 @@ export default function FriendsPage() {
                     createdAt: requestData.createdAt instanceof Timestamp ? requestData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
                 };
             });
-
             setRequests(fetchedRequests);
-            setIsLoading(false);
         }, (error) => {
             console.error("Error listening to friend requests:", error);
             toast({ variant: 'destructive', title: 'Error', description: "No se pudieron sincronizar las solicitudes de amistad." });
-            setIsLoading(false);
         });
 
-        return () => {
-            unsubscribeFriends();
-            unsubscribeRequests();
-        };
+        return () => unsubscribe();
     }, [user, toast]);
 
     const onHandleRequest = async (requestId: string, accept: boolean) => {

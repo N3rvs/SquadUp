@@ -51,7 +51,7 @@ export async function GET(request: Request) {
             allNotifications.push({
                 id: doc.id,
                 type: 'friendRequest',
-                from_displayName: data.from_displayName,
+                from_displayName: data.from_displayName || 'Usuario Desconocido',
                 from_avatarUrl: data.from_avatarUrl,
                 createdAt: (data.createdAt as Timestamp).toMillis(),
             });
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
             allNotifications.push({
                 id: doc.id,
                 type: 'teamInvite',
-                from_displayName: data.teamName,
+                from_displayName: data.teamName || 'Equipo Desconocido',
                 from_avatarUrl: data.teamLogoUrl,
                 teamName: data.teamName,
                 teamId: data.teamId,
@@ -80,13 +80,25 @@ export async function GET(request: Request) {
         const userProfiles: { [key: string]: { displayName: string, avatarUrl?: string } } = {};
         
         if (userIdsToFetch.length > 0) {
-            const usersSnapshot = await adminDb.collection('users').where(adminDb.FieldPath.documentId(), 'in', userIdsToFetch.slice(0, 30)).get();
-            usersSnapshot.forEach(doc => {
-                const data = doc.data();
-                userProfiles[doc.id] = {
-                    displayName: data.displayName,
-                    avatarUrl: data.avatarUrl,
-                };
+            const userBatches = [];
+            for (let i = 0; i < userIdsToFetch.length; i += 30) {
+                userBatches.push(userIdsToFetch.slice(i, i + 30));
+            }
+
+            const userPromises = userBatches.map(batch => 
+                adminDb.collection('users').where(adminDb.FieldPath.documentId(), 'in', batch).get()
+            );
+
+            const userSnapshots = await Promise.all(userPromises);
+
+            userSnapshots.forEach(snapshot => {
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    userProfiles[doc.id] = {
+                        displayName: data.displayName,
+                        avatarUrl: data.avatarUrl,
+                    };
+                });
             });
         }
         
@@ -97,9 +109,9 @@ export async function GET(request: Request) {
                 allNotifications.push({
                     id: appDoc.id,
                     type: 'teamApplication',
-                    from_displayName: userProfile.displayName,
+                    from_displayName: userProfile.displayName || 'Usuario Desconocido',
                     from_avatarUrl: userProfile.avatarUrl,
-                    teamName: data.teamName,
+                    teamName: data.teamName || 'Equipo Desconocido',
                     teamId: data.teamId,
                     createdAt: (data.createdAt as Timestamp).toMillis(),
                 });

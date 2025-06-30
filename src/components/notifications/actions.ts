@@ -30,8 +30,14 @@ export async function getPendingNotifications(): Promise<{ success: boolean; not
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to fetch notifications');
+            const text = await response.text();
+            console.error("API Error Response:", text);
+            try {
+                const errorData = JSON.parse(text);
+                throw new Error(errorData.error || `Request failed with status ${response.status}`);
+            } catch (e) {
+                throw new Error(`Server returned an invalid response. Status: ${response.status}`);
+            }
         }
 
         const data = await response.json();

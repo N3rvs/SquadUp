@@ -12,20 +12,21 @@ import {
   Swords,
   LogOut,
   BrainCircuit,
-  MessageSquare,
   Inbox,
-  Settings,
   LifeBuoy,
   Circle,
   Shield,
   UserPlus,
+  Menu,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Logo } from "@/components/logo";
 import { auth, db } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, Timestamp, updateDoc } from "firebase/firestore";
+import { doc, getDoc, Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -186,39 +187,62 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen w-full">
-      <aside className="hidden md:flex flex-col w-64 bg-card border-r">
-        <div className="flex-1 flex flex-col gap-6 p-4">
-          <Link href="/dashboard/profile" className="px-2">
-            <h1 className="text-2xl font-bold font-headline">SquadUp</h1>
+    <div className="flex min-h-screen w-full flex-col">
+       <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 z-50">
+        <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
+          <Link href="/dashboard/profile" className="flex items-center gap-2 text-lg font-semibold md:text-base">
+            <Logo />
+            <span className="sr-only">SquadUp</span>
           </Link>
-          <nav className="flex flex-col gap-2">
-            {navItems.map((item) => (
-              <Link key={item.href} href={item.href}>
-                <Button
-                  variant={pathname.startsWith(item.href) ? "secondary" : "ghost"}
-                  className="w-full justify-start gap-3"
-                >
-                  <item.icon className="h-5 w-5" />
-                  {item.label}
-                </Button>
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "transition-colors hover:text-foreground",
+                pathname.startsWith(item.href) ? "text-foreground" : "text-muted-foreground"
+              )}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="shrink-0 md:hidden"
+            >
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Toggle navigation menu</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left">
+            <nav className="grid gap-6 text-lg font-medium">
+              <Link
+                href="/dashboard/profile"
+                className="flex items-center gap-2 text-lg font-semibold"
+              >
+                <Logo />
+                <span className="sr-only">SquadUp</span>
               </Link>
-            ))}
-          </nav>
-        </div>
-        <div className="p-4 border-t">
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3"
-            onClick={handleLogout}
-          >
-            <LogOut className="h-5 w-5" />
-            Logout
-          </Button>
-        </div>
-      </aside>
-      <div className="flex flex-col flex-1">
-        <header className="flex h-16 items-center justify-end gap-4 border-b bg-card px-6">
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                   className={cn(
+                    "transition-colors hover:text-foreground",
+                    pathname.startsWith(item.href) ? "text-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </SheetContent>
+        </Sheet>
+        <div className="flex w-full items-center justify-end gap-4 md:ml-auto md:gap-2 lg:gap-4">
             <NotificationsInbox />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -295,10 +319,11 @@ export default function DashboardLayout({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-        </header>
-
-        <main className="flex-1 p-6 md:p-8">{children}</main>
-      </div>
+        </div>
+      </header>
+      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
+        {children}
+      </main>
     </div>
   );
 }

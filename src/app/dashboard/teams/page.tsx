@@ -292,38 +292,62 @@ export default function TeamsPage() {
         const userDocRef = doc(db, "users", currentUser.uid);
         const docSnap = await getDoc(userDocRef);
         if (docSnap.exists()) {
-            const data = docSnap.data();
-            setProfile({
-                uid: currentUser.uid,
-                displayName: data.displayName || '',
-                avatarUrl: data.avatarUrl || '',
-                valorantRoles: data.valorantRoles || [],
-                primaryRole: data.primaryRole,
-            });
+          const data = docSnap.data();
+          setProfile({
+            uid: currentUser.uid,
+            displayName: data.displayName || '',
+            avatarUrl: data.avatarUrl || '',
+            valorantRoles: data.valorantRoles || [],
+            primaryRole: data.primaryRole,
+          });
         } else {
-            setProfile(null);
+          setProfile(null);
         }
       } else {
+        // User is logged out, clear all user-specific data
         setProfile(null);
+        setTeams([]);
+        setIsLoading(false);
       }
     });
+    return () => unsubscribeAuth();
+  }, []);
 
+
+  useEffect(() => {
+    // Do not fetch teams if there is no authenticated user.
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
     const q = query(collection(db, "teams"), orderBy("createdAt", "desc"));
-    const unsubscribeTeams = onSnapshot(q, (querySnapshot) => {
+    const unsubscribeTeams = onSnapshot(q, 
+      (querySnapshot) => {
         const fetchedTeams = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
         setTeams(fetchedTeams);
         setIsLoading(false);
-    }, (error) => {
-        console.error("Error fetching teams:", error);
-        toast({ variant: "destructive", title: "Error al cargar equipos" });
+      }, 
+      (error) => {
+        // When logging out, a "permission-denied" error is expected, we can ignore it.
+        if (error.code !== 'permission-denied') {
+          console.error("Error fetching teams:", error);
+          toast({ variant: "destructive", title: "Error al cargar equipos" });
+        } else {
+          console.log("Permission denied for teams listener, likely due to logout.");
+        }
         setIsLoading(false);
-    });
+        setTeams([]); // Clear teams on error
+      }
+    );
 
+    // This cleanup function runs when the `user` state changes (e.g., on logout)
+    // or when the component unmounts, preventing memory leaks and permission errors.
     return () => {
-        unsubscribeAuth();
-        unsubscribeTeams();
+      unsubscribeTeams();
     };
-  }, [toast]);
+  }, [user, toast]);
 
   const handleImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => {
     const file = e.target.files?.[0];

@@ -81,44 +81,61 @@ export default function DashboardLayout({
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Fetch token and profile in parallel for performance
-        const idTokenResultPromise = user.getIdTokenResult(true); // Force refresh
-        const userDocRef = doc(db, "users", user.uid);
-        const docSnapPromise = getDoc(userDocRef);
-
+        setIsLoadingProfile(true);
         try {
-            const [idTokenResult, docSnap] = await Promise.all([idTokenResultPromise, docSnapPromise]);
-            const role = (idTokenResult.claims.role as SecurityRole) || 'player';
-            setUserRole(role);
+          const idTokenResult = await user.getIdTokenResult(true); // Force refresh
+          const claims = idTokenResult.claims;
+          const userRole = (claims.role as SecurityRole) || 'player';
+          setUserRole(userRole);
 
-            if (docSnap.exists()) {
-              const data = docSnap.data();
-              setUserProfile({
-                uid: user.uid,
-                displayName: data.displayName || 'Usuario',
-                email: user.email || 'usuario@example.com',
-                avatarUrl: data.avatarUrl || '',
-                isBanned: data.isBanned || false,
-                banExpiresAt: data.banExpiresAt || null,
-              });
-            } else {
-                // This case might happen for a newly signed-up user whose doc hasn't been created yet.
-                setUserProfile({
-                    uid: user.uid,
-                    displayName: user.displayName || 'Usuario',
-                    email: user.email || 'usuario@example.com',
-                    avatarUrl: user.photoURL || '',
-                });
-            }
-        } catch (error) {
-            console.error("Error fetching user data:", error);
-             setUserRole('player');
-             setUserProfile({
+          // The custom auth claim is the source of truth for the ban status.
+          // If the claim says the user is banned, we immediately block access
+          // without trying to read from Firestore, which would fail due to the security rules.
+          if (claims.isBanned === true) {
+            setUserProfile({
               uid: user.uid,
               displayName: user.displayName || 'Usuario',
               email: user.email || 'usuario@example.com',
               avatarUrl: user.photoURL || '',
+              isBanned: true,
+              // We can't fetch the real expiry date from Firestore due to the rules.
+              // We set a far-future date to trigger the "permanent ban" message
+              // in the BannedScreen component as a generic but functional fallback.
+              banExpiresAt: Timestamp.fromDate(new Date('3000-01-01')),
             });
+            setIsLoadingProfile(false);
+            return; // Exit early for banned users
+          }
+          
+          // If the user is not banned, proceed to fetch their profile from Firestore.
+          const userDocRef = doc(db, "users", user.uid);
+          const docSnap = await getDoc(userDocRef);
+
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setUserProfile({
+              uid: user.uid,
+              displayName: data.displayName || 'Usuario',
+              email: user.email || 'usuario@example.com',
+              avatarUrl: data.avatarUrl || '',
+              isBanned: data.isBanned || false,
+              banExpiresAt: data.banExpiresAt || null,
+            });
+          } else {
+            // This case might happen for a newly signed-up user whose doc hasn't been created yet.
+            setUserProfile({
+                uid: user.uid,
+                displayName: user.displayName || 'Usuario',
+                email: user.email || 'usuario@example.com',
+                avatarUrl: user.photoURL || '',
+            });
+          }
+        } catch (error) {
+            // This catch block will now mostly handle network errors or other unexpected issues,
+            // as the main permission error for banned users is handled above.
+            console.error("Error fetching user data:", error);
+            // Redirecting to login is a safe fallback.
+            router.push("/login");
         }
       } else {
         router.push("/login");
@@ -169,7 +186,7 @@ export default function DashboardLayout({
     ocupado: { text: "Ocupado", color: "text-red-500" },
   };
 
-  if (userProfile?.isBanned && userProfile.banExpiresAt && userProfile.banExpiresAt.toDate() > new Date()) {
+  if (userProfile?.isBanned && (!userProfile.banExpiresAt || userProfile.banExpiresAt.toDate() > new Date())) {
     return <BannedScreen banExpiresAt={userProfile.banExpiresAt.toDate().toISOString()} />;
   }
 

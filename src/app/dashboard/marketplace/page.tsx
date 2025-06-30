@@ -1,16 +1,16 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { collection, query, where, getDocs, DocumentData } from "firebase/firestore";
+import { collection, query, where, getDocs, DocumentData, onSnapshot, doc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { countries as allCountries, getCountryCode } from "@/lib/countries";
 import { valorantRanks as allValorantRanks } from "@/lib/valorant";
 import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import { useAuthRole } from "@/hooks/useAuthRole";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,7 +24,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target, UserPlus, Briefcase, Loader2, MessageSquare, UserCheck } from "lucide-react";
 import Image from "next/image";
 import type { Team } from "@/components/team-card";
-import { getFriendsList, getOutgoingFriendRequests } from "@/app/dashboard/friends/actions";
 import {
   Dialog,
   DialogContent,
@@ -142,26 +141,29 @@ export default function MarketplacePage() {
     }, []);
 
     useEffect(() => {
-        const fetchUserRelations = async () => {
-            if (user) {
-                const [friendsResult, outgoingResult] = await Promise.all([
-                    getFriendsList(user.uid),
-                    getOutgoingFriendRequests(user.uid)
-                ]);
+        if (!user) return;
 
-                if (friendsResult.success && friendsResult.friends) {
-                    setFriendUids(friendsResult.friends.map(f => f.uid));
-                }
-                if (outgoingResult.success && outgoingResult.requests) {
-                    setOutgoingRequestUids(outgoingResult.requests.map(r => r.to));
-                }
+        // Listener for user's friends list
+        const userDocRef = doc(db, "users", user.uid);
+        const unsubscribeFriends = onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const friends = docSnap.data().friends || [];
+                setFriendUids(friends);
             }
+        });
+
+        // Listener for outgoing friend requests
+        const requestsQuery = query(collection(db, "friendRequests"), where("from", "==", user.uid), where("status", "==", "pending"));
+        const unsubscribeRequests = onSnapshot(requestsQuery, (snapshot) => {
+            const outgoingIds = snapshot.docs.map(d => d.data().to);
+            setOutgoingRequestUids(outgoingIds);
+        });
+
+        return () => {
+            unsubscribeFriends();
+            unsubscribeRequests();
         };
-        
-        if (isAuthReady) {
-            fetchUserRelations();
-        }
-    }, [isAuthReady, user]);
+    }, [user]);
 
     const isTeamManager = role === 'admin' || role === 'moderator' || role === 'founder';
     
@@ -216,7 +218,7 @@ export default function MarketplacePage() {
         fetchData();
     }, [activeTab, rankFilter, countryFilter, toast, isAuthReady]);
     
-    const filteredTeams = useMemo(() => {
+    const filteredTeams = React.useMemo(() => {
         if (rankFilter === 'All') return teams;
         const rankIndex = valorantRanks.indexOf(rankFilter);
         return teams.filter(team => {

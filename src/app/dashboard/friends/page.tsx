@@ -1,24 +1,24 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { getFriendsList, getPendingFriendRequests, respondToFriendRequest, removeFriend } from './actions';
+import { respondToFriendRequest, removeFriend } from './actions';
 import type { Friend, FriendRequest } from './actions';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Check, X, Loader2, UserPlus, UserMinus, MessageSquare } from 'lucide-react';
+import { Check, X, Loader2, UserMinus, MessageSquare } from 'lucide-react';
 import { ChatModal } from '@/components/chat-modal';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDocs, onSnapshot, collection, query, where, Timestamp } from 'firebase/firestore';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 
@@ -57,49 +57,114 @@ export default function FriendsPage() {
     const [friendToRemove, setFriendToRemove] = useState<Friend | null>(null);
     const { toast } = useToast();
     
-    const fetchData = useCallback(async (uid: string) => {
-        setIsLoading(true);
-        const [friendsResult, requestsResult, userDocSnap] = await Promise.all([
-            getFriendsList(uid),
-            getPendingFriendRequests(uid),
-            getDoc(doc(db, "users", uid))
-        ]);
-
-        if (friendsResult.success && friendsResult.friends) {
-            setFriends(friendsResult.friends);
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: friendsResult.error });
-        }
-        
-        if (requestsResult.success && requestsResult.requests) {
-            setRequests(requestsResult.requests);
-        } else {
-             toast({ variant: 'destructive', title: 'Error', description: requestsResult.error });
-        }
-        
-        if (userDocSnap.exists()) {
-            const data = userDocSnap.data();
-            setCurrentUser({
-                uid: uid,
-                displayName: data.displayName,
-                avatarUrl: data.avatarUrl
-            });
-        }
-
-        setIsLoading(false);
-    }, [toast]);
-
+    // Auth listener
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
-            if (currentUser) {
-                fetchData(currentUser.uid);
-            } else {
+            if (!currentUser) {
                 setIsLoading(false);
             }
         });
         return () => unsubscribe();
-    }, [fetchData]);
+    }, []);
+
+    // Data listeners
+    useEffect(() => {
+        if (!user) {
+            setFriends([]);
+            setRequests([]);
+            setCurrentUser(null);
+            return;
+        }
+
+        setIsLoading(true);
+
+        // --- Realtime listener for Friends ---
+        const userDocRef = doc(db, "users", user.uid);
+        const unsubscribeFriends = onSnapshot(userDocRef, async (docSnap) => {
+            if (docSnap.exists()) {
+                const userData = docSnap.data();
+                setCurrentUser({
+                    uid: user.uid,
+                    displayName: userData.displayName,
+                    avatarUrl: userData.avatarUrl
+                });
+
+                const friendIds = userData.friends || [];
+                if (friendIds.length > 0) {
+                    const friendsQuery = query(collection(db, "users"), where("uid", "in", friendIds));
+                    const friendsSnapshot = await getDocs(friendsQuery);
+                    const friendsData = friendsSnapshot.docs.map(doc => {
+                        const data = doc.data();
+                        return {
+                            uid: data.uid,
+                            displayName: data.displayName,
+                            avatarUrl: data.avatarUrl || '',
+                            primaryRole: data.primaryRole || 'Player',
+                        };
+                    });
+                    setFriends(friendsData);
+                } else {
+                    setFriends([]);
+                }
+            } else {
+                 setFriends([]);
+                 setCurrentUser(null);
+            }
+        }, (error) => {
+            console.error("Error listening to friend updates:", error);
+            toast({ variant: 'destructive', title: 'Error', description: "No se pudo sincronizar tu lista de amigos." });
+        });
+
+        // --- Realtime listener for Friend Requests ---
+        const requestsQuery = query(collection(db, "friendRequests"), where("to", "==", user.uid), where("status", "==", "pending"));
+        const unsubscribeRequests = onSnapshot(requestsQuery, async (snapshot) => {
+            if (snapshot.empty) {
+                setRequests([]);
+                setIsLoading(false);
+                return;
+            }
+
+            const senderIds = [...new Set(snapshot.docs.map(doc => doc.data().from))].filter(id => id);
+            
+            if (senderIds.length === 0) {
+                setRequests([]);
+                setIsLoading(false);
+                return;
+            }
+
+            const usersRef = collection(db, "users");
+            const sendersQuery = query(usersRef, where("uid", "in", senderIds));
+            const sendersSnapshot = await getDocs(sendersQuery);
+            const sendersData = new Map(sendersSnapshot.docs.map(doc => [doc.id, doc.data()]));
+
+            const fetchedRequests: FriendRequest[] = snapshot.docs.map(doc => {
+                const requestData = doc.data();
+                const senderInfo = sendersData.get(requestData.from);
+                return {
+                    id: doc.id,
+                    from: requestData.from,
+                    sender: {
+                        displayName: senderInfo?.displayName || 'Unknown User',
+                        avatarUrl: senderInfo?.avatarUrl || '',
+                    },
+                    createdAt: requestData.createdAt instanceof Timestamp ? requestData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
+                };
+            });
+
+            setRequests(fetchedRequests);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error listening to friend requests:", error);
+            toast({ variant: 'destructive', title: 'Error', description: "No se pudieron sincronizar las solicitudes de amistad." });
+            setIsLoading(false);
+        });
+
+        return () => {
+            unsubscribeFriends();
+            unsubscribeRequests();
+        };
+    }, [user, toast]);
 
     const onHandleRequest = async (request: FriendRequest, decision: 'accept' | 'reject') => {
         if (!user) return;
@@ -107,9 +172,6 @@ export default function FriendsPage() {
         const result = await respondToFriendRequest(request.id, decision);
         if (result.success) {
             toast({ title: '¡Decisión procesada!', description: `La solicitud ha sido ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
-            if (user) {
-                await fetchData(user.uid);
-            }
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
@@ -122,9 +184,6 @@ export default function FriendsPage() {
         const result = await removeFriend(friendToRemove.uid);
         if (result.success) {
             toast({ title: 'Amigo eliminado', description: `${friendToRemove.displayName} ya no está en tu lista de amigos.` });
-            if (user) {
-                fetchData(user.uid);
-            }
         } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }

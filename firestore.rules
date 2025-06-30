@@ -1,108 +1,79 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper function to check if the user is authenticated.
+    // Helper function to check if a user is authenticated
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // Helper function to check if the user has a specific security role (admin, moderator).
-    function hasSecurityRole(role) {
-      return isAuthenticated() && request.auth.token.role == role;
-    }
 
-    // Helper function to check if the user is an admin.
-    function isAdmin() {
-      return hasSecurityRole('admin');
-    }
-    
-    // Helper function to check if the user is a moderator.
-    function isModerator() {
-      return hasSecurityRole('moderator');
-    }
-
-    // Helper function to check if the user is staff (admin or moderator).
+    // Helper function to check if a user is an admin or moderator based on their user document
     function isStaff() {
-      return isAdmin() || isModerator();
+      // It's safer to check for the existence of the document before accessing its data.
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.primaryRole in ['admin', 'moderator'];
     }
 
-    // Helper function to check if the incoming data only contains allowed fields to update.
-    function isUpdatingAllowedFields(allowedFields) {
-      return request.resource.data.keys().hasOnly(allowedFields);
-    }
-    
-    // USERS
-    // Users can read their own profile.
-    // Users can update specific fields of their own profile.
-    // Public profiles are readable by anyone authenticated.
+    // USER PROFILES
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if request.auth.uid == userId;
-      allow update: if request.auth.uid == userId && isUpdatingAllowedFields([
-        'displayName', 'bio', 'avatarUrl', 'valorantRoles', 'valorantRank', 
-        'country', 'twitchUrl', 'twitterUrl', 'youtubeUrl', 'discord', 
-        'lookingForTeam', 'bannerUrl', 'ownedTeams', 'friends', 'primaryRole', 'createdAt',
-        'isBanned', 'banExpiresAt', 'uid', 'email']);
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      // Allow any authenticated user to get a single user's profile
+      allow get: if isAuthenticated();
+      // Allow only admins and moderators to list all users
+      allow list: if isStaff();
+      // Users can only update their own profile, but admins can update any
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isStaff());
+      // No one can delete user documents directly
+      allow delete: if false;
     }
 
     // TEAMS
-    // Teams are publicly readable.
-    // Only 'founders' or staff can create teams.
-    // Only owners or staff can update/delete teams.
     match /teams/{teamId} {
+      allow create: if isAuthenticated(); // Creation is handled by app logic (only certain roles)
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.primaryRole == 'fundador';
-      allow update: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isStaff());
-      allow delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (request.auth.uid == resource.data.ownerId || isStaff());
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.ownerId || isStaff());
     }
 
-    // TOURNAMENTS
-    // Tournaments are publicly readable.
-    // Authenticated users can create tournaments (backend function validates streaming links).
-    // Owners or staff can update/delete.
-    match /tournaments/{tournamentId} {
-        allow read: if isAuthenticated();
+    // TEAM APPLICATIONS & INVITES
+    match /teamApplications/{applicationId} {
         allow create: if isAuthenticated();
-        allow update, delete: if isAuthenticated() && (resource.data.creatorId == request.auth.uid || isStaff());
+        allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.teamOwnerId || isStaff());
+        allow update: if isAuthenticated() && (request.auth.uid == resource.data.teamOwnerId || isStaff());
+        allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isStaff());
+    }
+    
+    // TOURNAMENTS
+    match /tournaments/{tournamentId} {
+        allow create: if isAuthenticated();
+        allow read: if isAuthenticated();
+        allow update: if isStaff(); // Only staff can approve/reject/update tournaments
+        allow delete: if isStaff();
     }
 
+    // SUPPORT TICKETS
+    match /supportTickets/{ticketId} {
+        allow create: if isAuthenticated();
+        allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isStaff());
+        allow update: if isStaff();
+        allow delete: if false;
+    }
+    
     // FRIEND REQUESTS
-    // Users can create requests.
-    // Only the sender or receiver can read, update, or delete a request.
     match /friendRequests/{requestId} {
       allow create: if isAuthenticated();
       allow read, update, delete: if isAuthenticated() && (request.auth.uid == resource.data.from || request.auth.uid == resource.data.to);
     }
     
-    // TEAM APPLICATIONS
-    // Authenticated users can create applications.
-    // Only the applicant or the team owner/staff can read/update/delete.
-    match /teamApplications/{applicationId} {
-       allow create: if isAuthenticated();
-       // Team owner can read/update/delete. Applicant can read/delete their own application.
-       allow read, delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || request.auth.uid == resource.data.teamOwnerId || isStaff());
-       allow update: if isAuthenticated() && (request.auth.uid == resource.data.teamOwnerId || isStaff());
-    }
-
-    // CHATS
-    // Only participants can read/write chat documents and their messages.
+    // CHAT
     match /chats/{chatId} {
-      allow read, write: if isAuthenticated() && request.auth.uid in resource.data.participants;
-      
+      allow read, write: if isAuthenticated() &&
+                         request.auth.uid in resource.data.participants;
+			// Para mensajes dentro del chat
       match /messages/{messageId} {
-        allow read, write: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow read, write: if isAuthenticated() &&
+                           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
       }
-    }
-    
-    // SUPPORT TICKETS
-    // Authenticated users can create tickets.
-    // Only staff can read/update/delete them.
-    match /supportTickets/{ticketId} {
-        allow create: if isAuthenticated();
-        allow read, update, delete: if isStaff();
     }
   }
 }

@@ -1,6 +1,6 @@
 import { db, functions } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
-import { collection, doc, getDoc, query, where, getDocs, Timestamp, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, getDoc, query, where, getDocs, Timestamp, addDoc, serverTimestamp, updateDoc, arrayUnion } from "firebase/firestore";
 
 export interface Friend {
     uid: string;
@@ -145,16 +145,32 @@ export async function getOutgoingFriendRequests(userId: string): Promise<{ succe
 }
 
 export async function respondToFriendRequest(
-    requestId: string, 
+    requestId: string,
     decision: 'accept' | 'reject',
     accepterId: string,
     senderId: string
 ): Promise<{ success: boolean; error?: string; }> {
+    const requestRef = doc(db, "friendRequests", requestId);
+
     try {
-        const respondToRequestFunc = httpsCallable(functions, 'respondToFriendRequest');
-        await respondToRequestFunc({ requestId, accept: decision === 'accept' });
-        
+        await updateDoc(requestRef, {
+            status: decision,
+            updatedAt: serverTimestamp(),
+        });
+
         if (decision === 'accept') {
+            const userRef = doc(db, "users", accepterId);
+            const friendRef = doc(db, "users", senderId);
+
+            // Add each user to the other's friends list atomically
+            await updateDoc(userRef, {
+                friends: arrayUnion(senderId),
+            });
+            await updateDoc(friendRef, {
+                friends: arrayUnion(accepterId),
+            });
+
+            // Create a notification for the original sender
             await addDoc(collection(db, "notifications"), {
                 to: senderId,
                 from: accepterId,
@@ -164,8 +180,11 @@ export async function respondToFriendRequest(
             });
         }
         return { success: true };
-    } catch (error: any) {
+    } catch (error) {
         console.error(`Error handling friend request decision ${decision}:`, error);
-        return { success: false, error: error.message || `An unknown error occurred while handling the request.` };
+        if (error instanceof Error) {
+            return { success: false, error: error.message };
+        }
+        return { success: false, error: "An unknown error occurred while handling the request." };
     }
 }

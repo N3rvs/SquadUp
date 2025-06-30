@@ -1,5 +1,5 @@
 import { auth, db, functions } from "@/lib/firebase";
-import { collection, addDoc, query, where, getDocs, doc, getDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
+import { collection, addDoc, query, where, getDocs, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 
 // --- Friend Request Logic ---
@@ -14,15 +14,40 @@ export async function sendFriendRequest(senderId: string, receiverId: string) {
     }
 
     try {
-        const sendFriendRequestFunc = httpsCallable(functions, 'sendFriendRequest');
-        await sendFriendRequestFunc({ to: receiverId });
-        return { success: true };
-    } catch (error: any) {
-        console.error("Error sending friend request:", error);
-        if (error.code === 'already-exists') {
-            return { success: false, error: "A friend request has already been sent." };
+        // Check if they are already friends
+        const senderDocRef = doc(db, "users", senderId);
+        const senderDocSnap = await getDoc(senderDocRef);
+        const senderData = senderDocSnap.data();
+        if (senderData?.friends?.includes(receiverId)) {
+            return { success: false, error: "You are already friends with this user." };
         }
-        return { success: false, error: error.message || "An unknown error occurred while sending the friend request." };
+        
+        // Check for existing pending request (either way)
+        const requestsRef = collection(db, "friendRequests");
+        const q1 = query(requestsRef, where("from", "==", senderId), where("to", "==", receiverId), where("status", "==", "pending"));
+        const q2 = query(requestsRef, where("from", "==", receiverId), where("to", "==", senderId), where("status", "==", "pending"));
+        
+        const [snapshot1, snapshot2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+
+        if (!snapshot1.empty || !snapshot2.empty) {
+            return { success: false, error: "There is already a pending friend request." };
+        }
+
+        // Create the friend request
+        await addDoc(requestsRef, {
+            from: senderId,
+            to: receiverId,
+            status: "pending",
+            createdAt: serverTimestamp(),
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error sending friend request:", error);
+        if (error instanceof Error) {
+            return { success: false, error: error.message };
+        }
+        return { success: false, error: "An unknown error occurred while sending the friend request." };
     }
 }
 

@@ -43,19 +43,19 @@ const profileFormSchema = z.object({
   twitterUrl: z.string().url("Please enter a valid URL.").optional().or(z.literal('')),
   youtubeUrl: z.string().url("Please enter a valid URL.").optional().or(z.literal('')),
   discord: z.string().optional(),
-  avatarUrl: z.string().url().optional().or(z.literal('')),
   lookingForTeam: z.boolean().optional().default(false),
 });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
-type UserProfileData = Omit<ProfileFormValues, 'valorantRoles'> & {
+type UserProfileData = Omit<ProfileFormValues, 'valorantRoles' | 'avatarUrl'> & {
   uid: string;
   email: string | null;
-  primaryRole: string; // This is a denormalized field for easier querying and display, while the authoritative source is the Auth custom claim.
+  primaryRole: string;
   isBanned: boolean;
   createdAt: string;
   valorantRoles?: string[];
+  avatarUrl?: string;
 };
 
 export default function ProfilePage() {
@@ -83,7 +83,6 @@ export default function ProfilePage() {
       twitterUrl: "",
       youtubeUrl: "",
       discord: "",
-      avatarUrl: "",
       lookingForTeam: false,
     },
     mode: "onChange",
@@ -196,13 +195,15 @@ export default function ProfilePage() {
         setAvatarPreview(null);
         setAvatarFile(null);
         form.reset({
-            ...profileData,
+            displayName: profileData.displayName,
             bio: profileData.bio || '',
+            valorantRoles: profileData.valorantRoles || ['Flex'],
+            valorantRank: profileData.valorantRank || 'Unranked',
+            country: profileData.country,
             twitchUrl: profileData.twitchUrl || '',
             twitterUrl: profileData.twitterUrl || '',
             youtubeUrl: profileData.youtubeUrl || '',
             discord: profileData.discord || '',
-            valorantRank: profileData.valorantRank || 'Unranked',
             lookingForTeam: profileData.lookingForTeam || false,
         });
     }
@@ -225,16 +226,28 @@ export default function ProfilePage() {
         newAvatarUrl = await getDownloadURL(uploadResult.ref);
       }
 
-      const dataToSave: Omit<UserProfileData, 'uid' | 'email' | 'primaryRole' | 'isBanned' | 'createdAt'> & { avatarUrl: string } = {
-        ...data,
+      const dataToSave = {
+        displayName: data.displayName,
+        bio: data.bio,
+        valorantRoles: data.valorantRoles,
+        valorantRank: data.valorantRank,
+        country: data.country,
+        twitchUrl: data.twitchUrl,
+        twitterUrl: data.twitterUrl,
+        youtubeUrl: data.youtubeUrl,
+        discord: data.discord,
+        lookingForTeam: data.lookingForTeam,
         avatarUrl: newAvatarUrl,
       };
 
       const userDocRef = doc(db, 'users', uid);
-      await updateDoc(userDocRef, dataToSave as any);
+      await updateDoc(userDocRef, dataToSave);
       
-      const newProfileData = { ...profileData, ...dataToSave } as UserProfileData;
-      setProfileData(newProfileData);
+      const updatedProfileData: UserProfileData = {
+          ...profileData!,
+          ...dataToSave,
+      };
+      setProfileData(updatedProfileData);
 
       setAvatarFile(null);
       setAvatarPreview(null);

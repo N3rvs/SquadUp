@@ -108,17 +108,6 @@ export default function DashboardLayout({
 
           if (docSnap.exists()) {
             const data = docSnap.data();
-
-            // Sync logic: ensure Firestore 'primaryRole' matches the auth claim 'role'
-            if (data.primaryRole !== userClaimedRole) {
-                console.log(`Role mismatch. Claim: ${userClaimedRole}, Firestore: ${data.primaryRole}. Syncing...`);
-                try {
-                    await updateDoc(userDocRef, { primaryRole: userClaimedRole });
-                    data.primaryRole = userClaimedRole; // Update local data to prevent stale UI
-                } catch (syncError) {
-                    console.error("Failed to sync user role with Firestore:", syncError);
-                }
-            }
             
             setUserProfile({
               uid: user.uid,

@@ -254,17 +254,7 @@ export default function FriendsPage() {
                                         <Button 
                                             size="icon" 
                                             variant="outline" 
-                                            onClick={() => {
-                                                if (!friend?.uid) {
-                                                    toast({
-                                                        variant: 'destructive',
-                                                        title: 'Error de Datos',
-                                                        description: 'No se puede iniciar el chat, el ID del amigo no es válido.',
-                                                    });
-                                                    return;
-                                                }
-                                                setChatWithFriend(friend)
-                                            }}
+                                            onClick={() => setChatWithFriend(friend)}
                                         >
                                             <MessageSquare />
                                         </Button>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -36,10 +37,11 @@ export function ChatModal({ friend, currentUser, open, onOpenChange }: ChatModal
     }
 
     if (!currentUser?.uid || !friend?.uid) {
+        console.error("ChatModal: currentUser or friend UID is missing.", { currentUser, friend });
         toast({
             variant: 'destructive',
             title: 'Error de Datos',
-            description: 'No se puede iniciar el chat por falta de datos de usuario.',
+            description: 'No se puede iniciar el chat. La información del usuario es incompleta.',
         });
         onOpenChange(false);
         return;

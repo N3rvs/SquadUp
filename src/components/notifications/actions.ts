@@ -31,101 +31,99 @@ export async function getPendingNotifications(): Promise<{ success: boolean; not
   }
   const uid = auth.currentUser.uid;
 
-  try {
-    const allNotifications: Notification[] = [];
+  const fetchFriendRequests = async (): Promise<Notification[]> => {
+    const q = query(
+      collection(db, 'friendRequests'),
+      where('to', '==', uid),
+      where('status', '==', 'pending')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        type: 'friendRequest',
+        from_displayName: data.from_displayName,
+        from_avatarUrl: data.from_avatarUrl,
+        createdAt: data.createdAt,
+      };
+    });
+  };
 
-    // --- Friend Requests ---
-    try {
-      const friendRequestsQuery = query(
-        collection(db, 'friendRequests'),
-        where('to', '==', uid),
-        where('status', '==', 'pending')
-      );
-      const friendRequestsSnapshot = await getDocs(friendRequestsQuery);
-      const friendNotifications: Notification[] = friendRequestsSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          type: 'friendRequest',
-          from_displayName: data.from_displayName,
-          from_avatarUrl: data.from_avatarUrl,
-          createdAt: data.createdAt,
-        };
-      });
-      allNotifications.push(...friendNotifications);
-    } catch (error) {
-      console.warn("Could not fetch friend requests:", error); // Log and continue
-    }
-    
-    // --- Team Invites (for user) ---
-    try {
-      const teamInvitesQuery = query(
-          collection(db, 'teamApplications'),
-          where('userId', '==', uid),
-          where('status', '==', 'pending'),
-          where('type', '==', 'invite')
-      );
-      const teamInvitesSnapshot = await getDocs(teamInvitesQuery);
-      const inviteNotifications: Notification[] = teamInvitesSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          type: 'teamInvite',
-          from_displayName: data.teamName, // For invites, sender is the team
-          from_avatarUrl: data.teamLogoUrl,
+  const fetchTeamInvites = async (): Promise<Notification[]> => {
+    const q = query(
+      collection(db, 'teamApplications'),
+      where('userId', '==', uid),
+      where('status', '==', 'pending'),
+      where('type', '==', 'invite')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        type: 'teamInvite',
+        from_displayName: data.teamName,
+        from_avatarUrl: data.teamLogoUrl,
+        teamName: data.teamName,
+        teamId: data.teamId,
+        createdAt: data.createdAt,
+      };
+    });
+  };
+
+  const fetchTeamApplications = async (): Promise<Notification[]> => {
+    const q = query(
+      collection(db, 'teamApplications'),
+      where('teamOwnerId', '==', uid),
+      where('status', '==', 'pending'),
+      where('type', '==', 'application')
+    );
+    const snapshot = await getDocs(q);
+    const applications: Notification[] = [];
+    for (const appDoc of snapshot.docs) {
+      const data = appDoc.data();
+      const userProfileDoc = await getDoc(doc(db, 'users', data.userId));
+      if (userProfileDoc.exists()) {
+        const userProfile = userProfileDoc.data();
+        applications.push({
+          id: appDoc.id,
+          type: 'teamApplication',
+          from_displayName: userProfile.displayName,
+          from_avatarUrl: userProfile.avatarUrl,
           teamName: data.teamName,
           teamId: data.teamId,
           createdAt: data.createdAt,
-        };
-      });
-      allNotifications.push(...inviteNotifications);
-    } catch (error) {
-      console.warn("Could not fetch team invites:", error);
-    }
-
-    // --- Team Applications (for owner) ---
-    // This query is expected to fail for non-owners due to security rules.
-    // By catching the error, we prevent it from crashing the entire function.
-    try {
-      const teamApplicationsQuery = query(
-          collection(db, 'teamApplications'),
-          where('teamOwnerId', '==', uid),
-          where('status', '==', 'pending'),
-          where('type', '==', 'application')
-      );
-      const teamApplicationsSnapshot = await getDocs(teamApplicationsQuery);
-      const applicationNotifications: Notification[] = [];
-      for (const appDoc of teamApplicationsSnapshot.docs) {
-        const data = appDoc.data();
-        const userProfileDoc = await getDoc(doc(db, 'users', data.userId));
-        if (userProfileDoc.exists()) {
-          const userProfile = userProfileDoc.data();
-          applicationNotifications.push({
-            id: appDoc.id,
-            type: 'teamApplication',
-            from_displayName: userProfile.displayName,
-            from_avatarUrl: userProfile.avatarUrl,
-            teamName: data.teamName,
-            teamId: data.teamId,
-            createdAt: data.createdAt,
-          });
-        }
+        });
       }
-      allNotifications.push(...applicationNotifications);
-    } catch (error) {
-       // This is expected to fail for users who don't own teams, so we suppress the error in production.
-       if (process.env.NODE_ENV === 'development') {
-        console.log("Info: Could not fetch team applications for owner (this is expected for non-owners).", error);
-       }
     }
+    return applications;
+  };
+  
+  try {
+    const results = await Promise.allSettled([
+      fetchFriendRequests(),
+      fetchTeamInvites(),
+      fetchTeamApplications(),
+    ]);
 
-    allNotifications.sort((a, b) => (b.createdAt as Timestamp).toMillis() - (a.createdAt as Timestamp).toMillis());
+    const allNotifications: Notification[] = [];
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        allNotifications.push(...result.value);
+      } else {
+        // This will log the permission error in the console for debugging,
+        // but it won't crash the function for the user.
+        const queryNames = ['friend requests', 'team invites', 'team applications'];
+        console.warn(`Could not fetch ${queryNames[index]}:`, result.reason);
+      }
+    });
+    
+    allNotifications.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
     
     return { success: true, notifications: allNotifications };
-
   } catch (error) {
-    // This outer catch is a fallback for other unexpected errors
-    console.error("An unexpected error occurred while fetching notifications:", error);
+    console.error("An unexpected error occurred while processing notifications:", error);
     return { success: false, error: getFirebaseErrorMessage(error) };
   }
 }

@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Users, Trophy, Mail, Shield, Loader2, ArrowRight } from "lucide-react";
-import { getAdminDashboardStats } from "./actions";
 import { useAuthRole } from "@/hooks/useAuthRole";
 import { AssignRoleWithEmail } from "@/components/admin/AssignRoleWithEmail";
 
@@ -43,11 +45,31 @@ export default function AdminDashboardPage() {
     useEffect(() => {
         const fetchStats = async () => {
             setIsLoading(true);
-            const result = await getAdminDashboardStats();
-            if (result.success) {
-                setStats(result.stats);
+            try {
+                const usersRef = collection(db, "users");
+                const tournamentsRef = collection(db, "tournaments");
+                const supportTicketsRef = collection(db, "supportTickets");
+
+                const usersSnapshotPromise = getDocs(usersRef);
+                const pendingTournamentsPromise = getDocs(query(tournamentsRef, where("status", "==", "Pending")));
+                const openTicketsPromise = getDocs(query(supportTicketsRef, where("status", "==", "new")));
+
+                const [usersSnapshot, pendingTournamentsSnapshot, openTicketsSnapshot] = await Promise.all([
+                    usersSnapshotPromise,
+                    pendingTournamentsPromise,
+                    openTicketsPromise
+                ]);
+
+                setStats({
+                    totalUsers: usersSnapshot.size,
+                    pendingTournaments: pendingTournamentsSnapshot.size,
+                    openSupportTickets: openTicketsSnapshot.size,
+                });
+            } catch (error) {
+                console.error("Error fetching admin stats:", error);
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
         }
         fetchStats();
     }, []);

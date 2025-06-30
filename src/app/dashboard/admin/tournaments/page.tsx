@@ -1,12 +1,12 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { httpsCallable, FunctionsError } from "firebase/functions";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, collection, getDocs, orderBy, query, Timestamp } from "firebase/firestore";
 
 
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { auth, functions, db } from '@/lib/firebase';
 import { ArrowLeft, Check, Loader2, Trophy, X } from 'lucide-react';
-import { getAdminTournaments } from './actions';
 
 type TournamentStatus = 'Pending' | 'Open' | 'In Progress' | 'Finished' | 'Rejected';
 
@@ -71,21 +70,33 @@ export default function TournamentsAdminPage() {
     const [activeTab, setActiveTab] = useState<TournamentStatus>('Pending');
     const { toast } = useToast();
 
-    const fetchTournaments = async () => {
+    const fetchTournaments = useCallback(async () => {
         setIsLoading(true);
-        const result = await getAdminTournaments();
-        if (result.success && result.tournaments) {
-            setTournaments(result.tournaments as Tournament[]);
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        try {
+            const tournamentsRef = collection(db, "tournaments");
+            const q = query(tournamentsRef, orderBy("createdAt", "desc"));
+            const querySnapshot = await getDocs(q);
+            const fetchedTournaments = querySnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+                    startDate: (data.startDate as Timestamp).toDate().toISOString(),
+                } as Tournament;
+            });
+            setTournaments(fetchedTournaments);
+        } catch (error) {
+            console.error("Error fetching tournaments for admin:", error);
+            toast({ variant: 'destructive', title: 'Error', description: "Failed to fetch tournaments." });
+        } finally {
+            setIsLoading(false);
         }
-        setIsLoading(false);
-    };
+    }, [toast]);
 
     useEffect(() => {
         fetchTournaments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [fetchTournaments]);
 
     const handleUpdateStatus = async (tournamentId: string, status: 'Open' | 'Rejected') => {
         setIsUpdating(tournamentId);

@@ -6,7 +6,6 @@ import {
   query,
   where,
   getDoc,
-  getDocs,
   doc,
   setDoc,
   addDoc,
@@ -32,36 +31,35 @@ export interface Chat {
     createdAt: any; // Firestore Timestamp
 }
 
+export interface ChatParticipantInfo {
+    uid: string;
+    displayName: string | null;
+    avatarUrl?: string | null;
+}
 
-export async function getOrCreateChat(currentUserId: string, friendId: string): Promise<string> {
-  if (!currentUserId || !friendId) {
+
+export async function getOrCreateChat(currentUserInfo: ChatParticipantInfo, friendInfo: ChatParticipantInfo): Promise<string> {
+  if (!currentUserInfo.uid || !friendInfo.uid) {
     throw new Error("User IDs cannot be empty.");
   }
 
-  const ids = [currentUserId, friendId].sort();
+  const ids = [currentUserInfo.uid, friendInfo.uid].sort();
   const chatId = ids.join('_');
 
   const chatRef = doc(db, 'chats', chatId);
   const chatSnap = await getDoc(chatRef);
 
   if (!chatSnap.exists()) {
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, where(documentId(), 'in', ids));
-    const usersSnap = await getDocs(q);
-    const participantDetails: Record<string, ChatParticipant> = {};
-    
-    if (usersSnap.size !== 2) {
-        console.error("Could not find both users for chat.", { ids });
-        throw new Error("One or more chat participants could not be found.");
-    }
-
-    usersSnap.forEach(doc => {
-        const data = doc.data();
-        participantDetails[doc.id] = {
-            displayName: data.displayName,
-            avatarUrl: data.avatarUrl,
-        }
-    });
+    const participantDetails: Record<string, ChatParticipant> = {
+      [currentUserInfo.uid]: {
+        displayName: currentUserInfo.displayName || 'Usuario',
+        avatarUrl: currentUserInfo.avatarUrl || '',
+      },
+      [friendInfo.uid]: {
+        displayName: friendInfo.displayName || 'Usuario',
+        avatarUrl: friendInfo.avatarUrl || '',
+      },
+    };
 
     await setDoc(chatRef, {
       participants: ids,

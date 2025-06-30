@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { User } from 'firebase/auth';
 import { useChatMessages } from '@/hooks/useChatMessages';
-import { getOrCreateChat, sendMessage } from '@/app/dashboard/chat/actions';
+import { getOrCreateChat, sendMessage, type ChatParticipantInfo } from '@/app/dashboard/chat/actions';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -47,11 +47,21 @@ export function ChatModal({ friend, currentUser, open, onOpenChange }: ChatModal
 
     const setupChat = async () => {
       try {
-        const id = await getOrCreateChat(currentUser.uid, friend.uid);
+        const currentUserInfo: ChatParticipantInfo = {
+            uid: currentUser.uid,
+            displayName: currentUser.displayName,
+            avatarUrl: currentUser.photoURL,
+        };
+        const friendInfo: ChatParticipantInfo = {
+            uid: friend.uid,
+            displayName: friend.displayName,
+            avatarUrl: friend.avatarUrl,
+        };
+        const id = await getOrCreateChat(currentUserInfo, friendInfo);
         setChatId(id);
-      } catch (e) {
+      } catch (e: any) {
         console.error("Error setting up chat:", e);
-        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo abrir el chat.' });
+        toast({ variant: 'destructive', title: 'Error', description: e.message || 'No se pudo abrir el chat.' });
         onOpenChange(false);
       }
     };

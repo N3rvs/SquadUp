@@ -473,8 +473,11 @@ export default function TeamsPage() {
     }
   }, [user, profile, logoFile, bannerFile, editingTeam, uploadImage, toast]);
 
-  const canCreateTeam = profile?.primaryRole === 'fundador';
-  const isPrivilegedUser = userSecurityRole === 'admin' || userSecurityRole === 'moderator';
+  const canCreateTeam =
+    userSecurityRole === 'admin' ||
+    userSecurityRole === 'moderator' ||
+    profile?.primaryRole === 'fundador';
+    
   const myTeams = teams.filter(team => user && team.memberIds.includes(user.uid));
 
   return (
@@ -513,7 +516,7 @@ export default function TeamsPage() {
                                 </span>
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p>Solo los usuarios con el rol "Founder" pueden crear equipos.</p>
+                                <p>Solo los Fundadores, Moderadores o Administradores pueden crear equipos.</p>
                             </TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
@@ -691,7 +694,7 @@ export default function TeamsPage() {
               (() => {
                 const myTeam = myTeams[0];
                 const countryCode = getCountryCode(myTeam.country);
-                const isManager = user?.uid === myTeam.ownerId || isPrivilegedUser;
+                const isManager = user?.uid === myTeam.ownerId || userSecurityRole === 'admin' || userSecurityRole === 'moderator';
                 return (
                   <div className="max-w-2xl mx-auto">
                     <Card className="overflow-hidden">

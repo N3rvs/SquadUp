@@ -178,6 +178,14 @@ export default function MarketplacePage() {
             if (!isAuthReady) {
                 return;
             }
+
+            if (!user) {
+                setPlayers([]);
+                setTeams([]);
+                setIsLoading(false);
+                return;
+            }
+
             setIsLoading(true);
             try {
                 if (activeTab === 'players') {
@@ -515,5 +523,3 @@ export default function MarketplacePage() {
         </div>
     );
 }
-
-    

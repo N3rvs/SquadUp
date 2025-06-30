@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -107,12 +108,13 @@ export function NotificationsInbox() {
                 <div className="flex flex-col">
                     {notifications.map((notification) => {
                       if (notification.type === 'application' && notification.applicant && notification.team) {
+                        const applicantName = notification.applicant.displayName || 'Usuario Desconocido';
                         return (
                           <div key={notification.id} className="p-4 hover:bg-secondary/50">
                             <div className="flex items-start gap-3">
-                                <Avatar className="h-10 w-10 border"><AvatarImage src={notification.applicant.avatarUrl} /><AvatarFallback>{notification.applicant.displayName.substring(0, 2)}</AvatarFallback></Avatar>
+                                <Avatar className="h-10 w-10 border"><AvatarImage src={notification.applicant.avatarUrl} /><AvatarFallback>{applicantName.substring(0, 2)}</AvatarFallback></Avatar>
                                 <div className="flex-1 text-sm">
-                                    <p><Link href={`/dashboard/profile/${notification.applicant.uid}`} className="font-semibold hover:underline">{notification.applicant.displayName}</Link>{' '}quiere unirse a tu equipo{' '}<Link href={`/dashboard/teams/${notification.team.id}`} className="font-semibold hover:underline">{notification.team.name}</Link>.</p>
+                                    <p><Link href={`/dashboard/profile/${notification.applicant.uid}`} className="font-semibold hover:underline">{applicantName}</Link>{' '}quiere unirse a tu equipo{' '}<Link href={`/dashboard/teams/${notification.team.id}`} className="font-semibold hover:underline">{notification.team.name}</Link>.</p>
                                     <p className="text-xs text-muted-foreground mt-1">{formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: es })}</p>
                                 </div>
                             </div>
@@ -143,12 +145,13 @@ export function NotificationsInbox() {
                         );
                       }
                       if (notification.type === 'friend_request' && notification.sender) {
+                        const senderName = notification.sender.displayName || 'Usuario Desconocido';
                         return (
                            <div key={notification.id} className="p-4 hover:bg-secondary/50">
                             <div className="flex items-start gap-3">
-                                <Avatar className="h-10 w-10 border"><AvatarImage src={notification.sender.avatarUrl} /><AvatarFallback>{notification.sender.displayName.substring(0, 2)}</AvatarFallback></Avatar>
+                                <Avatar className="h-10 w-10 border"><AvatarImage src={notification.sender.avatarUrl} /><AvatarFallback>{senderName.substring(0, 2)}</AvatarFallback></Avatar>
                                 <div className="flex-1 text-sm">
-                                    <p><Link href={`/dashboard/profile/${notification.sender.uid}`} className="font-semibold hover:underline">{notification.sender.displayName}</Link>{' '}quiere ser tu amigo.</p>
+                                    <p><Link href={`/dashboard/profile/${notification.sender.uid}`} className="font-semibold hover:underline">{senderName}</Link>{' '}quiere ser tu amigo.</p>
                                     <p className="text-xs text-muted-foreground mt-1">{formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: es })}</p>
                                 </div>
                             </div>

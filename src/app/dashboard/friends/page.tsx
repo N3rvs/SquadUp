@@ -90,7 +90,7 @@ export default function FriendsPage() {
         const userDocRef = doc(db, 'users', user.uid);
         const unsubscribe = onSnapshot(userDocRef, async (userDoc) => {
             setIsLoadingFriends(true);
-            const friendIds = userDoc.data()?.friends || [];
+            const friendIds = (userDoc.data()?.friends || []).filter(id => id); // Filter out any falsy values
             if (friendIds.length > 0) {
                 const friendsQuery = query(collection(db, 'users'), where(documentId(), 'in', friendIds));
                 const friendsSnapshot = await getDocs(friendsQuery);
@@ -115,7 +115,7 @@ export default function FriendsPage() {
 
         const requestsQuery = query(collection(db, 'friendRequests'), where('to', '==', user.uid), where('status', '==', 'pending'));
         const unsubscribe = onSnapshot(requestsQuery, async (snapshot) => {
-            const fromIds = snapshot.docs.map(doc => doc.data().from);
+            const fromIds = snapshot.docs.map(doc => doc.data().from).filter(id => id); // Filter out any falsy values
 
             if (fromIds.length === 0) {
                 setIncomingRequests([]);

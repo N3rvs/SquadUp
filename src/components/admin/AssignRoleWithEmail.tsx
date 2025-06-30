@@ -6,10 +6,13 @@ import { getDocs, query, where, collection } from "firebase/firestore";
 import { functions, db, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectLabel, SelectItem } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+
+const securityRolesList = ['admin', 'moderator'];
+const primaryRolesList = ['fundador', 'coach', 'player'];
 
 export function AssignRoleWithEmail() {
   const { toast } = useToast();
@@ -87,11 +90,18 @@ export function AssignRoleWithEmail() {
               <SelectValue placeholder="Selecciona un rol" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="moderator">Moderator</SelectItem>
-              <SelectItem value="fundador">Founder</SelectItem>
-              <SelectItem value="coach">Coach</SelectItem>
-              <SelectItem value="player">Player</SelectItem>
+              <SelectGroup>
+                <SelectLabel>Roles de Seguridad</SelectLabel>
+                {securityRolesList.map(role => (
+                    <SelectItem key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1)}</SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel>Roles de Plataforma</SelectLabel>
+                 {primaryRolesList.map(role => (
+                    <SelectItem key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1)}</SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
 

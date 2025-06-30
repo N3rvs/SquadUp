@@ -44,7 +44,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuthRole } from '@/hooks/useAuthRole';
 import { Card, CardContent } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type UserData = {
     uid: string;
@@ -57,7 +57,9 @@ type UserData = {
     createdAt: string;
 };
 
-const securityRoles = ['admin', 'moderator', 'player', 'coach', 'fundador'];
+const securityRolesList = ['admin', 'moderator'];
+const primaryRolesList = ['fundador', 'coach', 'player'];
+
 const banOptions = {
     'none': 'No Baneado',
     '1day': 'Banear 24 horas',
@@ -68,7 +70,7 @@ const banOptions = {
 type BanOptionKey = keyof typeof banOptions;
 
 const editUserFormSchema = z.object({
-  role: z.string().refine(val => securityRoles.includes(val)),
+  role: z.string().refine(val => [...securityRolesList, ...primaryRolesList].includes(val)),
   banOption: z.custom<BanOptionKey>(val => typeof val === 'string' && Object.keys(banOptions).includes(val)),
 });
 
@@ -184,7 +186,7 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
                             name="role"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Rol de Seguridad</FormLabel>
+                                    <FormLabel>Rol del Usuario</FormLabel>
                                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                                         <FormControl>
                                             <SelectTrigger>
@@ -192,12 +194,21 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
-                                            {securityRoles.map(role => (
-                                                <SelectItem key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1)}</SelectItem>
-                                            ))}
+                                            <SelectGroup>
+                                                <SelectLabel>Roles de Seguridad</SelectLabel>
+                                                {securityRolesList.map(role => (
+                                                    <SelectItem key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1)}</SelectItem>
+                                                ))}
+                                            </SelectGroup>
+                                            <SelectGroup>
+                                                <SelectLabel>Roles de Plataforma</SelectLabel>
+                                                {primaryRolesList.map(role => (
+                                                    <SelectItem key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1)}</SelectItem>
+                                                ))}
+                                            </SelectGroup>
                                         </SelectContent>
                                     </Select>
-                                    <FormDescription>Este rol de seguridad se sincronizará con el rol principal.</FormDescription>
+                                    <FormDescription>Este rol se aplicará como rol de seguridad (claim) y rol principal (en base de datos).</FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}

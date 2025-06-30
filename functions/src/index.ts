@@ -1,98 +1,167 @@
-
-import * as functions from "firebase-functions";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 
 admin.initializeApp();
 
-export const setUserRole = functions.https.onCall(async (data, context) => {
-  if (context.auth?.token?.role !== "admin") {
-    throw new functions.https.HttpsError("permission-denied", "No autorizado");
+/* === FUNCIONES DE ADMIN / MODERADOR === */
+
+export const setUserRoleAndSync = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
+  const { uid, role } = data;
+  if (!auth || auth.token.role !== "admin") {
+    throw new HttpsError("permission-denied", "Solo los admins pueden cambiar roles.");
   }
-
-  const { uid, role, banExpiresAt } = data; // banExpiresAt is ISO string or null
-
-  if (!uid) {
-    throw new functions.https.HttpsError("invalid-argument", "Datos inválidos: UID de usuario requerido.");
+  const validRoles = ["admin", "moderator", "player", "coach", "fundador"];
+  if (!uid || !validRoles.includes(role)) {
+    throw new HttpsError("invalid-argument", "Rol no válido.");
   }
-
-  try {
-    const firestoreUpdates: { primaryRole?: string; isBanned?: boolean; banExpiresAt?: admin.firestore.Timestamp | null } = {};
-    
-    // Handle role update
-    if (role) {
-      if (!["admin", "moderator", "player", "founder", "coach"].includes(role)) {
-        throw new functions.https.HttpsError("invalid-argument", "Rol inválido proporcionado.");
-      }
-      await admin.auth().setCustomUserClaims(uid, { role });
-      firestoreUpdates.primaryRole = role;
-    }
-
-    // Handle ban status update if banExpiresAt is provided
-    if (typeof data.banExpiresAt !== 'undefined') {
-        if (data.banExpiresAt === null) {
-            // Unban user
-            firestoreUpdates.isBanned = false;
-            firestoreUpdates.banExpiresAt = null;
-        } else {
-            const banDate = new Date(data.banExpiresAt);
-            if (isNaN(banDate.getTime())) {
-                throw new functions.https.HttpsError("invalid-argument", "Fecha de baneo inválida.");
-            }
-            // Ban user until the date
-            firestoreUpdates.isBanned = true;
-            firestoreUpdates.banExpiresAt = admin.firestore.Timestamp.fromDate(banDate);
-        }
-    }
-
-    // We are not disabling the user in Firebase Auth. The ban is enforced by the application logic.
-
-    if (Object.keys(firestoreUpdates).length > 0) {
-      await admin.firestore().collection("users").doc(uid).update(firestoreUpdates);
-    }
-
-    return { message: `Usuario ${uid} actualizado.` };
-  } catch (error: any) {
-    console.error("Error updating user:", error);
-    throw new functions.https.HttpsError("internal", error.message);
-  }
+  const user = await admin.auth().getUser(uid);
+  const existingClaims = user.customClaims || {};
+  await admin.auth().setCustomUserClaims(uid, { ...existingClaims, role });
+  await admin.firestore().collection("users").doc(uid).set({ primaryRole: role }, { merge: true });
+  return { message: `Rol "${role}" asignado y sincronizado para ${uid}` };
 });
 
-
-export const deleteTournament = functions.https.onCall(async (data, context) => {
-  if (context.auth?.token?.role !== "admin") {
-    throw new functions.https.HttpsError("permission-denied", "No autorizado para realizar esta acción.");
+export const getUserClaims = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
+  const { uid } = data;
+  if (!auth || auth.token.role !== "admin") {
+    throw new HttpsError("permission-denied", "Solo los admins pueden ver claims.");
   }
+  if (!uid) throw new HttpsError("invalid-argument", "UID requerido.");
+  const user = await admin.auth().getUser(uid);
+  return { uid: user.uid, email: user.email, claims: user.customClaims || {} };
+});
 
+export const banUser = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
+  const { uid, isBanned } = data;
+  if (!auth || auth.token.role !== "admin") {
+    throw new HttpsError("permission-denied", "No autorizado.");
+  }
+  if (typeof isBanned !== "boolean" || !uid) {
+    throw new HttpsError("invalid-argument", "Datos inválidos.");
+  }
+  const user = await admin.auth().getUser(uid);
+  const existingClaims = user.customClaims || {};
+  await admin.auth().setCustomUserClaims(uid, { ...existingClaims, isBanned });
+  return { message: isBanned ? `Usuario ${uid} baneado.` : `Usuario ${uid} desbaneado.` };
+});
+
+/* === TORNEOS === */
+
+export const deleteTournament = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
   const { tournamentId } = data;
-  if (!tournamentId) {
-    throw new functions.https.HttpsError("invalid-argument", "Se requiere el ID del torneo.");
+  if (!auth || auth.token.role !== "admin") {
+    throw new HttpsError("permission-denied", "No autorizado.");
   }
-
-  try {
-    await admin.firestore().collection("tournaments").doc(tournamentId).delete();
-    return { message: `Torneo ${tournamentId} eliminado exitosamente.` };
-  } catch (error: any) {
-    throw new functions.https.HttpsError("internal", error.message);
-  }
+  if (!tournamentId) throw new HttpsError("invalid-argument", "ID de torneo requerido.");
+  await admin.firestore().collection("tournaments").doc(tournamentId).delete();
+  return { message: `Torneo ${tournamentId} eliminado.` };
 });
 
-export const deleteUser = functions.https.onCall(async (data, context) => {
-    if (context.auth?.token?.role !== "admin") {
-        throw new functions.https.HttpsError("permission-denied", "No autorizado para realizar esta acción.");
-    }
+export const approveTournament = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
+  const { tournamentId, approved } = data;
+  if (!auth || !["admin", "moderator"].includes(auth.token.role)) {
+    throw new HttpsError("permission-denied", "No autorizado.");
+  }
+  if (!tournamentId || typeof approved !== "boolean") {
+    throw new HttpsError("invalid-argument", "Datos inválidos.");
+  }
+  await admin.firestore().collection("tournaments").doc(tournamentId).update({ approved });
+  return { message: approved ? `Torneo ${tournamentId} aprobado` : `Torneo ${tournamentId} rechazado` };
+});
 
-    const { uid } = data;
-    if (!uid) {
-        throw new functions.https.HttpsError("invalid-argument", "Se requiere el UID del usuario.");
-    }
+/* === EQUIPOS === */
 
-    try {
-        await admin.auth().deleteUser(uid);
-        await admin.firestore().collection("users").doc(uid).delete();
-        
-        return { message: `Usuario ${uid} eliminado exitosamente.` };
-    } catch (error: any) {
-        console.error("Error deleting user:", error);
-        throw new functions.https.HttpsError("internal", error.message);
-    }
+export const getTeamApplicationsInbox = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
+  const { teamId } = data;
+  if (!auth || !["admin", "moderator", "fundador"].includes(auth.token.role)) {
+    throw new HttpsError("permission-denied", "No autorizado.");
+  }
+  if (!teamId) throw new HttpsError("invalid-argument", "ID de equipo requerido.");
+  const snapshot = await admin.firestore().collection("teamApplications").where("teamId", "==", teamId).get();
+  const applications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return { applications };
+});
+
+export const processTeamApplication = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
+  const { applicationId, approved } = data;
+  if (!auth || !["admin", "moderator", "fundador"].includes(auth.token.role)) {
+    throw new HttpsError("permission-denied", "No autorizado.");
+  }
+  if (!applicationId || typeof approved !== "boolean") {
+    throw new HttpsError("invalid-argument", "Datos inválidos.");
+  }
+  const appRef = admin.firestore().collection("teamApplications").doc(applicationId);
+  const appSnap = await appRef.get();
+  if (!appSnap.exists) throw new HttpsError("not-found", "Solicitud no encontrada.");
+  const appData = appSnap.data();
+  if (!appData) throw new HttpsError("internal", "Error leyendo la solicitud.");
+  await appRef.update({ status: approved ? "approved" : "rejected" });
+  if (approved) {
+    await admin.firestore().collection("teams").doc(appData.teamId).update({
+      memberIds: admin.firestore.FieldValue.arrayUnion(appData.userId),
+    });
+  }
+  return { message: approved ? "Solicitud aprobada y usuario añadido al equipo." : "Solicitud rechazada." };
+});
+
+export const deleteTeam = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
+  const { teamId } = data;
+  if (!auth || !teamId) {
+    throw new HttpsError("invalid-argument", "Datos inválidos.");
+  }
+  const teamRef = admin.firestore().collection("teams").doc(teamId);
+  const teamSnap = await teamRef.get();
+  if (!teamSnap.exists) throw new HttpsError("not-found", "Equipo no encontrado.");
+  const team = teamSnap.data();
+  if (!team) throw new HttpsError("internal", "Error leyendo el equipo.");
+  const role = auth.token.role;
+  const isOwner = auth.uid === team.ownerId;
+  const canDelete = isOwner || ["admin", "moderator"].includes(role);
+  if (!canDelete) {
+    throw new HttpsError("permission-denied", "No tienes permiso para eliminar este equipo.");
+  }
+  await teamRef.delete();
+  return { message: `Equipo ${teamId} eliminado correctamente.` };
+});
+
+/* === AMISTADES === */
+
+export const sendFriendRequest = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
+  const { to } = data;
+  if (!auth || !to) throw new HttpsError("invalid-argument", "Datos inválidos.");
+  const from = auth.uid;
+  const ref = admin.firestore().collection("friendRequests");
+  const existing = await ref.where("from", "==", from).where("to", "==", to).get();
+  if (!existing.empty) throw new HttpsError("already-exists", "Ya enviaste solicitud.");
+  await ref.add({ from, to, status: "pending", createdAt: admin.firestore.FieldValue.serverTimestamp() });
+  return { message: "Solicitud enviada." };
+});
+
+export const respondToFriendRequest = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
+  const { requestId, accept } = data;
+  if (!auth || typeof accept !== "boolean") throw new HttpsError("invalid-argument", "Datos inválidos.");
+  const reqRef = admin.firestore().collection("friendRequests").doc(requestId);
+  const reqSnap = await reqRef.get();
+  if (!reqSnap.exists) throw new HttpsError("not-found", "Solicitud no encontrada.");
+  const reqData = reqSnap.data();
+  if (!reqData) throw new HttpsError("internal", "Error leyendo la solicitud.");
+  if (reqData.to !== auth.uid) throw new HttpsError("permission-denied", "No eres el destinatario.");
+  await reqRef.update({ status: accept ? "accepted" : "rejected" });
+  if (accept) {
+    const userRef = admin.firestore().collection("users").doc(auth.uid);
+    const friendRef = admin.firestore().collection("users").doc(reqData.from);
+    await userRef.update({ friends: admin.firestore.FieldValue.arrayUnion(reqData.from) });
+    await friendRef.update({ friends: admin.firestore.FieldValue.arrayUnion(auth.uid) });
+  }
+  return { message: accept ? "Solicitud aceptada." : "Solicitud rechazada." };
+});
+
+export const removeFriend = onCall({ region: "europe-west1" }, async ({ auth, data }) => {
+  const { friendId } = data;
+  if (!auth || !friendId) throw new HttpsError("invalid-argument", "Datos inválidos.");
+  const userRef = admin.firestore().collection("users").doc(auth.uid);
+  const friendRef = admin.firestore().collection("users").doc(friendId);
+  await userRef.update({ friends: admin.firestore.FieldValue.arrayRemove(friendId) });
+  await friendRef.update({ friends: admin.firestore.FieldValue.arrayRemove(auth.uid) });
+  return { message: "Amigo eliminado." };
 });

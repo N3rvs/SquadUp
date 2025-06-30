@@ -242,7 +242,7 @@ export default function MarketplacePage() {
     const handleSendInvite = async () => {
         if (!playerToInvite || !selectedTeam || !user) return;
         setIsSubmitting(playerToInvite.uid);
-        const result = await sendTeamInvite(selectedTeam, playerToInvite.uid);
+        const result = await sendTeamInvite(selectedTeam, playerToInvite.uid, user.uid);
         if (result.success) {
             toast({ title: "¡Invitación enviada!" });
             setPlayerToInvite(null);

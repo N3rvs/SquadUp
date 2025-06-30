@@ -1,7 +1,6 @@
 
-import { auth, db, functions } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, getDocs, doc, getDoc, serverTimestamp } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
 
 
 // --- Team Invite Logic ---
@@ -33,11 +32,10 @@ export async function getManagedTeams(managerId: string) {
 }
 
 
-export async function sendTeamInvite(teamId: string, receiverId: string) {
-    if (!auth.currentUser) {
+export async function sendTeamInvite(teamId: string, receiverId: string, senderId: string) {
+    if (!senderId) {
         return { success: false, error: "User not authenticated." };
     }
-    const senderId = auth.currentUser.uid;
 
     try {
         const teamDocRef = doc(db, "teams", teamId);

@@ -57,6 +57,27 @@ async function getTeamApplicationsForOwner(userId: string): Promise<Notification
         const allAppsNested = await Promise.all(appPromises);
         const allAppsFlat = allAppsNested.flat();
 
+        const applicantIds = allAppsFlat
+            .filter(app => app && app.type === 'application' && app.status === 'pending')
+            .map(app => app.userId)
+            .filter(Boolean);
+
+        if (applicantIds.length > 0) {
+            const usersRef = collection(db, "users");
+            const usersQuery = query(usersRef, where(documentId(), "in", applicantIds));
+            const usersSnapshot = await getDocs(usersQuery);
+            const usersData = new Map(usersSnapshot.docs.map(doc => [doc.id, doc.data()]));
+            
+            allAppsFlat.forEach(app => {
+                if (app && usersData.has(app.userId)) {
+                    const userData = usersData.get(app.userId) as DocumentData;
+                    app.userDisplayName = userData.displayName || 'Unknown User';
+                    app.userAvatarUrl = userData.avatarUrl || '';
+                }
+            });
+        }
+
+
         return allAppsFlat
             .filter(app => app && app.type === 'application' && app.status === 'pending')
             .map(app => {
@@ -84,6 +105,7 @@ async function getFriendRequestsForUser(userId: string): Promise<Notification[]>
     const q = query(requestsRef, where("to", "==", userId), where("status", "==", "pending"));
     const querySnapshot = await getDocs(q);
 
+    // Initial mapping from Firestore document to a base notification object
     const notifications: Notification[] = querySnapshot.docs.map(requestDoc => {
         const requestData = requestDoc.data();
         const createdAt = requestData.createdAt instanceof Timestamp ? requestData.createdAt.toDate() : new Date();
@@ -93,12 +115,32 @@ async function getFriendRequestsForUser(userId: string): Promise<Notification[]>
             type: 'friend_request',
             sender: {
                 uid: requestData.from,
-                displayName: requestData.fromDisplayName || 'Usuario Desconocido',
+                displayName: requestData.fromDisplayName || 'Usuario Desconocido', // Keep fallback
                 avatarUrl: requestData.fromAvatarUrl,
             },
             createdAt: createdAt.toISOString(),
         };
     });
+
+    // Now, fetch the latest user data for all senders to ensure it's up-to-date
+    // and correct any missing information from denormalization.
+    const fromUserIds = notifications.map(n => n.sender?.uid).filter(Boolean) as string[];
+    
+    if (fromUserIds.length > 0) {
+        const usersRef = collection(db, "users");
+        const usersQuery = query(usersRef, where(documentId(), "in", fromUserIds));
+        const usersSnapshot = await getDocs(usersQuery);
+        const usersData = new Map(usersSnapshot.docs.map(doc => [doc.id, doc.data()]));
+
+        notifications.forEach(n => {
+            if (n.sender?.uid && usersData.has(n.sender.uid)) {
+                const userData = usersData.get(n.sender.uid) as DocumentData;
+                n.sender.displayName = userData.displayName || 'Usuario Desconocido';
+                n.sender.avatarUrl = userData.avatarUrl || '';
+            }
+        });
+    }
+
     return notifications;
 }
 

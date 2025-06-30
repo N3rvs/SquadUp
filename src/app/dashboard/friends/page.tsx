@@ -130,7 +130,7 @@ export default function FriendsPage() {
 
         // Listener for incoming friend requests
         const requestsQuery = query(collection(db, 'friendRequests'), where('to', '==', user.uid), where('status', '==', 'pending'));
-        const requestsUnsubscribe = onSnapshot(requestsQuery, (snapshot) => {
+        const requestsUnsubscribe = onSnapshot(requestsQuery, async (snapshot) => {
             const requests = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
@@ -142,6 +142,22 @@ export default function FriendsPage() {
                     fromAvatarUrl: data.fromAvatarUrl || '',
                 } as FriendRequest;
             });
+
+            // Fetch user data for these requests to get up-to-date info
+            const fromUserIds = requests.map(req => req.from).filter(Boolean);
+            if (fromUserIds.length > 0) {
+                const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', fromUserIds));
+                const usersSnapshot = await getDocs(usersQuery);
+                const usersData = new Map(usersSnapshot.docs.map(doc => [doc.id, doc.data()]));
+                requests.forEach(req => {
+                    const userData = usersData.get(req.from);
+                    if (userData) {
+                        req.fromDisplayName = userData.displayName || 'Usuario Desconocido';
+                        req.fromAvatarUrl = userData.avatarUrl || '';
+                    }
+                });
+            }
+
             setIncomingRequests(requests);
         }, (error) => {
             console.error("Error fetching friend requests:", error);

@@ -47,27 +47,31 @@ export async function GET(request: Request) {
     // Process friend requests
     friendRequestSnapshot.forEach(doc => {
         const data = doc.data();
-        allNotifications.push({
-            id: doc.id,
-            type: 'friendRequest',
-            from_displayName: data.from_displayName,
-            from_avatarUrl: data.from_avatarUrl,
-            createdAt: (data.createdAt as Timestamp).toMillis(),
-        });
+        if (data.createdAt && typeof data.createdAt.toMillis === 'function') {
+            allNotifications.push({
+                id: doc.id,
+                type: 'friendRequest',
+                from_displayName: data.from_displayName,
+                from_avatarUrl: data.from_avatarUrl,
+                createdAt: (data.createdAt as Timestamp).toMillis(),
+            });
+        }
     });
 
     // Process team invites
     teamInviteSnapshot.forEach(doc => {
         const data = doc.data();
-        allNotifications.push({
-            id: doc.id,
-            type: 'teamInvite',
-            from_displayName: data.teamName,
-            from_avatarUrl: data.teamLogoUrl,
-            teamName: data.teamName,
-            teamId: data.teamId,
-            createdAt: (data.createdAt as Timestamp).toMillis(),
-        });
+        if (data.createdAt && typeof data.createdAt.toMillis === 'function') {
+            allNotifications.push({
+                id: doc.id,
+                type: 'teamInvite',
+                from_displayName: data.teamName,
+                from_avatarUrl: data.teamLogoUrl,
+                teamName: data.teamName,
+                teamId: data.teamId,
+                createdAt: (data.createdAt as Timestamp).toMillis(),
+            });
+        }
     });
 
     // Process team applications
@@ -89,7 +93,7 @@ export async function GET(request: Request) {
         teamApplicationSnapshot.forEach(appDoc => {
             const data = appDoc.data();
             const userProfile = userProfiles[data.userId];
-            if (userProfile) {
+            if (userProfile && data.createdAt && typeof data.createdAt.toMillis === 'function') {
                 allNotifications.push({
                     id: appDoc.id,
                     type: 'teamApplication',
@@ -109,6 +113,6 @@ export async function GET(request: Request) {
 
   } catch (error: any) {
     console.error('API notifications error:', error);
-    return NextResponse.json({ error: 'Authentication failed', details: error.message }, { status: 401 });
+    return NextResponse.json({ error: 'Failed to fetch notifications', details: error.message }, { status: 500 });
   }
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { httpsCallable } from "firebase/functions";
-import { getDocs, query, where, collection } from "firebase/firestore";
+import { getDocs, query, where, collection, doc, updateDoc } from "firebase/firestore";
 import { functions, db, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,11 @@ export function AssignRoleWithEmail() {
       await auth.currentUser.getIdToken(true); // Force token refresh
       const assignRole = httpsCallable(functions, "setUserRole");
       await assignRole({ uid, role });
+
+      // Also update the user's document in Firestore to keep it in sync
+      const userDocRef = doc(db, "users", uid);
+      await updateDoc(userDocRef, { primaryRole: role });
+
       toast({ title: "Rol asignado", description: `El rol '${role}' fue asignado a ${email}` });
       setCurrentRole(role);
     } catch (err: any) {

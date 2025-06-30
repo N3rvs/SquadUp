@@ -1,102 +1,52 @@
-
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // --- HELPER FUNCTIONS ---
 
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Checks if the user has a security claim of 'admin' or 'moderator'.
-    function isStaff() {
-      return request.auth.token.role == 'admin' || request.auth.token.role == 'moderator';
-    }
-
-    // Checks if the user has a specific role in their user profile document.
-    function hasPrimaryRole(role) {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.primaryRole == role;
-    }
-
-    // --- COLLECTION RULES ---
-
-    match /users/{uid} {
-      // Any authenticated user can read/list user profiles for social features.
-      allow read, list: if isAuthenticated();
-      
-      // A user can create their own document. Staff can also create user docs.
-      allow create: if isAuthenticated() && (request.auth.uid == uid || isStaff());
-      
-      // A user can update their own document. Staff can also update user docs.
-      allow update: if isAuthenticated() && (request.auth.uid == uid || isStaff());
-      
-      // Only an admin can delete a user document.
-      allow delete: if isAuthenticated() && request.auth.token.role == 'admin';
-    }
-
-    match /teams/{teamId} {
+    // USERS
+    // Anyone can see user profiles, but a user can only edit their own.
+    match /users/{userId} {
       allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
 
-      // Only users with 'fundador' role (from their profile) or staff (from claims) can create teams.
-      allow create: if isAuthenticated() && (hasPrimaryRole('fundador') || isStaff());
-      
-      // Only the team owner or staff can update a team.
-      allow update: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isStaff());
-      
-      // Only staff can delete teams.
-      allow delete: if isStaff();
+    // TEAMS & TOURNAMENTS
+    // Anyone can see teams and tournaments.
+    // Creating is allowed from the client, but updates/deletes are protected by functions.
+    match /teams/{teamId} {
+      allow read, create: if isAuthenticated();
     }
-    
-    match /teamApplications/{appId} {
-      // Any authenticated user can create an application (apply to a team).
-      allow create: if isAuthenticated();
-
-      // A user can read an application if they sent it (applicant) or if they own the team. Staff can read all.
-      allow read: if isAuthenticated() && 
-                 (request.auth.uid == resource.data.userId || 
-                  request.auth.uid == resource.data.teamOwnerId ||
-                  isStaff());
-      
-      // Updates/deletes are handled by secure Cloud Functions.
-      allow update, delete: if isStaff();
-    }
-    
-    match /friendRequests/{requestId} {
-      // A user can read a request if they are the sender or the recipient.
-      // This allows constrained collection queries to work (e.g., get all requests where to == myId).
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.from || request.auth.uid == resource.data.to);
-      
-      // A user can create a request if they are the sender.
-      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.from;
-      
-      // All updates/deletes are handled by secure Cloud Functions, so direct client access is denied.
-      allow update, delete: if false; 
-    }
-    
     match /tournaments/{tournamentId} {
-        allow read: if isAuthenticated();
-        // Anyone can create a tournament, but it goes into a "Pending" state for review.
-        allow create: if isAuthenticated();
-        // Updates for approval/rejection/deletion are handled by staff via Cloud Functions.
-        allow update, delete: if isStaff();
+      allow read, create: if isAuthenticated();
     }
 
-    match /supportTickets/{ticketId} {
-        allow create: if isAuthenticated();
-        // Only staff can view and manage support tickets.
-        allow read, update, delete: if isStaff();
+    // APPLICATIONS & REQUESTS
+    // These are mostly managed by Cloud Functions.
+    // We allow create from the client for applications, and reads for notifications.
+    match /teamApplications/{appId} {
+      allow read, create: if isAuthenticated();
+    }
+    match /friendRequests/{reqId} {
+      allow read: if isAuthenticated(); // Writes are handled by functions
     }
 
+    // CHATS
+    // As requested, chats are open to authenticated users.
+    // For more security, you could restrict this to members only.
     match /chats/{chatId} {
-        // Users can read/write to a chat document only if they are a member.
-        allow read, write: if isAuthenticated() && request.auth.uid in resource.data.members;
-        
-        match /messages/{messageId} {
-            // Users can read/create messages only if they are a member of the parent chat.
-            allow read, create: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members;
-        }
+      allow read, write: if isAuthenticated();
+      match /messages/{messageId} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+    
+    // SUPPORT TICKETS
+    // Users can create their own tickets. Admins will read them via functions.
+    match /supportTickets/{ticketId} {
+        allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
     }
   }
 }

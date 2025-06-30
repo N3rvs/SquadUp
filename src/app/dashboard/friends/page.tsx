@@ -76,12 +76,12 @@ export default function FriendsPage() {
         return () => unsubscribe();
     }, [fetchData]);
 
-    const onHandleRequest = async (requestId: string, decision: 'accept' | 'reject') => {
-        setIsProcessing(requestId);
-        const result = await respondToFriendRequest(requestId, decision);
+    const onHandleRequest = async (request: FriendRequest, decision: 'accept' | 'reject') => {
+        if (!user) return;
+        setIsProcessing(request.id);
+        const result = await respondToFriendRequest(request.id, decision, user.uid, request.from);
         if (result.success) {
             toast({ title: '¡Decisión procesada!', description: `La solicitud ha sido ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
-            // Refetch data to update both lists
             if (user) {
                 await fetchData(user.uid);
             }
@@ -92,7 +92,6 @@ export default function FriendsPage() {
     };
 
     const handleRemoveFriend = async (friendId: string) => {
-        // This is a placeholder for future functionality
         toast({
             title: 'Función no implementada',
             description: 'La eliminación de amigos se añadirá próximamente.'
@@ -195,10 +194,10 @@ export default function FriendsPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                <Button size="sm" variant="outline" className="mr-2" onClick={() => onHandleRequest(request.id, 'reject')} disabled={isProcessing === request.id}>
+                                                <Button size="sm" variant="outline" className="mr-2" onClick={() => onHandleRequest(request, 'reject')} disabled={isProcessing === request.id}>
                                                      {isProcessing === request.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="h-4 w-4" />}
                                                 </Button>
-                                                <Button size="sm" onClick={() => onHandleRequest(request.id, 'accept')} disabled={isProcessing === request.id}>
+                                                <Button size="sm" onClick={() => onHandleRequest(request, 'accept')} disabled={isProcessing === request.id}>
                                                      {isProcessing === request.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4" />}
                                                 </Button>
                                             </TableCell>

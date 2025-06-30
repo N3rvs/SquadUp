@@ -1,6 +1,6 @@
 import { db, functions } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
-import { collection, doc, getDoc, query, where, getDocs, Timestamp } from "firebase/firestore";
+import { collection, doc, getDoc, query, where, getDocs, Timestamp, addDoc, serverTimestamp } from "firebase/firestore";
 
 export interface Friend {
     uid: string;
@@ -119,10 +119,50 @@ export async function getPendingFriendRequests(userId: string): Promise<{ succes
     }
 }
 
-export async function respondToFriendRequest(requestId: string, decision: 'accept' | 'reject'): Promise<{ success: boolean; error?: string; }> {
+export async function getOutgoingFriendRequests(userId: string): Promise<{ success: boolean; requests?: { to: string }[]; error?: string }> {
+    if (!userId) {
+        return { success: false, error: 'User not authenticated.' };
+    }
+    try {
+        const friendRequestsRef = collection(db, "friendRequests");
+        const q = query(friendRequestsRef, where("from", "==", userId), where("status", "==", "pending"));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            return { success: true, requests: [] };
+        }
+        
+        const requests = querySnapshot.docs.map(doc => ({ to: doc.data().to }));
+
+        return { success: true, requests };
+    } catch (error) {
+         console.error("Error fetching outgoing friend requests:", error);
+         if (error instanceof Error) {
+            return { success: false, error: error.message };
+        }
+        return { success: false, error: "An unknown error occurred." };
+    }
+}
+
+export async function respondToFriendRequest(
+    requestId: string, 
+    decision: 'accept' | 'reject',
+    accepterId: string,
+    senderId: string
+): Promise<{ success: boolean; error?: string; }> {
     try {
         const respondToRequestFunc = httpsCallable(functions, 'respondToFriendRequest');
         await respondToRequestFunc({ requestId, accept: decision === 'accept' });
+        
+        if (decision === 'accept') {
+            await addDoc(collection(db, "notifications"), {
+                to: senderId,
+                from: accepterId,
+                type: 'friend_request_accepted',
+                read: false,
+                createdAt: serverTimestamp(),
+            });
+        }
         return { success: true };
     } catch (error: any) {
         console.error(`Error handling friend request decision ${decision}:`, error);

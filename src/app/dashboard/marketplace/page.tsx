@@ -21,9 +21,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target, UserPlus, Briefcase, Loader2 } from "lucide-react";
+import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target, UserPlus, Briefcase, Loader2, MessageSquare, UserCheck } from "lucide-react";
 import Image from "next/image";
 import type { Team } from "@/components/team-card";
+import { getFriendsList, getOutgoingFriendRequests } from "@/app/dashboard/friends/actions";
 import {
   Dialog,
   DialogContent,
@@ -126,6 +127,9 @@ export default function MarketplacePage() {
     const [managedTeams, setManagedTeams] = useState<ManagedTeam[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<string>("");
 
+    const [friendUids, setFriendUids] = useState<string[]>([]);
+    const [outgoingRequestUids, setOutgoingRequestUids] = useState<string[]>([]);
+
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
@@ -133,6 +137,28 @@ export default function MarketplacePage() {
         });
         return () => unsubscribe();
     }, []);
+
+    useEffect(() => {
+        const fetchUserRelations = async () => {
+            if (user) {
+                const [friendsResult, outgoingResult] = await Promise.all([
+                    getFriendsList(user.uid),
+                    getOutgoingFriendRequests(user.uid)
+                ]);
+
+                if (friendsResult.success && friendsResult.friends) {
+                    setFriendUids(friendsResult.friends.map(f => f.uid));
+                }
+                if (outgoingResult.success && outgoingResult.requests) {
+                    setOutgoingRequestUids(outgoingResult.requests.map(r => r.to));
+                }
+            }
+        };
+        
+        if (isAuthReady) {
+            fetchUserRelations();
+        }
+    }, [isAuthReady, user]);
 
     const isTeamManager = role === 'admin' || role === 'moderator' || role === 'founder';
     
@@ -203,6 +229,7 @@ export default function MarketplacePage() {
         const result = await sendFriendRequest(user.uid, receiverId);
         if (result.success) {
             toast({ title: "¡Solicitud de amistad enviada!" });
+            setOutgoingRequestUids(prev => [...prev, receiverId]);
         } else {
             toast({ variant: "destructive", title: "Error", description: result.error });
         }
@@ -249,7 +276,7 @@ export default function MarketplacePage() {
                     <CardDescription>Use the filters below to narrow down your search.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         <Select value={tempCountryFilter} onValueChange={setTempCountryFilter}>
                             <SelectTrigger><SelectValue placeholder="Filter by Country" /></SelectTrigger>
                             <SelectContent>
@@ -262,14 +289,12 @@ export default function MarketplacePage() {
                             {valorantRanks.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                             </SelectContent>
                         </Select>
+                        <Button onClick={handleSearch} className="w-full lg:w-auto">
+                            <Search className="mr-2 h-4 w-4" />
+                            Search
+                        </Button>
                     </div>
                 </CardContent>
-                <CardFooter>
-                    <Button onClick={handleSearch} className="w-full sm:w-auto">
-                        <Search className="mr-2 h-4 w-4" />
-                        Search
-                    </Button>
-                </CardFooter>
             </Card>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -293,6 +318,8 @@ export default function MarketplacePage() {
                             <TableBody>
                               {players.map((player) => {
                                 const countryCode = getCountryCode(player.country);
+                                const isFriend = friendUids.includes(player.uid);
+                                const isRequestSent = outgoingRequestUids.includes(player.uid);
                                 return (
                                 <TableRow key={player.uid}>
                                     <TableCell>
@@ -344,18 +371,42 @@ export default function MarketplacePage() {
                                      <TableCell className="text-right">
                                         {user && user.uid !== player.uid && (
                                             <div className="flex items-center justify-end gap-1">
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button variant="ghost" size="icon" disabled={isSubmitting === player.uid} onClick={() => handleSendFriendRequest(player.uid)}>
-                                                                {isSubmitting === player.uid ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>Añadir Amigo</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
+                                                {isFriend ? (
+                                                     <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button variant="ghost" size="icon" asChild>
+                                                                    <Link href="/dashboard/chat">
+                                                                        <MessageSquare className="h-4 w-4" />
+                                                                    </Link>
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Enviar Mensaje</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                ) : isRequestSent ? (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button variant="ghost" size="icon" disabled>
+                                                                    <UserCheck className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Solicitud Enviada</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                ) : (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button variant="ghost" size="icon" disabled={isSubmitting === player.uid} onClick={() => handleSendFriendRequest(player.uid)}>
+                                                                    {isSubmitting === player.uid ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Añadir Amigo</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                )}
 
                                                 {isTeamManager && (
                                                     <TooltipProvider>

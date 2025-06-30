@@ -69,16 +69,21 @@ export function NotificationsInbox() {
     setIsProcessing(null);
   };
   
-  const onHandleFriendRequest = async (requestId: string, decision: 'accept' | 'reject') => {
-    setIsProcessing(requestId);
-    const result = await respondToFriendRequest(requestId, decision);
+  const onHandleFriendRequest = async (notification: Notification, decision: 'accept' | 'reject') => {
+    if (!user || !notification.sender) return;
+    setIsProcessing(notification.id);
+    const result = await respondToFriendRequest(notification.id, decision, user.uid, notification.sender.uid);
     if (result.success) {
         toast({ title: '¡Decisión procesada!', description: `La solicitud de amistad ha sido ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
-        setNotifications((prev) => prev.filter((n) => n.id !== requestId));
+        setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
     } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
     }
     setIsProcessing(null);
+  };
+
+  const handleDismissNotification = (notificationId: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
   };
 
   const hasNotifications = notifications.length > 0;
@@ -153,9 +158,28 @@ export function NotificationsInbox() {
                                 </div>
                             </div>
                             <div className="flex justify-end gap-2 mt-3">
-                                <Button size="sm" variant="outline" onClick={() => onHandleFriendRequest(notification.id, 'reject')} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}<span className="ml-2">Rechazar</span></Button>
-                                <Button size="sm" onClick={() => onHandleFriendRequest(notification.id, 'accept')} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}<span className="ml-2">Aceptar</span></Button>
+                                <Button size="sm" variant="outline" onClick={() => onHandleFriendRequest(notification, 'reject')} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}<span className="ml-2">Rechazar</span></Button>
+                                <Button size="sm" onClick={() => onHandleFriendRequest(notification, 'accept')} disabled={isProcessing === notification.id}>{isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}<span className="ml-2">Aceptar</span></Button>
                             </div>
+                          </div>
+                        );
+                      }
+                      if (notification.type === 'friend_request_accepted' && notification.acceptedBy) {
+                        return (
+                          <div key={notification.id} className="p-4 hover:bg-secondary/50">
+                              <div className="flex items-start gap-3">
+                                  <Avatar className="h-10 w-10 border"><AvatarImage src={notification.acceptedBy.avatarUrl} /><AvatarFallback>{notification.acceptedBy.displayName.substring(0, 2)}</AvatarFallback></Avatar>
+                                  <div className="flex-1 text-sm">
+                                      <p><Link href={`/dashboard/profile/${notification.acceptedBy.uid}`} className="font-semibold hover:underline">{notification.acceptedBy.displayName}</Link>{' '}ha aceptado tu solicitud de amistad.</p>
+                                      <p className="text-xs text-muted-foreground mt-1">{formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: es })}</p>
+                                  </div>
+                              </div>
+                               <div className="flex justify-end gap-2 mt-3">
+                                 <Button size="sm" onClick={() => handleDismissNotification(notification.id)}>
+                                    <Check className="h-4 w-4" />
+                                    <span className="ml-2">Ok</span>
+                                  </Button>
+                              </div>
                           </div>
                         );
                       }

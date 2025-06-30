@@ -23,6 +23,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage
 import { auth, db, storage } from "@/lib/firebase";
 import { countries, getCountryCode } from "@/lib/countries";
 import { valorantRanks as allValorantRanks, valorantRoles } from "@/lib/valorant";
+import { useAuthRole } from "@/hooks/useAuthRole";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,12 +54,13 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 // --- DATA & TYPE DEFINITIONS ---
 
 interface UserProfile {
-  primaryRole?: 'player' | 'moderator' | 'admin';
+  primaryRole?: 'player' | 'moderator' | 'admin' | 'founder' | 'coach';
 }
 
 const valorantRanks = ["Any", ...allValorantRanks.filter(r => r !== 'Unranked')];
@@ -251,6 +253,7 @@ export default function TeamsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const { role: userSecurityRole } = useAuthRole();
 
   const { toast } = useToast();
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -409,9 +412,8 @@ export default function TeamsPage() {
     }
   }, [user, logoFile, bannerFile, editingTeam, uploadImage, toast, fetchTeams]);
 
-
-  const isPrivilegedUser = profile?.primaryRole === 'admin' || profile?.primaryRole === 'moderator';
-  const canCreateTeam = isPrivilegedUser;
+  const canCreateTeam = profile?.primaryRole === 'founder';
+  const isPrivilegedUser = userSecurityRole === 'admin' || userSecurityRole === 'moderator';
   const myTeams = teams.filter(team => user && team.memberIds.includes(user.uid));
 
   return (
@@ -433,10 +435,28 @@ export default function TeamsPage() {
             }}
           >
             <DialogTrigger asChild>
-                <Button disabled={!canCreateTeam} onClick={() => setIsFormDialogOpen(true)}>
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Crear Equipo
-                </Button>
+                {canCreateTeam ? (
+                    <Button onClick={() => setIsFormDialogOpen(true)}>
+                      <PlusCircle className="mr-2 h-4 w-4" />
+                      Crear Equipo
+                    </Button>
+                ) : (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span tabIndex={0}>
+                                    <Button disabled>
+                                      <PlusCircle className="mr-2 h-4 w-4" />
+                                      Crear Equipo
+                                    </Button>
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Solo los usuarios con el rol "Founder" pueden crear equipos.</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )}
             </DialogTrigger>
             <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
@@ -705,7 +725,5 @@ export default function TeamsPage() {
     </div>
   );
 }
-
-
 
     

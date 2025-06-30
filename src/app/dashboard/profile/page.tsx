@@ -30,9 +30,11 @@ import type { SecurityRole } from "@/hooks/useAuthRole";
 import { countries, getCountryCode } from "@/lib/countries";
 import { valorantRanks, valorantRoles } from "@/lib/valorant";
 
+const primaryRoles = ['player', 'coach', 'founder'];
 
 const profileFormSchema = z.object({
   displayName: z.string().min(2, "Display name must be at least 2 characters.").max(30, "Display name must not be longer than 30 characters."),
+  primaryRole: z.string().refine(val => primaryRoles.includes(val), "Invalid primary role."),
   bio: z.string().max(160, "Bio must not be longer than 160 characters.").optional(),
   valorantRoles: z.array(z.string()).min(1, "Debes seleccionar al menos un rol.").max(3, "Puedes seleccionar un máximo de 3 roles."),
   valorantRank: z.string().optional(),
@@ -51,7 +53,6 @@ type ProfileFormValues = z.infer<typeof profileFormSchema>;
 type UserProfileData = Omit<ProfileFormValues, 'valorantRoles' | 'avatarUrl'> & {
   uid: string;
   email: string | null;
-  primaryRole: string;
   isBanned: boolean;
   createdAt: string;
   valorantRoles?: string[];
@@ -75,6 +76,7 @@ export default function ProfilePage() {
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
       displayName: "",
+      primaryRole: "player",
       bio: "",
       valorantRoles: [],
       valorantRank: "Unranked",
@@ -195,16 +197,12 @@ export default function ProfilePage() {
         setAvatarPreview(null);
         setAvatarFile(null);
         form.reset({
-            displayName: profileData.displayName,
+            ...profileData,
             bio: profileData.bio || '',
-            valorantRoles: profileData.valorantRoles || ['Flex'],
-            valorantRank: profileData.valorantRank || 'Unranked',
-            country: profileData.country,
             twitchUrl: profileData.twitchUrl || '',
             twitterUrl: profileData.twitterUrl || '',
             youtubeUrl: profileData.youtubeUrl || '',
             discord: profileData.discord || '',
-            lookingForTeam: profileData.lookingForTeam || false,
         });
     }
   };
@@ -227,16 +225,7 @@ export default function ProfilePage() {
       }
 
       const dataToSave = {
-        displayName: data.displayName,
-        bio: data.bio,
-        valorantRoles: data.valorantRoles,
-        valorantRank: data.valorantRank,
-        country: data.country,
-        twitchUrl: data.twitchUrl,
-        twitterUrl: data.twitterUrl,
-        youtubeUrl: data.youtubeUrl,
-        discord: data.discord,
-        lookingForTeam: data.lookingForTeam,
+        ...data,
         avatarUrl: newAvatarUrl,
       };
 
@@ -335,12 +324,6 @@ export default function ProfilePage() {
               {securityRole === 'moderator' && (
                 <Badge variant="default" className="shrink-0"><ShieldCheck className="mr-1 h-3 w-3" />Moderator</Badge>
               )}
-               {securityRole === 'founder' && (
-                <Badge variant="admin" className="shrink-0"><Crown className="mr-1 h-3 w-3" />Founder</Badge>
-              )}
-              {securityRole === 'coach' && (
-                <Badge variant="outline" className="shrink-0"><ClipboardList className="mr-1 h-3 w-3" />Coach</Badge>
-              )}
               {profileData.primaryRole && (
                 <Badge variant="secondary" className="shrink-0">
                   <User className="mr-1 h-3 w-3" />
@@ -423,6 +406,30 @@ export default function ProfilePage() {
                             <FormMessage />
                           </FormItem>
                         )}
+                      />
+                      
+                      <FormField
+                          control={form.control}
+                          name="primaryRole"
+                          render={({ field }) => (
+                              <FormItem>
+                              <FormLabel>Rol Principal</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                  <FormControl>
+                                  <SelectTrigger>
+                                      <SelectValue placeholder="¿Cuál es tu rol principal en la comunidad?" />
+                                  </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="player">Player</SelectItem>
+                                    <SelectItem value="coach">Coach</SelectItem>
+                                    <SelectItem value="founder">Founder</SelectItem>
+                                  </SelectContent>
+                              </Select>
+                              <FormDescription>Este rol define ciertas capacidades, como crear equipos.</FormDescription>
+                              <FormMessage />
+                              </FormItem>
+                          )}
                       />
 
                       <FormField
@@ -694,3 +701,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    

@@ -67,7 +67,7 @@ type UserData = {
     createdAt: string;
 };
 
-const userRoles = ['admin', 'moderator', 'player', 'founder', 'coach'];
+const securityRoles = ['admin', 'moderator', 'player'];
 const banOptions = {
     'none': 'No Baneado',
     '1day': 'Banear 24 horas',
@@ -78,7 +78,7 @@ const banOptions = {
 type BanOptionKey = keyof typeof banOptions;
 
 const editUserFormSchema = z.object({
-  role: z.string().refine(val => userRoles.includes(val)),
+  role: z.string().refine(val => securityRoles.includes(val)),
   banOption: z.custom<BanOptionKey>(val => typeof val === 'string' && Object.keys(banOptions).includes(val)),
 });
 
@@ -157,21 +157,13 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
 
             const isBanned = banExpiresAt !== null;
 
-            // Call Cloud Functions
+            // Call Cloud Functions for security changes
             const setUserRoleFunc = httpsCallable(functions, 'setUserRole');
             await setUserRoleFunc({ uid: user.uid, role: data.role });
 
             const banUserFunc = httpsCallable(functions, 'banUser');
             await banUserFunc({ uid: user.uid, isBanned });
             
-            // Also update Firestore for UI consistency
-            const dataToUpdate: any = {
-                primaryRole: data.role,
-                isBanned: isBanned,
-                banExpiresAt: banExpiresAt ? new Date(banExpiresAt) : null,
-            };
-            await updateDoc(doc(db, 'users', user.uid), dataToUpdate);
-
             toast({ title: 'Usuario actualizado', description: 'Los cambios se han guardado.' });
             onUserUpdate();
         } catch (error: any) {
@@ -202,7 +194,7 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
                             name="role"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Rol</FormLabel>
+                                    <FormLabel>Rol de Seguridad</FormLabel>
                                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                                         <FormControl>
                                             <SelectTrigger>
@@ -210,11 +202,12 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
-                                            {userRoles.map(role => (
+                                            {securityRoles.map(role => (
                                                 <SelectItem key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1)}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                    <FormDescription>Este es el rol de seguridad para permisos.</FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -348,7 +341,7 @@ export default function UsersAdminPage() {
                             <TableRow>
                                 <TableHead>Usuario</TableHead>
                                 <TableHead>Email</TableHead>
-                                <TableHead>Rol</TableHead>
+                                <TableHead>Rol Principal</TableHead>
                                 <TableHead>Estado</TableHead>
                                 <TableHead>Registrado</TableHead>
                                 <TableHead className="text-right">Acciones</TableHead>
@@ -444,3 +437,5 @@ export default function UsersAdminPage() {
         </div>
     );
 }
+
+    

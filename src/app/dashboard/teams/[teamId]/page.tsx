@@ -30,6 +30,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { valorantRoles } from "@/lib/valorant";
+import { useAuthRole } from "@/hooks/useAuthRole";
 
 
 // --- TYPE DEFINITIONS ---
@@ -140,8 +141,8 @@ export default function TeamDetailPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const teamId = typeof params.teamId === 'string' ? params.teamId : '';
+  const { role: userRole } = useAuthRole();
 
   const [isApplying, setIsApplying] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState<'idle' | 'applied' | 'member'>('idle');
@@ -170,15 +171,6 @@ export default function TeamDetailPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      if (currentUser) {
-        const userDocRef = doc(db, "users", currentUser.uid);
-        const docSnap = await getDoc(userDocRef);
-        if (docSnap.exists()) {
-          setProfile(docSnap.data() as UserProfile);
-        }
-      } else {
-        setProfile(null);
-      }
     });
     return () => unsubscribe();
   }, []);
@@ -307,12 +299,7 @@ export default function TeamDetailPage() {
 
   const countryCode = getCountryCode(team.country);
   const embedUrl = getYoutubeEmbedUrl(team.videoUrl);
-  const isManager = user && team && profile && (
-    user.uid === team.ownerId ||
-    profile.primaryRole === 'admin' ||
-    profile.primaryRole === 'moderator' ||
-    profile.primaryRole === 'founder'
-  );
+  const isManager = user && team && (user.uid === team.ownerId || userRole === 'admin' || userRole === 'moderator');
   
   const canApply = user && team.isRecruiting && applicationStatus === 'idle';
 
@@ -595,3 +582,5 @@ export default function TeamDetailPage() {
     </div>
   );
 }
+
+    

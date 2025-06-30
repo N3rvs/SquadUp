@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { auth, db } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, Timestamp } from "firebase/firestore";
+import { doc, getDoc, Timestamp, updateDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -59,6 +59,7 @@ interface UserProfile {
     email: string;
     avatarUrl: string;
     uid: string;
+    primaryRole?: SecurityRole;
     isBanned?: boolean;
     banExpiresAt?: Timestamp;
 }
@@ -85,56 +86,60 @@ export default function DashboardLayout({
         try {
           const idTokenResult = await user.getIdTokenResult(true); // Force refresh
           const claims = idTokenResult.claims;
-          const userRole = (claims.role as SecurityRole) || 'player';
-          setUserRole(userRole);
+          const userClaimedRole = (claims.role as SecurityRole) || 'player';
+          setUserRole(userClaimedRole);
 
-          // The custom auth claim is the source of truth for the ban status.
-          // If the claim says the user is banned, we immediately block access
-          // without trying to read from Firestore, which would fail due to the security rules.
           if (claims.isBanned === true) {
             setUserProfile({
               uid: user.uid,
               displayName: user.displayName || 'Usuario',
               email: user.email || 'usuario@example.com',
               avatarUrl: user.photoURL || '',
+              primaryRole: userClaimedRole,
               isBanned: true,
-              // We can't fetch the real expiry date from Firestore due to the rules.
-              // We set a far-future date to trigger the "permanent ban" message
-              // in the BannedScreen component as a generic but functional fallback.
               banExpiresAt: Timestamp.fromDate(new Date('3000-01-01')),
             });
             setIsLoadingProfile(false);
-            return; // Exit early for banned users
+            return; 
           }
           
-          // If the user is not banned, proceed to fetch their profile from Firestore.
           const userDocRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(userDocRef);
 
           if (docSnap.exists()) {
             const data = docSnap.data();
+
+            // Sync logic: ensure Firestore 'primaryRole' matches the auth claim 'role'
+            if (data.primaryRole !== userClaimedRole) {
+                console.log(`Role mismatch. Claim: ${userClaimedRole}, Firestore: ${data.primaryRole}. Syncing...`);
+                try {
+                    await updateDoc(userDocRef, { primaryRole: userClaimedRole });
+                    data.primaryRole = userClaimedRole; // Update local data to prevent stale UI
+                } catch (syncError) {
+                    console.error("Failed to sync user role with Firestore:", syncError);
+                }
+            }
+            
             setUserProfile({
               uid: user.uid,
               displayName: data.displayName || 'Usuario',
               email: user.email || 'usuario@example.com',
               avatarUrl: data.avatarUrl || '',
+              primaryRole: data.primaryRole,
               isBanned: data.isBanned || false,
               banExpiresAt: data.banExpiresAt || null,
             });
           } else {
-            // This case might happen for a newly signed-up user whose doc hasn't been created yet.
             setUserProfile({
                 uid: user.uid,
                 displayName: user.displayName || 'Usuario',
                 email: user.email || 'usuario@example.com',
                 avatarUrl: user.photoURL || '',
+                primaryRole: userClaimedRole,
             });
           }
         } catch (error) {
-            // This catch block will now mostly handle network errors or other unexpected issues,
-            // as the main permission error for banned users is handled above.
             console.error("Error fetching user data:", error);
-            // Redirecting to login is a safe fallback.
             router.push("/login");
         }
       } else {

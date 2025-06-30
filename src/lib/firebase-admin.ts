@@ -4,7 +4,7 @@ if (!admin.apps.length) {
   // Explicitly initialize with the correct project ID to ensure the Admin SDK
   // targets the right Firebase project, resolving audience claim mismatches.
   admin.initializeApp({
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    projectId: 'valorant-squadfinder',
   });
 }
 

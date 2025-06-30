@@ -114,9 +114,6 @@ export default function TournamentsAdminPage() {
             const approved = status === 'Open';
             await approveTournamentFunc({ tournamentId, approved });
 
-            const tournamentRef = doc(db, 'tournaments', tournamentId);
-            await updateDoc(tournamentRef, { status: status, approved: approved });
-
             toast({ title: 'Éxito', description: `El torneo ha sido ${status === 'Open' ? 'aprobado' : 'rechazado'}.` });
             fetchTournaments();
 

@@ -719,7 +719,19 @@ export default function TournamentsPage() {
                 <Separator />
                 
                 <DialogFooter className="pt-4 flex flex-row justify-end gap-2">
-                    <Button variant="secondary">Inscribir mi Equipo</Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span tabIndex={0}>
+                            <Button variant="secondary" disabled={true}>Inscribir mi Equipo</Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Próximamente</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
                     {canManageTournament && (
                         <Button onClick={handleRandomPairing}>
                             <Swords className="mr-2 h-4 w-4" /> Generar Emparejamientos

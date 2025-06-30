@@ -8,12 +8,14 @@ import {
   getDocs,
   Timestamp,
   orderBy,
+  doc,
+  getDoc,
 } from 'firebase/firestore';
 import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
 
 export interface Notification {
   id: string;
-  type: 'friendRequest' | 'teamApplication';
+  type: 'friendRequest' | 'teamApplication' | 'teamInvite';
   from_displayName: string;
   from_avatarUrl?: string;
   teamName?: string;
@@ -34,7 +36,13 @@ export async function getPendingNotifications(): Promise<{ success: boolean; not
       where('status', '==', 'pending')
     );
     
-    // To get team applications, we first need to find which teams the user owns.
+    const teamInvitesQuery = query(
+        collection(db, 'teamApplications'),
+        where('userId', '==', uid),
+        where('status', '==', 'pending'),
+        where('type', '==', 'invite')
+    );
+
     const userOwnedTeamsQuery = query(
         collection(db, 'teams'),
         where('ownerId', '==', uid)
@@ -42,20 +50,24 @@ export async function getPendingNotifications(): Promise<{ success: boolean; not
     const ownedTeamsSnapshot = await getDocs(userOwnedTeamsQuery);
     const ownedTeamIds = ownedTeamsSnapshot.docs.map(doc => doc.id);
 
-    const friendRequestsPromise = getDocs(friendRequestsQuery);
     let teamApplicationsPromise = Promise.resolve({ docs: [] as any[] });
-    
     if (ownedTeamIds.length > 0) {
         const teamApplicationsQuery = query(
             collection(db, 'teamApplications'),
             where('teamId', 'in', ownedTeamIds),
-            where('status', '==', 'pending')
+            where('status', '==', 'pending'),
+            where('type', '==', 'application')
         );
         teamApplicationsPromise = getDocs(teamApplicationsQuery);
     }
     
-    const [friendRequestsSnapshot, teamApplicationsSnapshot] = await Promise.all([
-      friendRequestsPromise,
+    const [
+      friendRequestsSnapshot,
+      teamInvitesSnapshot,
+      teamApplicationsSnapshot
+    ] = await Promise.all([
+      getDocs(friendRequestsQuery),
+      getDocs(teamInvitesQuery),
       teamApplicationsPromise,
     ]);
 
@@ -70,20 +82,38 @@ export async function getPendingNotifications(): Promise<{ success: boolean; not
       };
     });
 
-    const teamNotifications: Notification[] = teamApplicationsSnapshot.docs.map(doc => {
+    const inviteNotifications: Notification[] = teamInvitesSnapshot.docs.map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
-        type: 'teamApplication',
-        from_displayName: data.userName,
-        from_avatarUrl: data.userAvatarUrl,
+        type: 'teamInvite',
+        from_displayName: data.teamName,
+        from_avatarUrl: data.teamLogoUrl,
         teamName: data.teamName,
         teamId: data.teamId,
         createdAt: data.createdAt,
       };
     });
 
-    const allNotifications = [...friendNotifications, ...teamNotifications]
+    const applicationNotifications: Notification[] = [];
+    for (const appDoc of teamApplicationsSnapshot.docs) {
+      const data = appDoc.data();
+      const userProfileDoc = await getDoc(doc(db, 'users', data.userId));
+      if (userProfileDoc.exists()) {
+        const userProfile = userProfileDoc.data();
+        applicationNotifications.push({
+          id: appDoc.id,
+          type: 'teamApplication',
+          from_displayName: userProfile.displayName,
+          from_avatarUrl: userProfile.avatarUrl,
+          teamName: data.teamName,
+          teamId: data.teamId,
+          createdAt: data.createdAt,
+        });
+      }
+    }
+
+    const allNotifications = [...friendNotifications, ...inviteNotifications, ...applicationNotifications]
         .sort((a, b) => (b.createdAt as Timestamp).toMillis() - (a.createdAt as Timestamp).toMillis());
     
     return { success: true, notifications: allNotifications };

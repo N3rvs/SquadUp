@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -57,8 +58,12 @@ export function NotificationsInbox() {
     let result;
     if (notification.type === 'friendRequest') {
       result = await handleFriendRequestDecision(notification.id, accept);
-    } else {
+    } else if (notification.type === 'teamApplication' || notification.type === 'teamInvite') {
       result = await handleTeamApplicationDecision(notification.id, accept);
+    } else {
+        toast({ variant: "destructive", title: "Error", description: "Tipo de notificación desconocido." });
+        setIsProcessing(null);
+        return;
     }
 
     if (result.success) {
@@ -69,6 +74,19 @@ export function NotificationsInbox() {
     }
     setIsProcessing(null);
   };
+
+  const getNotificationText = (n: Notification) => {
+    switch(n.type) {
+      case 'friendRequest':
+        return 'te envió una solicitud de amistad.';
+      case 'teamApplication':
+        return `quiere unirse a tu equipo ${n.teamName}.`;
+      case 'teamInvite':
+        return `te ha invitado a unirte.`;
+      default:
+        return 'tiene una nueva notificación.';
+    }
+  }
 
   return (
     <DropdownMenu onOpenChange={(open) => open && fetchNotifications()}>
@@ -96,10 +114,10 @@ export function NotificationsInbox() {
                     <div className='flex items-center gap-2'>
                         <Avatar className="h-8 w-8">
                             <AvatarImage src={n.from_avatarUrl} />
-                            <AvatarFallback>{n.from_displayName.substring(0, 1)}</AvatarFallback>
+                            <AvatarFallback>{n.from_displayName?.substring(0, 1) || '?'}</AvatarFallback>
                         </Avatar>
                         <p className="text-xs text-wrap">
-                            <b>{n.from_displayName}</b> {n.type === 'friendRequest' ? 'te envió una solicitud de amistad.' : `quiere unirse a tu equipo ${n.teamName}.`}
+                            <b>{n.from_displayName || 'Usuario desconocido'}</b> {getNotificationText(n)}
                         </p>
                     </div>
                     <div className="flex w-full justify-end gap-2">

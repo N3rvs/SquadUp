@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -36,8 +37,12 @@ function NotificationCard({ notification, onUpdate }: { notification: Notificati
         let result;
         if (notification.type === 'friendRequest') {
             result = await handleFriendRequestDecision(notification.id, accept);
-        } else {
+        } else if (notification.type === 'teamApplication' || notification.type === 'teamInvite') {
             result = await handleTeamApplicationDecision(notification.id, accept);
+        } else {
+            toast({ variant: "destructive", title: "Error", description: "Tipo de notificación desconocido." });
+            setIsProcessing(false);
+            return;
         }
 
         if (result.success) {
@@ -49,9 +54,32 @@ function NotificationCard({ notification, onUpdate }: { notification: Notificati
         }
     };
 
-    const description = notification.type === 'friendRequest'
-        ? <>Te ha enviado una solicitud de amistad.</>
-        : <>Quiere unirse a tu equipo <Link href={`/dashboard/teams/${notification.teamId}`} className="font-semibold underline">{notification.teamName}</Link>.</>;
+    const getNotificationDetails = () => {
+        switch (notification.type) {
+            case 'friendRequest':
+                return {
+                    description: <>te ha enviado una solicitud de amistad.</>,
+                    badge: 'Solicitud de Amistad'
+                };
+            case 'teamApplication':
+                return {
+                    description: <>quiere unirse a tu equipo <Link href={`/dashboard/teams/${notification.teamId}`} className="font-semibold underline">{notification.teamName}</Link>.</>,
+                    badge: 'Aplicación a Equipo'
+                };
+            case 'teamInvite':
+                return {
+                    description: <>te ha invitado a unirte al equipo <Link href={`/dashboard/teams/${notification.teamId}`} className="font-semibold underline">{notification.teamName}</Link>.</>,
+                    badge: 'Invitación de Equipo'
+                };
+            default:
+                return {
+                    description: <>tiene una nueva notificación.</>,
+                    badge: 'Notificación'
+                };
+        }
+    };
+
+    const { description, badge } = getNotificationDetails();
 
     return (
         <Card>
@@ -59,13 +87,13 @@ function NotificationCard({ notification, onUpdate }: { notification: Notificati
                 <div className="flex items-center gap-4">
                     <Avatar>
                         <AvatarImage src={notification.from_avatarUrl} />
-                        <AvatarFallback>{notification.from_displayName.substring(0, 2)}</AvatarFallback>
+                        <AvatarFallback>{notification.from_displayName?.substring(0, 2).toUpperCase() || '?'}</AvatarFallback>
                     </Avatar>
                     <div className='flex flex-col gap-1'>
                         <p className="text-sm">
-                            <span className="font-semibold">{notification.from_displayName}</span> {description}
+                            <span className="font-semibold">{notification.from_displayName || 'Usuario Desconocido'}</span> {description}
                         </p>
-                        <Badge variant="secondary" className="w-fit">{notification.type === 'friendRequest' ? 'Solicitud de Amistad' : 'Aplicación a Equipo'}</Badge>
+                        <Badge variant="secondary" className="w-fit">{badge}</Badge>
                     </div>
                 </div>
                  <div className="flex gap-2">

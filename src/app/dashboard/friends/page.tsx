@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -28,6 +29,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Loader2, Search, UserPlus, Users, MessageSquare, Check, X } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChatModal } from '@/components/chat-modal';
+import { Badge } from '@/components/ui/badge';
 
 function FriendList({ friends, onChat }: { friends: Friend[]; onChat: (friend: Friend) => void; }) {
     if (friends.length === 0) {

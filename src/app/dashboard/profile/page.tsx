@@ -30,11 +30,8 @@ import type { SecurityRole } from "@/hooks/useAuthRole";
 import { countries, getCountryCode } from "@/lib/countries";
 import { valorantRanks, valorantRoles } from "@/lib/valorant";
 
-const primaryRoles = ['player', 'coach', 'founder'];
-
 const profileFormSchema = z.object({
   displayName: z.string().min(2, "Display name must be at least 2 characters.").max(30, "Display name must not be longer than 30 characters."),
-  primaryRole: z.string().refine(val => primaryRoles.includes(val), "Invalid primary role."),
   bio: z.string().max(160, "Bio must not be longer than 160 characters.").optional(),
   valorantRoles: z.array(z.string()).min(1, "Debes seleccionar al menos un rol.").max(3, "Puedes seleccionar un máximo de 3 roles."),
   valorantRank: z.string().optional(),
@@ -57,6 +54,7 @@ type UserProfileData = Omit<ProfileFormValues, 'valorantRoles' | 'avatarUrl'> & 
   createdAt: string;
   valorantRoles?: string[];
   avatarUrl?: string;
+  primaryRole: string; // Subscription plan
 };
 
 export default function ProfilePage() {
@@ -76,7 +74,6 @@ export default function ProfilePage() {
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
       displayName: "",
-      primaryRole: "player",
       bio: "",
       valorantRoles: [],
       valorantRank: "Unranked",
@@ -408,30 +405,6 @@ export default function ProfilePage() {
                         )}
                       />
                       
-                      <FormField
-                          control={form.control}
-                          name="primaryRole"
-                          render={({ field }) => (
-                              <FormItem>
-                              <FormLabel>Rol Principal</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                  <FormControl>
-                                  <SelectTrigger>
-                                      <SelectValue placeholder="¿Cuál es tu rol principal en la comunidad?" />
-                                  </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="player">Player</SelectItem>
-                                    <SelectItem value="coach">Coach</SelectItem>
-                                    <SelectItem value="founder">Founder</SelectItem>
-                                  </SelectContent>
-                              </Select>
-                              <FormDescription>Este rol define ciertas capacidades, como crear equipos.</FormDescription>
-                              <FormMessage />
-                              </FormItem>
-                          )}
-                      />
-
                       <FormField
                         control={form.control}
                         name="bio"

@@ -23,7 +23,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target, Briefcase, Loader2, UserPlus } from "lucide-react";
+import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target, Briefcase, Loader2, UserPlus, Clock } from "lucide-react";
 import Image from "next/image";
 import type { Team } from "@/components/team-card";
 import {
@@ -123,6 +123,7 @@ export default function MarketplacePage() {
     const [user, setUser] = useState<FirebaseUser | null>(null);
     const [currentUserProfile, setCurrentUserProfile] = useState<Player | null>(null);
     const [isAuthReady, setIsAuthReady] = useState(false);
+    const [outgoingRequestIds, setOutgoingRequestIds] = useState<string[]>([]);
 
     const [tempRankFilter, setTempRankFilter] = useState('All');
     const [tempCountryFilter, setTempCountryFilter] = useState('All');
@@ -134,11 +135,23 @@ export default function MarketplacePage() {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
-            if(currentUser) {
-                const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-                if(userDoc.exists()) {
+            if (currentUser) {
+                // Fetch user profile and outgoing requests in parallel
+                const userDocPromise = getDoc(doc(db, "users", currentUser.uid));
+                const requestsQuery = query(collection(db, 'friendRequests'), where('from', '==', currentUser.uid), where('status', '==', 'pending'));
+                const requestsPromise = getDocs(requestsQuery);
+
+                const [userDoc, requestsSnapshot] = await Promise.all([userDocPromise, requestsPromise]);
+
+                if (userDoc.exists()) {
                     setCurrentUserProfile({ uid: userDoc.id, ...userDoc.data() } as Player);
                 }
+                const ids = requestsSnapshot.docs.map(d => d.data().to);
+                setOutgoingRequestIds(ids);
+            } else {
+                // Clear state if user logs out
+                setCurrentUserProfile(null);
+                setOutgoingRequestIds([]);
             }
             setIsAuthReady(true);
         });
@@ -242,6 +255,7 @@ export default function MarketplacePage() {
             const sendRequest = httpsCallable(functions, 'sendFriendRequest');
             await sendRequest({ to: toId });
             toast({ title: 'Solicitud de amistad enviada!' });
+            setOutgoingRequestIds(prev => [...prev, toId]);
         } catch(error: any) {
             toast({ variant: 'destructive', title: 'Error', description: getFirebaseErrorMessage(error) });
         }
@@ -309,6 +323,7 @@ export default function MarketplacePage() {
                               {players.map((player) => {
                                 const countryCode = getCountryCode(player.country);
                                 const isFriend = currentUserProfile?.friends?.includes(player.uid);
+                                const hasPendingRequest = outgoingRequestIds.includes(player.uid);
                                 return (
                                 <TableRow key={player.uid}>
                                     <TableCell>
@@ -353,7 +368,29 @@ export default function MarketplacePage() {
                                      <TableCell className="text-right">
                                         {user && user.uid !== player.uid && (
                                             <div className="flex items-center justify-end gap-1">
-                                                {!isFriend && (
+                                                {isFriend ? (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button variant="ghost" size="icon" disabled>
+                                                                    <Users className="h-4 w-4 text-primary" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Ya son amigos</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                ) : hasPendingRequest ? (
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button variant="ghost" size="icon" disabled>
+                                                                    <Clock className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent><p>Solicitud pendiente</p></TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                ) : (
                                                     <TooltipProvider>
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>

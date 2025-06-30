@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -16,9 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, Search, Loader2, Crown, Settings } from "lucide-react";
+import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, Search, Crown, Settings } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { applyToTeam } from "./actions";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuthRole } from "@/hooks/useAuthRole";
 
@@ -107,10 +105,6 @@ export default function TeamDetailPage() {
   const teamId = typeof params.teamId === 'string' ? params.teamId : '';
   const { role } = useAuthRole();
 
-  const [isApplying, setIsApplying] = useState(false);
-  const [applicationStatus, setApplicationStatus] = useState<'idle' | 'applied' | 'member'>('idle');
-  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
-
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -122,7 +116,6 @@ export default function TeamDetailPage() {
     if (!teamId) return;
 
     setIsLoading(true);
-    setIsCheckingStatus(true);
 
     const teamDocRef = doc(db, "teams", teamId);
     const unsubscribeTeam = onSnapshot(teamDocRef, (teamDocSnap) => {
@@ -133,20 +126,6 @@ export default function TeamDetailPage() {
       }
       const teamData = { id: teamDocSnap.id, ...teamDocSnap.data() } as Team;
       setTeam(teamData);
-
-      if (user) {
-        if (teamData.memberIds.includes(user.uid)) {
-          setApplicationStatus('member');
-        } else {
-          const applicationsRef = collection(db, "teamApplications");
-          const q = query(applicationsRef, where("teamId", "==", teamId), where("userId", "==", user.uid), where("status", "==", "pending"));
-          getDocs(q).then(appSnapshot => {
-            setApplicationStatus(!appSnapshot.empty ? 'applied' : 'idle');
-          });
-        }
-      } else {
-        setApplicationStatus('idle');
-      }
 
       if (teamData.members && teamData.members.length > 0) {
         const sortedMembers = [...teamData.members].sort((a, b) => {
@@ -160,7 +139,6 @@ export default function TeamDetailPage() {
       }
 
       setIsLoading(false);
-      setIsCheckingStatus(false);
     }, (error) => {
       console.error("Error fetching team details:", error);
       toast({ variant: "destructive", title: "Error al cargar el equipo" });
@@ -169,20 +147,6 @@ export default function TeamDetailPage() {
 
     return () => unsubscribeTeam();
   }, [teamId, router, toast, user]);
-
-
-  const handleApply = async () => {
-    if (!user || !team) return;
-    setIsApplying(true);
-    const result = await applyToTeam(team.id, user.uid);
-    if (result.success) {
-      setApplicationStatus('applied');
-      toast({ title: "¡Solicitud Enviada!", description: "Tu solicitud para unirte al equipo ha sido enviada." });
-    } else {
-      toast({ variant: "destructive", title: "Error en la solicitud", description: result.error });
-    }
-    setIsApplying(false);
-  };
 
   if (isLoading) {
     return <TeamPageSkeleton />;
@@ -200,7 +164,6 @@ export default function TeamDetailPage() {
   const countryCode = getCountryCode(team.country);
   const embedUrl = getYoutubeEmbedUrl(team.videoUrl);
   
-  const canApply = user && team.isRecruiting && applicationStatus === 'idle';
   const isManager = user && (team.ownerId === user.uid || role === 'admin' || role === 'moderator');
 
   return (
@@ -346,29 +309,6 @@ export default function TeamDetailPage() {
             )}
         </div>
         <div className="md:col-span-1 space-y-8">
-            <Card>
-                <CardHeader>
-                    <CardTitle>¿Quieres unirte?</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-sm text-muted-foreground mb-4">
-                        {team.isRecruiting ? '¿Crees que tienes lo que se necesita? ¡Envía tu solicitud!' : 'Este equipo no está reclutando actualmente.'}
-                    </p>
-                    <Button 
-                        className="w-full" 
-                        onClick={handleApply}
-                        disabled={isCheckingStatus || !canApply || isApplying}
-                    >
-                        {(isApplying || isCheckingStatus) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isCheckingStatus ? "Verificando..." :
-                            isApplying ? "Enviando..." : 
-                            applicationStatus === 'applied' ? "Solicitud Enviada" : 
-                            applicationStatus === 'member' ? "Ya eres miembro" :
-                            "Aplicar al Equipo"
-                        }
-                    </Button>
-                </CardContent>
-            </Card>
             {team.seekingRoles && team.seekingRoles.length > 0 && (
                 <Card>
                     <CardHeader>

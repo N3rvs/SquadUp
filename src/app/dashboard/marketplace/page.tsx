@@ -1,16 +1,13 @@
-
 "use client";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { collection, query, where, getDocs, DocumentData, onSnapshot, doc, documentId, getDoc } from "firebase/firestore";
-import { auth, db, functions } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { countries as allCountries, getCountryCode } from "@/lib/countries";
 import { valorantRanks as allValorantRanks } from "@/lib/valorant";
 import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import { useAuthRole } from "@/hooks/useAuthRole";
-import { httpsCallable } from "firebase/functions";
-import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -23,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Gamepad2, Globe, Search, User, Users, ShieldCheck, Target, Briefcase, Loader2, UserPlus, Clock } from "lucide-react";
+import { Gamepad2, Globe, Search, User, ShieldCheck, Target, Briefcase, Loader2 } from "lucide-react";
 import Image from "next/image";
 import type { Team } from "@/components/team-card";
 import {
@@ -121,9 +118,7 @@ export default function MarketplacePage() {
     const { toast } = useToast();
     const { role } = useAuthRole();
     const [user, setUser] = useState<FirebaseUser | null>(null);
-    const [currentUserProfile, setCurrentUserProfile] = useState<Player | null>(null);
     const [isAuthReady, setIsAuthReady] = useState(false);
-    const [outgoingRequestIds, setOutgoingRequestIds] = useState<string[]>([]);
 
     const [tempRankFilter, setTempRankFilter] = useState('All');
     const [tempCountryFilter, setTempCountryFilter] = useState('All');
@@ -135,24 +130,6 @@ export default function MarketplacePage() {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
-            if (currentUser) {
-                // Fetch user profile and outgoing requests in parallel
-                const userDocPromise = getDoc(doc(db, "users", currentUser.uid));
-                const requestsQuery = query(collection(db, 'friendRequests'), where('from', '==', currentUser.uid), where('status', '==', 'pending'));
-                const requestsPromise = getDocs(requestsQuery);
-
-                const [userDoc, requestsSnapshot] = await Promise.all([userDocPromise, requestsPromise]);
-
-                if (userDoc.exists()) {
-                    setCurrentUserProfile({ uid: userDoc.id, ...userDoc.data() } as Player);
-                }
-                const ids = requestsSnapshot.docs.map(d => d.data().to);
-                setOutgoingRequestIds(ids);
-            } else {
-                // Clear state if user logs out
-                setCurrentUserProfile(null);
-                setOutgoingRequestIds([]);
-            }
             setIsAuthReady(true);
         });
         return () => unsubscribe();
@@ -252,24 +229,6 @@ export default function MarketplacePage() {
         setIsSubmitting(null);
     };
 
-    const handleAddFriend = async (toId: string) => {
-        if (!auth.currentUser) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Debes estar autenticado para añadir amigos.' });
-            return;
-        }
-        setIsSubmitting(toId);
-        try {
-            await auth.currentUser.getIdToken(true);
-            const sendRequest = httpsCallable(functions, 'sendFriendRequest');
-            await sendRequest({ to: toId });
-            toast({ title: 'Solicitud de amistad enviada!' });
-            setOutgoingRequestIds(prev => [...prev, toId]);
-        } catch(error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: getFirebaseErrorMessage(error) });
-        }
-        setIsSubmitting(null);
-    };
-
     const handleSearch = () => {
         setRankFilter(tempRankFilter);
         setCountryFilter(tempCountryFilter);
@@ -330,8 +289,6 @@ export default function MarketplacePage() {
                             <TableBody>
                               {players.map((player) => {
                                 const countryCode = getCountryCode(player.country);
-                                const isFriend = currentUserProfile?.friends?.includes(player.uid);
-                                const hasPendingRequest = outgoingRequestIds.includes(player.uid);
                                 return (
                                 <TableRow key={player.uid}>
                                     <TableCell>
@@ -376,40 +333,6 @@ export default function MarketplacePage() {
                                      <TableCell className="text-right">
                                         {user && user.uid !== player.uid && (
                                             <div className="flex items-center justify-end gap-1">
-                                                {isFriend ? (
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <Button variant="ghost" size="icon" disabled>
-                                                                    <Users className="h-4 w-4 text-primary" />
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent><p>Ya son amigos</p></TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                ) : hasPendingRequest ? (
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <Button variant="ghost" size="icon" disabled>
-                                                                    <Clock className="h-4 w-4" />
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent><p>Solicitud pendiente</p></TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                ) : (
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <Button variant="ghost" size="icon" disabled={isSubmitting === player.uid} onClick={() => handleAddFriend(player.uid)}>
-                                                                    {isSubmitting === player.uid ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent><p>Añadir Amigo</p></TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                )}
                                                 {isTeamManager && (
                                                     <TooltipProvider>
                                                         <Tooltip>
@@ -482,7 +405,7 @@ export default function MarketplacePage() {
                             </Table>
                         </Card>
                     ) : (
-                       <Card><CardContent className="text-center p-10"><Users className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">No Teams Found</h3><p className="text-muted-foreground">Try adjusting your filters or check back later.</p></CardContent></Card>
+                       <Card><CardContent className="text-center p-10"><User className="mx-auto h-12 w-12 text-muted-foreground" /><h3 className="mt-4 text-xl font-semibold">No Teams Found</h3><p className="text-muted-foreground">Try adjusting your filters or check back later.</p></CardContent></Card>
                     )}
                 </TabsContent>
             </Tabs>

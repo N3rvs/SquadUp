@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -20,14 +19,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Check, Loader2, Trash2, Users, X } from 'lucide-react';
-import { getTeamApplications, processApplication, deleteTeamAction, type Application } from './actions';
+import { ArrowLeft, Loader2, Trash2 } from 'lucide-react';
+import { deleteTeamAction } from './actions';
 
 
 function TeamManagementSkeleton() {
@@ -66,10 +63,6 @@ export default function TeamManagePage() {
     const [teamName, setTeamName] = useState('');
     const [isOwnerOrStaff, setIsOwnerOrStaff] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
-
-    const [applications, setApplications] = useState<Application[]>([]);
-    const [isLoadingApps, setIsLoadingApps] = useState(true);
-    const [isProcessing, setIsProcessing] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
     const fetchTeamData = useCallback(async (uid: string, userRole: string | null) => {
@@ -109,41 +102,6 @@ export default function TeamManagePage() {
         return () => unsubscribe();
     }, [fetchTeamData, router]);
     
-
-    const fetchApplications = useCallback(async () => {
-        if (!isOwnerOrStaff) return;
-        setIsLoadingApps(true);
-        const result = await getTeamApplications(teamId);
-        if (result.success && result.applications) {
-            // Filter to only show pending applications, not invites or processed ones.
-            const pendingApplications = result.applications.filter(
-                (app): app is Application => app.type === 'application' && app.status === 'pending'
-            );
-            setApplications(pendingApplications);
-        } else {
-            toast({ variant: "destructive", title: "Error", description: result.error });
-        }
-        setIsLoadingApps(false);
-    }, [teamId, toast, isOwnerOrStaff]);
-
-    useEffect(() => {
-        if (!isLoading && isOwnerOrStaff) {
-            fetchApplications();
-        }
-    }, [isLoading, isOwnerOrStaff, fetchApplications]);
-    
-    const handleApplication = async (applicationId: string, decision: 'accept' | 'reject') => {
-        setIsProcessing(applicationId);
-        const result = await processApplication(applicationId, decision === 'accept');
-        if (result.success) {
-            toast({ title: "Éxito", description: `Solicitud ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
-            setApplications(prev => prev.filter(app => app.id !== applicationId));
-        } else {
-            toast({ variant: "destructive", title: "Error", description: result.error });
-        }
-        setIsProcessing(null);
-    };
-
     const handleDelete = async () => {
         setIsDeleting(true);
         const result = await deleteTeamAction(teamId);
@@ -170,69 +128,8 @@ export default function TeamManagePage() {
                     </Link>
                 </Button>
                 <h1 className="text-3xl font-bold font-headline">Gestionar Equipo: {teamName}</h1>
-                <p className="text-muted-foreground">Administra las solicitudes y la configuración de tu equipo.</p>
+                <p className="text-muted-foreground">Administra la configuración de tu equipo.</p>
             </div>
-            
-            <Card>
-                <CardHeader>
-                    <CardTitle>Solicitudes Pendientes</CardTitle>
-                    <CardDescription>Revisa los jugadores que quieren unirse a tu equipo.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {isLoadingApps ? (
-                        <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                    ) : applications.length > 0 ? (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Jugador</TableHead>
-                                    <TableHead className="text-right">Acciones</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {applications.map(app => (
-                                    <TableRow key={app.id}>
-                                        <TableCell>
-                                            <div className="flex items-center gap-3">
-                                                <Avatar className="h-9 w-9">
-                                                    <AvatarImage src={app.userAvatarUrl} />
-                                                    <AvatarFallback>{app.userDisplayName?.substring(0, 2) ?? 'NA'}</AvatarFallback>
-                                                </Avatar>
-                                                <Link href={`/dashboard/profile/${app.userId}`} className="font-medium hover:underline">
-                                                    {app.userDisplayName || 'Usuario Desconocido'}
-                                                </Link>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="mr-2"
-                                                onClick={() => handleApplication(app.id, 'reject')}
-                                                disabled={isProcessing === app.id}
-                                            >
-                                                {isProcessing === app.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="h-4 w-4" />}
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                onClick={() => handleApplication(app.id, 'accept')}
-                                                disabled={isProcessing === app.id}
-                                            >
-                                                {isProcessing === app.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4" />}
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    ) : (
-                        <div className="text-center py-10 text-muted-foreground">
-                            <Users className="mx-auto h-12 w-12" />
-                            <p className="mt-4">No hay solicitudes pendientes.</p>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
 
             {role === 'admin' && (
                 <Card className="border-destructive">

@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -12,11 +11,9 @@ import {
   Swords,
   LogOut,
   BrainCircuit,
-  Inbox,
   LifeBuoy,
   Circle,
   Shield,
-  UserPlus,
   Loader2,
 } from 'lucide-react';
 
@@ -53,7 +50,6 @@ import { cn } from '@/lib/utils';
 import { SupportForm } from '@/components/support-form';
 import type { SecurityRole } from '@/hooks/useAuthRole';
 import { BannedScreen } from '@/components/BannedScreen';
-import { NotificationsInbox } from '@/components/notifications-inbox';
 import {
   SidebarProvider,
   Sidebar,
@@ -244,8 +240,6 @@ function MainLayout({ children }: { children: React.ReactNode }) {
     { href: "/dashboard/tournaments", icon: Trophy, label: "Torneos" },
     { href: "/dashboard/scrims", icon: Swords, label: "Scrims" },
     { href: "/dashboard/ai-coach", icon: BrainCircuit, label: "Coach AI" },
-    { href: "/dashboard/friends", icon: UserPlus, label: "Amigos" },
-    { href: "/dashboard/inbox", icon: Inbox, label: "Bandeja de Entrada" },
   ];
 
   if (isPrivilegedUser) {
@@ -284,7 +278,6 @@ function MainLayout({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
           <SidebarTrigger />
           <div className="flex w-full items-center justify-end gap-2 md:gap-4">
-            <NotificationsInbox />
             <ProfileDropdown />
           </div>
         </header>

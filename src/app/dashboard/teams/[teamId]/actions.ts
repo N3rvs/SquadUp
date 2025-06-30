@@ -1,7 +1,5 @@
-
 import { db } from "@/lib/firebase";
 import { addDoc, collection, doc, getDoc, query, serverTimestamp, where, getDocs, updateDoc, arrayUnion } from "firebase/firestore";
-import { revalidatePath } from "next/cache";
 
 export async function applyToTeam(teamId: string, userId: string) {
     if (!userId) {
@@ -54,7 +52,6 @@ export async function applyToTeam(teamId: string, userId: string) {
             type: 'application',
         });
 
-        revalidatePath(`/dashboard/teams/${teamId}`);
         return { success: true };
     } catch (error) {
         console.error("Error applying to team:", error);

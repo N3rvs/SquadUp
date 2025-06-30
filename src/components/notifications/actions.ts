@@ -2,7 +2,6 @@
 import { db, functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
-import { revalidatePath } from 'next/cache';
 
 export interface Notification {
   id: string;
@@ -111,7 +110,6 @@ export async function handleApplicationDecision(
         const processAppFunc = httpsCallable(functions, 'processTeamApplication');
         await processAppFunc({ applicationId, approved: decision === 'accept' });
         
-        revalidatePath('/dashboard', 'layout'); 
         return { success: true };
 
     } catch (error: any) {

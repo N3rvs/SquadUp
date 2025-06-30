@@ -1,8 +1,6 @@
-
 import { auth, db, functions } from "@/lib/firebase";
 import { collection, addDoc, query, where, getDocs, doc, getDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { revalidatePath } from "next/cache";
 
 // --- Friend Request Logic ---
 
@@ -102,7 +100,6 @@ export async function sendTeamInvite(senderId: string, teamId: string, receiverI
             createdAt: serverTimestamp(),
         });
         
-        revalidatePath('/dashboard/marketplace');
         return { success: true };
     } catch (error) {
         console.error("Error sending team invite:", error);

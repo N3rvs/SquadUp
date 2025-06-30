@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { collection, query, where, getDocs, DocumentData, onSnapshot, doc, documentId } from "firebase/firestore";
+import { collection, query, where, getDocs, DocumentData, onSnapshot, doc, documentId, getDoc } from "firebase/firestore";
 import { auth, db, functions } from "@/lib/firebase";
 import { countries as allCountries, getCountryCode } from "@/lib/countries";
 import { valorantRanks as allValorantRanks } from "@/lib/valorant";

@@ -15,9 +15,10 @@ export function ForceLogoutFix() {
       if (user) {
         try {
           const tokenResult = await user.getIdTokenResult(true);
-          if (tokenResult.claims.aud !== process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
+          // Hardcode the project ID check for robustness against stale tokens.
+          if (tokenResult.claims.aud !== 'valorant-squadfinder') {
             console.warn(
-              `Stale token detected for project ${tokenResult.claims.aud}. Expected ${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}. Forcing logout.`
+              `Stale token detected for project ${tokenResult.claims.aud}. Expected 'valorant-squadfinder'. Forcing logout.`
             );
             toast({
               title: 'Actualización de sesión requerida',
@@ -28,6 +29,10 @@ export function ForceLogoutFix() {
           }
         } catch (error) {
             console.error("Error verifying token, forcing logout.", error);
+            toast({
+              title: 'Error de sesión',
+              description: 'Hubo un problema al verificar tu sesión. Por favor, inicia sesión de nuevo.',
+            });
             await auth.signOut();
             router.push('/login');
         }

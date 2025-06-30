@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Inbox, Check, X, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { getPendingNotifications, handleNotification } from './notifications/actions';
+import { getPendingNotifications, handleApplicationDecision } from './notifications/actions';
 import type { Notification } from './notifications/actions';
 import { auth } from '@/lib/firebase';
 import { Badge } from './ui/badge';
@@ -62,7 +62,7 @@ export function NotificationsInbox() {
     decision: 'accept' | 'reject'
   ) => {
     setIsProcessing(notificationId);
-    const result = await handleNotification(notificationId, decision);
+    const result = await handleApplicationDecision(notificationId, decision);
     if (result.success) {
       toast({
         title: '¡Decisión procesada!',

@@ -32,6 +32,8 @@ function getErrorMessage(error: any): string {
                 return "La operación o el usuario no fue encontrado en el servidor.";
             case 'already-exists':
                 return "Ya existe una solicitud de amistad pendiente con este usuario.";
+            case 'invalid-argument':
+                return "Ocurrió un error con la función: Datos inválidos.";
             default:
                 return `Ocurrió un error con la función: ${error.message}`;
         }

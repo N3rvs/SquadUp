@@ -1,3 +1,4 @@
+
 import { auth, db, functions } from "@/lib/firebase";
 import { collection, addDoc, query, where, getDocs, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -64,10 +65,14 @@ export async function getManagedTeams(managerId: string) {
         const q = query(teamsRef, where("ownerId", "==", managerId));
         const querySnapshot = await getDocs(q);
         
-        const teams = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            name: doc.data().name,
-        }));
+        const teams = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                name: data.name,
+                memberIds: data.memberIds || [],
+            };
+        });
         
         return { success: true, teams };
     } catch (error) {

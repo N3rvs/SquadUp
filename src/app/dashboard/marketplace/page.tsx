@@ -57,6 +57,7 @@ interface Player {
 interface ManagedTeam {
     id: string;
     name: string;
+    memberIds: string[];
 }
 
 const valorantRanks = ["All", ...allValorantRanks];
@@ -550,10 +551,17 @@ export default function MarketplacePage() {
                     </div>
                     <DialogFooter>
                         <DialogClose asChild><Button type="button" variant="ghost">Cancelar</Button></DialogClose>
-                        <Button onClick={handleSendInvite} disabled={isSubmitting === playerToInvite?.uid}>
-                            {isSubmitting === playerToInvite?.uid && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Enviar Invitación
-                        </Button>
+                        {(() => {
+                            const isAlreadyMember = !!selectedTeam && !!playerToInvite &&
+                                managedTeams.find(t => t.id === selectedTeam)?.memberIds.includes(playerToInvite.uid);
+
+                            return (
+                                <Button onClick={handleSendInvite} disabled={isSubmitting === playerToInvite?.uid || isAlreadyMember}>
+                                    {isSubmitting === playerToInvite?.uid && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {isAlreadyMember ? 'Ya es miembro' : 'Enviar Invitación'}
+                                </Button>
+                            );
+                        })()}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

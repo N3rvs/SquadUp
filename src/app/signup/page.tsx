@@ -91,6 +91,7 @@ export default function SignUpPage() {
         youtubeUrl: "",
         discord: "",
         avatarUrl: "",
+        ownedTeams: [],
         createdAt: new Date().toISOString(),
       });
 

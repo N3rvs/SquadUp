@@ -18,6 +18,7 @@ import {
   updateDoc,
   Timestamp,
   orderBy,
+  arrayUnion,
 } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "@/lib/firebase";
@@ -394,6 +395,12 @@ export default function TeamsPage() {
             bannerUrl: '',
         });
         const teamId = newTeamRef.id;
+
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, {
+            ownedTeams: arrayUnion(teamId)
+        });
+
         let updateData: { logoUrl?: string; bannerUrl?: string } = {};
         if (logoFile) updateData.logoUrl = await uploadImage(logoFile, `team-logos/${teamId}/logo`);
         if (bannerFile) updateData.bannerUrl = await uploadImage(bannerFile, `team-banners/${teamId}/banner`);

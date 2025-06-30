@@ -38,11 +38,13 @@ const adminTools = [
 ];
 
 export default function AdminDashboardPage() {
-    const { role } = useAuthRole();
+    const { role, isLoading: isRoleLoading } = useAuthRole();
     const [stats, setStats] = useState<Stats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+        if (isRoleLoading) return; // Wait for auth check to complete
+
         const fetchStats = async () => {
             setIsLoading(true);
             try {
@@ -72,7 +74,7 @@ export default function AdminDashboardPage() {
             }
         }
         fetchStats();
-    }, []);
+    }, [isRoleLoading]);
 
     return (
         <div className="grid gap-8">

@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { collection, getDocs, orderBy, query, Timestamp, doc, updateDoc } from 'firebase/firestore';
 import { db, auth, functions } from '@/lib/firebase';
@@ -262,9 +262,9 @@ export default function UsersAdminPage() {
     const [users, setUsers] = useState<UserData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
-    const { role: adminRole } = useAuthRole();
+    const { role: adminRole, isLoading: isRoleLoading } = useAuthRole();
 
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         setIsLoading(true);
         try {
             const usersRef = collection(db, 'users');
@@ -285,12 +285,12 @@ export default function UsersAdminPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [toast]);
 
     useEffect(() => {
+        if (isRoleLoading) return;
         fetchUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [isRoleLoading, fetchUsers]);
     
     const [isDeleting, setIsDeleting] = useState(false);
     const [userToDelete, setUserToDelete] = useState<UserData | null>(null);
@@ -445,4 +445,5 @@ export default function UsersAdminPage() {
         </div>
     );
 }
+
 

@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { auth, functions, db } from '@/lib/firebase';
 import { ArrowLeft, Check, Loader2, Trophy, X } from 'lucide-react';
+import { useAuthRole } from '@/hooks/useAuthRole';
 
 type TournamentStatus = 'Pending' | 'Open' | 'In Progress' | 'Finished' | 'Rejected';
 
@@ -69,6 +70,7 @@ export default function TournamentsAdminPage() {
     const [isUpdating, setIsUpdating] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<TournamentStatus>('Pending');
     const { toast } = useToast();
+    const { isLoading: isRoleLoading } = useAuthRole();
 
     const fetchTournaments = useCallback(async () => {
         setIsLoading(true);
@@ -95,8 +97,9 @@ export default function TournamentsAdminPage() {
     }, [toast]);
 
     useEffect(() => {
+        if (isRoleLoading) return;
         fetchTournaments();
-    }, [fetchTournaments]);
+    }, [fetchTournaments, isRoleLoading]);
 
     const handleUpdateStatus = async (tournamentId: string, status: 'Open' | 'Rejected') => {
         setIsUpdating(tournamentId);

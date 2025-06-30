@@ -115,7 +115,11 @@ export default function TeamManagePage() {
         setIsLoadingApps(true);
         const result = await getTeamApplications(teamId);
         if (result.success && result.applications) {
-            setApplications(result.applications);
+            // Filter to only show pending applications, not invites or processed ones.
+            const pendingApplications = result.applications.filter(
+                (app): app is Application => app.type === 'application' && app.status === 'pending'
+            );
+            setApplications(pendingApplications);
         } else {
             toast({ variant: "destructive", title: "Error", description: result.error });
         }
@@ -192,10 +196,10 @@ export default function TeamManagePage() {
                                             <div className="flex items-center gap-3">
                                                 <Avatar className="h-9 w-9">
                                                     <AvatarImage src={app.userAvatarUrl} />
-                                                    <AvatarFallback>{app.userDisplayName.substring(0, 2)}</AvatarFallback>
+                                                    <AvatarFallback>{app.userDisplayName?.substring(0, 2) ?? 'NA'}</AvatarFallback>
                                                 </Avatar>
                                                 <Link href={`/dashboard/profile/${app.userId}`} className="font-medium hover:underline">
-                                                    {app.userDisplayName}
+                                                    {app.userDisplayName || 'Usuario Desconocido'}
                                                 </Link>
                                             </div>
                                         </TableCell>

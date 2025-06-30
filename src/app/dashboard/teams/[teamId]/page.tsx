@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, MoreHorizontal, Search, Loader2, Crown, Trash2, Edit } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { applyToTeam, updateMemberGameRoles } from "./actions";
+import { applyToTeam } from "./actions";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -150,6 +150,7 @@ export default function TeamDetailPage() {
   const [memberToKick, setMemberToKick] = useState<TeamMember | null>(null);
   const [isKicking, setIsKicking] = useState(false);
   const [memberToEdit, setMemberToEdit] = useState<TeamMember | null>(null);
+  const [isUpdatingRoles, setIsUpdatingRoles] = useState(false);
 
   const rolesForm = useForm<z.infer<typeof rolesFormSchema>>({
     resolver: zodResolver(rolesFormSchema),
@@ -268,16 +269,26 @@ export default function TeamDetailPage() {
   };
 
   const handleUpdateRoles = async (data: z.infer<typeof rolesFormSchema>) => {
-    if (!memberToEdit || !team || !user) return;
+    if (!memberToEdit || !team || !auth.currentUser) return;
     
-    const result = await updateMemberGameRoles(user.uid, team.id, memberToEdit.uid, data.roles);
+    setIsUpdatingRoles(true);
+    try {
+        await auth.currentUser.getIdToken(true); // Force token refresh
+        const updateRolesFunc = httpsCallable(functions, 'updateTeamMemberRoles');
+        
+        await updateRolesFunc({ 
+            teamId: team.id, 
+            memberId: memberToEdit.uid,
+            roles: data.roles 
+        });
 
-    if (result.success) {
-      toast({ title: "Roles actualizados", description: `Los roles de juego de ${memberToEdit.displayName} han sido actualizados.` });
-      setMemberToEdit(null);
-      fetchTeamAndMembers();
-    } else {
-      toast({ variant: "destructive", title: "Error al actualizar roles", description: result.error });
+        toast({ title: "Roles actualizados", description: `Los roles de juego de ${memberToEdit.displayName} han sido actualizados.` });
+        setMemberToEdit(null);
+        fetchTeamAndMembers(); // Refresh data
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Error al actualizar roles", description: getErrorMessage(error) });
+    } finally {
+        setIsUpdatingRoles(false);
     }
   };
 
@@ -572,8 +583,8 @@ export default function TeamDetailPage() {
                         />
                          <DialogFooter>
                             <Button type="button" variant="ghost" onClick={() => setMemberToEdit(null)}>Cancelar</Button>
-                            <Button type="submit" disabled={rolesForm.formState.isSubmitting}>
-                                {rolesForm.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                            <Button type="submit" disabled={rolesForm.formState.isSubmitting || isUpdatingRoles}>
+                                {(rolesForm.formState.isSubmitting || isUpdatingRoles) && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                                 Guardar Cambios
                             </Button>
                         </DialogFooter>

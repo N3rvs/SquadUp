@@ -1,3 +1,4 @@
+
 'use server';
 
 import { db } from "@/lib/firebase";
@@ -63,54 +64,5 @@ export async function applyToTeam(teamId: string, userId: string) {
             return { success: false, error: error.message };
         }
         return { success: false, error: "An unknown error occurred while applying." };
-    }
-}
-
-export async function updateMemberGameRoles(
-    managerId: string,
-    teamId: string,
-    memberId: string,
-    roles: string[]
-): Promise<{ success: boolean; error?: string }> {
-    if (!managerId) {
-        return { success: false, error: "User not authenticated." };
-    }
-    
-    if (managerId === memberId) {
-        return { success: false, error: "You cannot change your own roles from this menu." };
-    }
-
-    try {
-        const teamDocRef = doc(db, "teams", teamId);
-        const teamDoc = await getDoc(teamDocRef);
-
-        if (!teamDoc.exists()) {
-            return { success: false, error: "Team not found." };
-        }
-
-        const teamData = teamDoc.data();
-        // Check if the manager is the owner, or if they are a platform admin/mod/founder
-        if (teamData.ownerId !== managerId) {
-            const managerDoc = await getDoc(doc(db, "users", managerId));
-            const managerRole = managerDoc.data()?.primaryRole;
-            if (managerRole !== 'admin' && managerRole !== 'moderator' && managerRole !== 'founder') {
-                 return { success: false, error: "You don't have permission to edit member roles." };
-            }
-        }
-        
-        const memberDocRef = doc(db, "users", memberId);
-        await updateDoc(memberDocRef, {
-            valorantRoles: roles,
-        });
-        
-        revalidatePath(`/dashboard/teams/${teamId}`);
-        return { success: true };
-
-    } catch (error) {
-        console.error("Error updating member roles:", error);
-        if (error instanceof Error) {
-            return { success: false, error: error.message };
-        }
-        return { success: false, error: "An unknown error occurred while updating roles." };
     }
 }

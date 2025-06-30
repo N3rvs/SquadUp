@@ -1,5 +1,5 @@
 import { db, functions } from '@/lib/firebase';
-import { httpsCallable } from 'firebase-functions/v2';
+import { httpsCallable } from 'firebase/functions';
 import { collection, query, where, getDocs, Timestamp, doc, updateDoc, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 
 export interface Notification {
@@ -42,8 +42,13 @@ async function getTeamApplicationsForOwner(userId: string): Promise<Notification
     try {
         const getAppsFunc = httpsCallable(functions, 'getTeamApplicationsInbox');
         const appPromises = ownedTeamIds.map(async (teamId: string) => {
-            const result = await getAppsFunc({ teamId });
-            return (result.data as any).applications as any[];
+            try {
+                const result = await getAppsFunc({ teamId });
+                return (result.data as any).applications as any[];
+            } catch (error) {
+                console.error(`Error fetching applications for team ${teamId}:`, error);
+                return []; // Return empty array for a specific team if it fails
+            }
         });
 
         const allAppsNested = await Promise.all(appPromises);
@@ -104,25 +109,27 @@ export async function getPendingNotifications(userId: string): Promise<{ success
 
         if (!friendRequestSnapshot.empty) {
             const senderIds = [...new Set(friendRequestSnapshot.docs.map(doc => doc.data().from))];
-            const usersRef = collection(db, "users");
-            const sendersQuery = query(usersRef, where("uid", "in", senderIds));
-            const sendersSnapshot = await getDocs(sendersQuery);
-            const sendersData = new Map(sendersSnapshot.docs.map(doc => [doc.id, doc.data()]));
+            if (senderIds.length > 0) {
+                const usersRef = collection(db, "users");
+                const sendersQuery = query(usersRef, where("uid", "in", senderIds));
+                const sendersSnapshot = await getDocs(sendersQuery);
+                const sendersData = new Map(sendersSnapshot.docs.map(doc => [doc.id, doc.data()]));
 
-            friendRequests = friendRequestSnapshot.docs.map(doc => {
-                const requestData = doc.data();
-                const senderInfo = sendersData.get(requestData.from);
-                return {
-                    id: doc.id,
-                    type: 'friend_request',
-                    sender: {
-                        uid: requestData.from,
-                        displayName: senderInfo?.displayName || 'Unknown User',
-                        avatarUrl: senderInfo?.avatarUrl || '',
-                    },
-                    createdAt: requestData.createdAt instanceof Timestamp ? requestData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
-                };
-            });
+                friendRequests = friendRequestSnapshot.docs.map(doc => {
+                    const requestData = doc.data();
+                    const senderInfo = sendersData.get(requestData.from);
+                    return {
+                        id: doc.id,
+                        type: 'friend_request',
+                        sender: {
+                            uid: requestData.from,
+                            displayName: senderInfo?.displayName || 'Unknown User',
+                            avatarUrl: senderInfo?.avatarUrl || '',
+                        },
+                        createdAt: requestData.createdAt instanceof Timestamp ? requestData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
+                    };
+                });
+            }
         }
         
         const allNotifications = [...applications, ...invites, ...friendRequests];

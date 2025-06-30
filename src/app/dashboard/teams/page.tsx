@@ -33,7 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, PlusCircle, Users, Camera, Briefcase, ShieldCheck, Upload, Edit, Target, Globe } from "lucide-react";
+import { Loader2, PlusCircle, Users, Camera, Briefcase, ShieldCheck, Upload, Edit, Target, Globe, Settings } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -641,6 +641,7 @@ export default function TeamsPage() {
               (() => {
                 const myTeam = myTeams[0];
                 const countryCode = getCountryCode(myTeam.country);
+                const isManager = user?.uid === myTeam.ownerId || isPrivilegedUser;
                 return (
                   <div className="max-w-2xl mx-auto">
                     <Card className="overflow-hidden">
@@ -660,18 +661,22 @@ export default function TeamsPage() {
                             <AvatarFallback>{myTeam.name.substring(0, 2)}</AvatarFallback>
                           </Avatar>
                         </div>
-                        {(user?.uid === myTeam.ownerId || isPrivilegedUser) && (
-                          <Button
-                            variant="secondary"
-                            className="absolute top-4 right-4 z-10"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              handleEditClick(myTeam);
-                            }}
-                          >
-                            <Edit className="mr-2 h-4 w-4" />
-                            Gestionar
-                          </Button>
+                        {isManager && (
+                            <div className="absolute top-4 right-4 z-10 flex gap-2">
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => handleEditClick(myTeam)}
+                                >
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Editar
+                                </Button>
+                                <Button asChild variant="default">
+                                    <Link href={`/dashboard/teams/${myTeam.id}/manage`}>
+                                        <Settings className="mr-2 h-4 w-4" />
+                                        Gestionar
+                                    </Link>
+                                </Button>
+                            </div>
                         )}
                       </div>
                       <CardHeader className="pt-16">

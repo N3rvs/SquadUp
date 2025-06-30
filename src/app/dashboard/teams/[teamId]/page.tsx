@@ -7,8 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs, type DocumentData } from "firebase/firestore";
-import { httpsCallable, FunctionsError } from "firebase/functions";
-import { auth, db, functions } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { getCountryCode } from "@/lib/countries";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, Search, Loader2, Crown } from "lucide-react";
+import { ArrowLeft, Briefcase, Globe, ShieldCheck, Users, Target, Search, Loader2, Crown, Settings } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { applyToTeam } from "./actions";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -35,7 +34,7 @@ interface Team {
   ownerId: string;
   memberIds: string[];
   minRank: string;
-  maxRank: string;
+  maxRank:string;
   isRecruiting?: boolean;
   seekingCoach?: boolean;
   seekingRoles?: string[];
@@ -105,6 +104,7 @@ export default function TeamDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const teamId = typeof params.teamId === 'string' ? params.teamId : '';
+  const { role } = useAuthRole();
 
   const [isApplying, setIsApplying] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState<'idle' | 'applied' | 'member'>('idle');
@@ -120,7 +120,6 @@ export default function TeamDetailPage() {
   const fetchTeamAndMembers = useCallback(async () => {
     if (!teamId) return;
     setIsLoading(true);
-    // Only check application status if a user might be logged in
     if (user !== undefined) {
         setIsCheckingStatus(true);
     }
@@ -202,6 +201,7 @@ export default function TeamDetailPage() {
   const embedUrl = getYoutubeEmbedUrl(team.videoUrl);
   
   const canApply = user && team.isRecruiting && applicationStatus === 'idle';
+  const isManager = user && (team.ownerId === user.uid || role === 'admin' || role === 'moderator');
 
   return (
     <div className="space-y-8">
@@ -233,6 +233,14 @@ export default function TeamDetailPage() {
                  <h1 className="text-3xl md:text-4xl font-bold font-headline">{team.name}</h1>
                  <p className="text-muted-foreground mt-1 max-w-prose">{team.bio}</p>
             </div>
+            {isManager && (
+                <Button asChild>
+                    <Link href={`/dashboard/teams/${team.id}/manage`}>
+                        <Settings className="mr-2 h-4 w-4" />
+                        Gestionar Equipo
+                    </Link>
+                </Button>
+            )}
         </div>
 
         <div className="mt-6 flex flex-wrap gap-4">

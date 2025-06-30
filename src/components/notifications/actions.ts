@@ -3,7 +3,7 @@
 
 import { db, functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
-import { collection, query, where, getDocs, doc, writeBatch, Timestamp, getDoc, arrayUnion } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { revalidatePath } from 'next/cache';
 
 export interface Notification {
@@ -30,11 +30,39 @@ export async function getPendingNotifications(userId: string): Promise<{ success
     try {
         const applicationsRef = collection(db, "teamApplications");
         
-        const appQuery = query(applicationsRef, 
-            where("teamOwnerId", "==", userId), 
-            where("status", "==", "pending"),
-            where("type", "==", "application")
-        );
+        // Find teams where the current user is the owner
+        const teamsRef = collection(db, "teams");
+        const userOwnedTeamsQuery = query(teamsRef, where("ownerId", "==", userId));
+        const userOwnedTeamsSnapshot = await getDocs(userOwnedTeamsQuery);
+        const ownedTeamIds = userOwnedTeamsSnapshot.docs.map(doc => doc.id);
+
+        let applications: Notification[] = [];
+        if (ownedTeamIds.length > 0) {
+            const appQuery = query(applicationsRef, 
+                where("teamId", "in", ownedTeamIds), 
+                where("status", "==", "pending"),
+                where("type", "==", "application")
+            );
+            const appSnapshot = await getDocs(appQuery);
+            applications = appSnapshot.docs.map(doc => {
+                const appData = doc.data();
+                return {
+                    id: doc.id,
+                    type: 'application',
+                    team: {
+                        id: appData.teamId,
+                        name: appData.teamName,
+                    },
+                    applicant: {
+                        uid: appData.userId,
+                        displayName: appData.userDisplayName || 'Unknown User',
+                        avatarUrl: appData.userAvatarUrl || '',
+                    },
+                    createdAt: appData.createdAt instanceof Timestamp ? appData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
+                };
+            });
+        }
+
 
         const inviteQuery = query(applicationsRef,
             where("userId", "==", userId),
@@ -42,29 +70,8 @@ export async function getPendingNotifications(userId: string): Promise<{ success
             where("type", "==", "invite")
         );
 
-        const [appSnapshot, inviteSnapshot] = await Promise.all([
-            getDocs(appQuery),
-            getDocs(inviteQuery)
-        ]);
+        const inviteSnapshot = await getDocs(inviteQuery);
         
-        const applications: Notification[] = appSnapshot.docs.map(doc => {
-            const appData = doc.data();
-            return {
-                id: doc.id,
-                type: 'application',
-                team: {
-                    id: appData.teamId,
-                    name: appData.teamName,
-                },
-                applicant: {
-                    uid: appData.userId,
-                    displayName: appData.userDisplayName || 'Unknown User',
-                    avatarUrl: appData.userAvatarUrl || '',
-                },
-                createdAt: appData.createdAt instanceof Timestamp ? appData.createdAt.toDate().toISOString() : new Date(0).toISOString(),
-            };
-        });
-
         const invites: Notification[] = inviteSnapshot.docs.map(doc => {
             const inviteData = doc.data();
             return {
@@ -88,7 +95,7 @@ export async function getPendingNotifications(userId: string): Promise<{ success
     } catch (error) {
         console.error("Error fetching notifications:", error);
         if (error instanceof Error) {
-            if (error.message.includes('composite index')) {
+            if (error.message.includes('composite index') || error.message.includes('requires an index')) {
                 return { success: false, error: 'Database requires a new index. Please check the browser console for a link to create it.' };
             }
             return { success: false, error: `Failed to fetch notifications: ${error.message}` };
@@ -98,19 +105,19 @@ export async function getPendingNotifications(userId: string): Promise<{ success
 }
 
 
-export async function handleNotification(
-  notificationId: string,
+export async function handleApplicationDecision(
+  applicationId: string,
   decision: 'accept' | 'reject'
 ): Promise<{ success: boolean; error?: string; }> {
     try {
         const processAppFunc = httpsCallable(functions, 'processTeamApplication');
-        await processAppFunc({ applicationId: notificationId, approved: decision === 'accept' });
+        await processAppFunc({ applicationId, approved: decision === 'accept' });
         
         revalidatePath('/dashboard', 'layout'); 
         return { success: true };
 
     } catch (error: any) {
-        console.error(`Error handling notification ${decision}:`, error);
+        console.error(`Error handling application decision ${decision}:`, error);
         return { success: false, error: error.message || `An unknown error occurred while handling the application.` };
     }
 }

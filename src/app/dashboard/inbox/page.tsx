@@ -7,15 +7,14 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import { getPendingNotifications, handleNotification, type Notification } from '@/components/notifications/actions';
+import { getPendingNotifications, type Notification, handleApplicationDecision } from '@/components/notifications/actions';
 import { auth } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Separator } from '@/components/ui/separator';
 import { Inbox, Check, X, Loader2 } from 'lucide-react';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
@@ -78,7 +77,7 @@ export default function InboxPage() {
         decision: 'accept' | 'reject'
     ) => {
         setIsProcessing(notificationId);
-        const result = await handleNotification(notificationId, decision);
+        const result = await handleApplicationDecision(notificationId, decision);
         if (result.success) {
             toast({
                 title: '¡Decisión procesada!',
@@ -90,6 +89,113 @@ export default function InboxPage() {
         }
         setIsProcessing(null);
     };
+    
+    const teamApplications = notifications.filter(n => n.type === 'application');
+    const teamInvites = notifications.filter(n => n.type === 'invite');
+
+    const renderNotificationCard = (notification: Notification) => {
+        const isInvite = notification.type === 'invite';
+        
+        if (isInvite) {
+            return (
+                 <Card key={notification.id}>
+                    <CardContent className="p-4">
+                        <div className="flex items-start gap-4">
+                            <Avatar className="h-12 w-12 border">
+                                <AvatarImage src={notification.team.logoUrl} />
+                                <AvatarFallback>{notification.team.name.substring(0, 2)}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 text-sm">
+                                <p>
+                                    El equipo{' '}
+                                    <Link href={`/dashboard/teams/${notification.team.id}`} className="font-semibold hover:underline">{notification.team.name}</Link>
+                                    {' '}te ha invitado a unirte.
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: es })}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger>
+                                            <span tabIndex={0}>
+                                                <Button size="sm" variant="outline" disabled={true}>
+                                                    <X className="h-4 w-4" />
+                                                    <span className="ml-2 hidden sm:inline">Rechazar</span>
+                                                </Button>
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Próximamente</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                        <Tooltip>
+                                        <TooltipTrigger>
+                                            <span tabIndex={0}>
+                                                <Button size="sm" disabled={true}>
+                                                    <Check className="h-4 w-4" />
+                                                    <span className="ml-2 hidden sm:inline">Aceptar</span>
+                                                </Button>
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Próximamente</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )
+        }
+        
+        if (notification.type === 'application' && notification.applicant) {
+            return (
+                 <Card key={notification.id}>
+                    <CardContent className="p-4">
+                        <div className="flex items-start gap-4">
+                            <Avatar className="h-12 w-12 border">
+                                <AvatarImage src={notification.applicant.avatarUrl} />
+                                <AvatarFallback>{notification.applicant.displayName.substring(0, 2)}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 text-sm">
+                                <p>
+                                    <Link href={`/dashboard/profile/${notification.applicant.uid}`} className="font-semibold hover:underline">{notification.applicant.displayName}</Link>
+                                    {' '}quiere unirse a tu equipo{' '}
+                                    <Link href={`/dashboard/teams/${notification.team.id}`} className="font-semibold hover:underline">{notification.team.name}</Link>.
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: es })}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => onHandleApplication(notification.id, 'reject')}
+                                    disabled={isProcessing === notification.id}
+                                >
+                                    {isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                                    <span className="ml-2 hidden sm:inline">Rechazar</span>
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    onClick={() => onHandleApplication(notification.id, 'accept')}
+                                    disabled={isProcessing === notification.id}
+                                >
+                                    {isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                    <span className="ml-2 hidden sm:inline">Aceptar</span>
+                                </Button>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )
+        }
+        return null;
+    }
 
     return (
         <div className="grid gap-8">
@@ -104,108 +210,23 @@ export default function InboxPage() {
                     <NotificationSkeleton />
                 </div>
             ) : notifications.length > 0 ? (
-                <div className="space-y-4">
-                    {notifications.map((notification) => {
-                        const isInvite = notification.type === 'invite';
-                        if (notification.type === 'application' && notification.applicant) {
-                            return (
-                                <Card key={notification.id}>
-                                    <CardContent className="p-4">
-                                        <div className="flex items-start gap-4">
-                                            <Avatar className="h-12 w-12 border">
-                                                <AvatarImage src={notification.applicant.avatarUrl} />
-                                                <AvatarFallback>{notification.applicant.displayName.substring(0, 2)}</AvatarFallback>
-                                            </Avatar>
-                                            <div className="flex-1 text-sm">
-                                                <p>
-                                                    <Link href={`/dashboard/profile/${notification.applicant.uid}`} className="font-semibold hover:underline">{notification.applicant.displayName}</Link>
-                                                    {' '}quiere unirse a tu equipo{' '}
-                                                    <Link href={`/dashboard/teams/${notification.team.id}`} className="font-semibold hover:underline">{notification.team.name}</Link>.
-                                                </p>
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: es })}
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => onHandleApplication(notification.id, 'reject')}
-                                                    disabled={isProcessing === notification.id}
-                                                >
-                                                    {isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-                                                    <span className="ml-2 hidden sm:inline">Rechazar</span>
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => onHandleApplication(notification.id, 'accept')}
-                                                    disabled={isProcessing === notification.id}
-                                                >
-                                                    {isProcessing === notification.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                                                    <span className="ml-2 hidden sm:inline">Aceptar</span>
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            );
-                        }
-                         if (isInvite) {
-                            return (
-                                <Card key={notification.id}>
-                                    <CardContent className="p-4">
-                                        <div className="flex items-start gap-4">
-                                            <Avatar className="h-12 w-12 border">
-                                                <AvatarImage src={notification.team.logoUrl} />
-                                                <AvatarFallback>{notification.team.name.substring(0, 2)}</AvatarFallback>
-                                            </Avatar>
-                                            <div className="flex-1 text-sm">
-                                                <p>
-                                                    El equipo{' '}
-                                                    <Link href={`/dashboard/teams/${notification.team.id}`} className="font-semibold hover:underline">{notification.team.name}</Link>
-                                                    {' '}te ha invitado a unirte.
-                                                </p>
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true, locale: es })}
-                                                </p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <TooltipProvider>
-                                                    <Tooltip>
-                                                        <TooltipTrigger>
-                                                            <span tabIndex={0}>
-                                                                <Button size="sm" variant="outline" disabled={true}>
-                                                                    <X className="h-4 w-4" />
-                                                                    <span className="ml-2 hidden sm:inline">Rechazar</span>
-                                                                </Button>
-                                                            </span>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>Próximamente</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                     <Tooltip>
-                                                        <TooltipTrigger>
-                                                            <span tabIndex={0}>
-                                                                <Button size="sm" disabled={true}>
-                                                                    <Check className="h-4 w-4" />
-                                                                     <span className="ml-2 hidden sm:inline">Aceptar</span>
-                                                                </Button>
-                                                            </span>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>Próximamente</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            );
-                        }
-                        return null;
-                    })}
+                 <div className="grid gap-8">
+                    {teamApplications.length > 0 && (
+                        <div>
+                            <h2 className="text-xl font-semibold mb-4">Solicitudes para unirse a tu equipo</h2>
+                            <div className="space-y-4">
+                                {teamApplications.map(renderNotificationCard)}
+                            </div>
+                        </div>
+                    )}
+                     {teamInvites.length > 0 && (
+                        <div>
+                            <h2 className="text-xl font-semibold mb-4">Invitaciones para ti</h2>
+                             <div className="space-y-4">
+                                {teamInvites.map(renderNotificationCard)}
+                            </div>
+                        </div>
+                    )}
                 </div>
             ) : (
                 <Card>

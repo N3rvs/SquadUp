@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getRole() {
+      return request.auth.token.role;
+    }
+
+    function isAdmin() {
+      return getRole() == 'admin';
+    }
+
+    function isModerator() {
+      return getRole() == 'moderator';
+    }
+
+    function isStaff() {
+      return isAdmin() || isModerator();
+    }
+
+    function isBanned() {
+      return request.auth.token.isBanned == true;
+    }
+
+    function isNotBanned() {
+      return !('isBanned' in request.auth.token) || request.auth.token.isBanned == false;
+    }
+
+    // USERS
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if request.auth.uid == userId;
+      allow update: if request.auth.uid == userId && isNotBanned();
+      allow delete: if isAdmin();
+    }
+
+    // TEAMS
+    match /teams/{teamId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isNotBanned();
+      allow update, delete: if request.auth.uid == resource.data.ownerId || isStaff();
+    }
+
+    // TEAM APPLICATIONS
+    match /teamApplications/{applicationId} {
+      allow create: if isAuthenticated() && isNotBanned();
+      allow read, delete: if request.auth.uid == resource.data.userId || isStaff();
+      allow update: if request.auth.uid == resource.data.teamOwnerId || isStaff();
+    }
+
+    // FRIEND REQUESTS
+    match /friendRequests/{requestId} {
+      allow create: if isAuthenticated();
+      allow read, update, delete: if request.auth.uid == resource.data.from || request.auth.uid == resource.data.to;
+    }
+
+    // SUPPORT TICKETS
+    match /supportTickets/{ticketId} {
+      allow create: if isAuthenticated();
+      allow read, update: if isStaff();
+      allow delete: if false;
+    }
+
+    // DEFAULT DENY
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

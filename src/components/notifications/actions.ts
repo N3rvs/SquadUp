@@ -126,14 +126,3 @@ export async function handleApplicationDecision(applicationId: string, decision:
         return { success: false, error: error.message || `An unknown error occurred while handling the application.` };
     }
 }
-
-export async function handleFriendRequestDecision(requestId: string, decision: 'accept' | 'reject'): Promise<{ success: boolean; error?: string; }> {
-    try {
-        const respondToRequestFunc = httpsCallable(functions, 'respondToFriendRequest');
-        await respondToRequestFunc({ requestId, accept: decision === 'accept' });
-        return { success: true };
-    } catch (error: any) {
-        console.error(`Error handling friend request decision ${decision}:`, error);
-        return { success: false, error: error.message || `An unknown error occurred while handling the request.` };
-    }
-}

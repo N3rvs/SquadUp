@@ -6,7 +6,8 @@ import { onAuthStateChanged, type User } from 'firebase/auth';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import { getPendingNotifications, type Notification, handleApplicationDecision, handleFriendRequestDecision } from '@/components/notifications/actions';
+import { getPendingNotifications, type Notification, handleApplicationDecision } from '@/components/notifications/actions';
+import { respondToFriendRequest } from '@/app/dashboard/friends/actions';
 import { auth } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 
@@ -85,7 +86,7 @@ export default function InboxPage() {
 
     const onHandleFriendRequest = async (requestId: string, decision: 'accept' | 'reject') => {
         setIsProcessing(requestId);
-        const result = await handleFriendRequestDecision(requestId, decision);
+        const result = await respondToFriendRequest(requestId, decision);
         if (result.success) {
             toast({ title: '¡Decisión procesada!', description: `La solicitud de amistad ha sido ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
             setNotifications((prev) => prev.filter((n) => n.id !== requestId));

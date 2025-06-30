@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { handleFriendRequestDecision } from '@/components/notifications/actions';
-import { getFriendsList, getPendingFriendRequests } from './actions';
+import { getFriendsList, getPendingFriendRequests, respondToFriendRequest } from './actions';
 import type { Friend, FriendRequest } from './actions';
 
 import { Button } from '@/components/ui/button';
@@ -79,7 +78,7 @@ export default function FriendsPage() {
 
     const onHandleRequest = async (requestId: string, decision: 'accept' | 'reject') => {
         setIsProcessing(requestId);
-        const result = await handleFriendRequestDecision(requestId, decision);
+        const result = await respondToFriendRequest(requestId, decision);
         if (result.success) {
             toast({ title: '¡Decisión procesada!', description: `La solicitud ha sido ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
             // Refetch data to update both lists

@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Inbox, Check, X, Loader2, UserPlus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { getPendingNotifications, handleApplicationDecision, handleFriendRequestDecision } from './notifications/actions';
+import { getPendingNotifications, handleApplicationDecision } from './notifications/actions';
+import { respondToFriendRequest } from '@/app/dashboard/friends/actions';
 import type { Notification } from './notifications/actions';
 import { auth } from '@/lib/firebase';
 import { Badge } from './ui/badge';
@@ -70,7 +71,7 @@ export function NotificationsInbox() {
   
   const onHandleFriendRequest = async (requestId: string, decision: 'accept' | 'reject') => {
     setIsProcessing(requestId);
-    const result = await handleFriendRequestDecision(requestId, decision);
+    const result = await respondToFriendRequest(requestId, decision);
     if (result.success) {
         toast({ title: '¡Decisión procesada!', description: `La solicitud de amistad ha sido ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
         setNotifications((prev) => prev.filter((n) => n.id !== requestId));

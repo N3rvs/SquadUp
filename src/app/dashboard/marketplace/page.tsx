@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { collection, query, where, getDocs, DocumentData, onSnapshot, doc } from "firebase/firestore";
+import { collection, query, where, getDocs, DocumentData, onSnapshot, doc, documentId } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { countries as allCountries, getCountryCode } from "@/lib/countries";
 import { valorantRanks as allValorantRanks } from "@/lib/valorant";
@@ -196,7 +196,7 @@ export default function MarketplacePage() {
                         playerQuery = query(playerQuery, where("valorantRank", "==", rankFilter));
                     }
                     const querySnapshot = await getDocs(playerQuery);
-                    const fetchedPlayers = querySnapshot.docs.map(doc => doc.data() as Player);
+                    const fetchedPlayers = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as Player));
                     const otherPlayers = fetchedPlayers.filter(p => p.uid !== user?.uid);
                     setPlayers(otherPlayers);
                 } else {

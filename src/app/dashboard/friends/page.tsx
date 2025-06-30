@@ -18,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Check, X, Loader2, UserMinus, MessageSquare } from 'lucide-react';
 import { ChatModal } from '@/components/chat-modal';
-import { doc, getDocs, onSnapshot, collection, query, where, Timestamp } from 'firebase/firestore';
+import { doc, getDocs, onSnapshot, collection, query, where, Timestamp, documentId } from 'firebase/firestore';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 
@@ -96,12 +96,12 @@ export default function FriendsPage() {
                     for (let i = 0; i < friendIds.length; i += 10) {
                         const chunk = friendIds.slice(i, i + 10);
                         if (chunk.length > 0) {
-                            const friendsQuery = query(collection(db, "users"), where("uid", "in", chunk));
+                            const friendsQuery = query(collection(db, "users"), where(documentId(), "in", chunk));
                             const friendsSnapshot = await getDocs(friendsQuery);
                             friendsSnapshot.forEach(doc => {
                                 const data = doc.data();
                                 friendsData.push({
-                                    uid: data.uid,
+                                    uid: doc.id,
                                     displayName: data.displayName,
                                     avatarUrl: data.avatarUrl || '',
                                     primaryRole: data.primaryRole || 'Player',
@@ -149,7 +149,7 @@ export default function FriendsPage() {
             }
 
             const usersRef = collection(db, "users");
-            const sendersQuery = query(usersRef, where("uid", "in", senderIds));
+            const sendersQuery = query(usersRef, where(documentId(), "in", senderIds));
             const sendersSnapshot = await getDocs(sendersQuery);
             const sendersData = new Map(sendersSnapshot.docs.map(doc => [doc.id, doc.data()]));
 

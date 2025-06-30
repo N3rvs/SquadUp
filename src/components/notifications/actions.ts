@@ -50,17 +50,15 @@ async function getTeamApplicationsForOwner(userId: string): Promise<Notification
                 return (result.data as any).applications as any[];
             } catch (error) {
                 console.error(`Error fetching applications for team ${teamId}:`, error);
-                return []; // Return empty array for a specific team if it fails
+                return [];
             }
         });
 
         const allAppsNested = await Promise.all(appPromises);
         const allAppsFlat = allAppsNested.flat();
-
-        const applicantIds = allAppsFlat
-            .filter(app => app && app.type === 'application' && app.status === 'pending')
-            .map(app => app.userId)
-            .filter(Boolean);
+        
+        const pendingApplications = allAppsFlat.filter(app => app && app.type === 'application' && app.status === 'pending');
+        const applicantIds = pendingApplications.map(app => app.userId).filter(Boolean);
 
         if (applicantIds.length > 0) {
             const usersRef = collection(db, "users");
@@ -68,32 +66,25 @@ async function getTeamApplicationsForOwner(userId: string): Promise<Notification
             const usersSnapshot = await getDocs(usersQuery);
             const usersData = new Map(usersSnapshot.docs.map(doc => [doc.id, doc.data()]));
             
-            allAppsFlat.forEach(app => {
-                if (app && usersData.has(app.userId)) {
-                    const userData = usersData.get(app.userId) as DocumentData;
-                    app.userDisplayName = userData.displayName || 'Unknown User';
-                    app.userAvatarUrl = userData.avatarUrl || '';
-                }
-            });
-        }
-
-
-        return allAppsFlat
-            .filter(app => app && app.type === 'application' && app.status === 'pending')
-            .map(app => {
+            return pendingApplications.map(app => {
                 const createdAt = app.createdAt?.seconds ? new Timestamp(app.createdAt.seconds, app.createdAt.nanoseconds).toDate() : new Date();
+                const applicantData = usersData.get(app.userId) as DocumentData | undefined;
+
                 return {
                     id: app.id,
                     type: 'application',
                     team: { id: app.teamId, name: app.teamName, logoUrl: app.teamLogoUrl || '' },
                     applicant: { 
                         uid: app.userId, 
-                        displayName: app.userDisplayName || 'Unknown User', 
-                        avatarUrl: app.userAvatarUrl || '' 
+                        displayName: applicantData?.displayName || 'Usuario Desconocido', 
+                        avatarUrl: applicantData?.avatarUrl || '' 
                     },
                     createdAt: createdAt.toISOString(),
                 };
             });
+        }
+        
+        return [];
     } catch (error) {
         console.error("Error fetching team applications via callable function:", error);
         return [];
@@ -105,43 +96,38 @@ async function getFriendRequestsForUser(userId: string): Promise<Notification[]>
     const q = query(requestsRef, where("to", "==", userId), where("status", "==", "pending"));
     const querySnapshot = await getDocs(q);
 
-    // Initial mapping from Firestore document to a base notification object
-    const notifications: Notification[] = querySnapshot.docs.map(requestDoc => {
-        const requestData = requestDoc.data();
+    const baseNotifications = querySnapshot.docs.map(requestDoc => ({
+        doc: requestDoc,
+        data: requestDoc.data()
+    }));
+
+    const fromUserIds = baseNotifications.map(n => n.data.from).filter(Boolean);
+    
+    if (fromUserIds.length === 0) {
+        return [];
+    }
+
+    const usersRef = collection(db, "users");
+    const usersQuery = query(usersRef, where(documentId(), "in", fromUserIds));
+    const usersSnapshot = await getDocs(usersQuery);
+    const usersData = new Map(usersSnapshot.docs.map(doc => [doc.id, doc.data()]));
+
+    return baseNotifications.map(n => {
+        const requestData = n.data;
         const createdAt = requestData.createdAt instanceof Timestamp ? requestData.createdAt.toDate() : new Date();
-        
+        const senderData = usersData.get(requestData.from) as DocumentData | undefined;
+
         return {
-            id: requestDoc.id,
+            id: n.doc.id,
             type: 'friend_request',
             sender: {
                 uid: requestData.from,
-                displayName: requestData.fromDisplayName || 'Usuario Desconocido', // Keep fallback
-                avatarUrl: requestData.fromAvatarUrl,
+                displayName: senderData?.displayName || 'Usuario Desconocido',
+                avatarUrl: senderData?.avatarUrl || '',
             },
             createdAt: createdAt.toISOString(),
         };
     });
-
-    // Now, fetch the latest user data for all senders to ensure it's up-to-date
-    // and correct any missing information from denormalization.
-    const fromUserIds = notifications.map(n => n.sender?.uid).filter(Boolean) as string[];
-    
-    if (fromUserIds.length > 0) {
-        const usersRef = collection(db, "users");
-        const usersQuery = query(usersRef, where(documentId(), "in", fromUserIds));
-        const usersSnapshot = await getDocs(usersQuery);
-        const usersData = new Map(usersSnapshot.docs.map(doc => [doc.id, doc.data()]));
-
-        notifications.forEach(n => {
-            if (n.sender?.uid && usersData.has(n.sender.uid)) {
-                const userData = usersData.get(n.sender.uid) as DocumentData;
-                n.sender.displayName = userData.displayName || 'Usuario Desconocido';
-                n.sender.avatarUrl = userData.avatarUrl || '';
-            }
-        });
-    }
-
-    return notifications;
 }
 
 
@@ -151,13 +137,19 @@ export async function getPendingNotifications(userId: string): Promise<{ success
     }
 
     try {
-        // 1. Get team applications for teams the user owns
-        const applications = await getTeamApplicationsForOwner(userId);
+        const applicationsPromise = getTeamApplicationsForOwner(userId);
+        const friendRequestsPromise = getFriendRequestsForUser(userId);
 
-        // 2. Get team invites for the user
         const applicationsRef = collection(db, "teamApplications");
         const inviteQuery = query(applicationsRef, where("userId", "==", userId), where("status", "==", "pending"), where("type", "==", "invite"));
-        const inviteSnapshot = await getDocs(inviteQuery);
+        const invitesPromise = getDocs(inviteQuery);
+        
+        const [applications, friendRequests, inviteSnapshot] = await Promise.all([
+            applicationsPromise,
+            friendRequestsPromise,
+            invitesPromise
+        ]);
+
         const invites: Notification[] = inviteSnapshot.docs.map(doc => {
             const inviteData = doc.data();
             const createdAt = inviteData.createdAt instanceof Timestamp ? inviteData.createdAt.toDate() : new Date();
@@ -168,9 +160,6 @@ export async function getPendingNotifications(userId: string): Promise<{ success
                 createdAt: createdAt.toISOString(),
             };
         });
-
-        // 3. Get friend requests for the user
-        const friendRequests = await getFriendRequestsForUser(userId);
         
         const allNotifications = [...applications, ...invites, ...friendRequests];
         allNotifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

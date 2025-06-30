@@ -19,6 +19,7 @@ import {
   Timestamp,
   orderBy,
   arrayUnion,
+  onSnapshot,
 } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "@/lib/firebase";
@@ -284,23 +285,8 @@ export default function TeamsPage() {
     mode: "onChange",
   });
 
-  const fetchTeams = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const q = query(collection(db, "teams"), orderBy("createdAt", "desc"));
-      const querySnapshot = await getDocs(q);
-      const fetchedTeams = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
-      setTeams(fetchedTeams);
-    } catch (error) {
-      console.error("Error fetching teams:", error);
-      toast({ variant: "destructive", title: "Error al cargar equipos" });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [toast]);
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         const userDocRef = doc(db, "users", currentUser.uid);
@@ -320,10 +306,24 @@ export default function TeamsPage() {
       } else {
         setProfile(null);
       }
-      await fetchTeams();
     });
-    return () => unsubscribe();
-  }, [fetchTeams]);
+
+    const q = query(collection(db, "teams"), orderBy("createdAt", "desc"));
+    const unsubscribeTeams = onSnapshot(q, (querySnapshot) => {
+        const fetchedTeams = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+        setTeams(fetchedTeams);
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching teams:", error);
+        toast({ variant: "destructive", title: "Error al cargar equipos" });
+        setIsLoading(false);
+    });
+
+    return () => {
+        unsubscribeAuth();
+        unsubscribeTeams();
+    };
+  }, [toast]);
 
   const handleImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'banner') => {
     const file = e.target.files?.[0];
@@ -440,7 +440,6 @@ export default function TeamsPage() {
         toast({ title: "¡Equipo Creado!" });
       }
 
-      await fetchTeams();
       setIsFormDialogOpen(false);
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -448,7 +447,7 @@ export default function TeamsPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [user, profile, logoFile, bannerFile, editingTeam, uploadImage, toast, fetchTeams]);
+  }, [user, profile, logoFile, bannerFile, editingTeam, uploadImage, toast]);
 
   const canCreateTeam = profile?.primaryRole === 'fundador';
   const isPrivilegedUser = userSecurityRole === 'admin' || userSecurityRole === 'moderator';

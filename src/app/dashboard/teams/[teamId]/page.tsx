@@ -1,12 +1,12 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs, type DocumentData } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, type DocumentData, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { getCountryCode } from "@/lib/countries";
 
@@ -112,23 +112,20 @@ export default function TeamDetailPage() {
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
-  const fetchTeamAndMembers = useCallback(async () => {
+  useEffect(() => {
     if (!teamId) return;
+
     setIsLoading(true);
-    if (user !== undefined) {
-        setIsCheckingStatus(true);
-    }
+    setIsCheckingStatus(true);
 
-    try {
-      const teamDocRef = doc(db, "teams", teamId);
-      const teamDocSnap = await getDoc(teamDocRef);
-
+    const teamDocRef = doc(db, "teams", teamId);
+    const unsubscribeTeam = onSnapshot(teamDocRef, (teamDocSnap) => {
       if (!teamDocSnap.exists()) {
         toast({ variant: "destructive", title: "Equipo no encontrado" });
         router.push("/dashboard/teams");
@@ -143,8 +140,9 @@ export default function TeamDetailPage() {
         } else {
           const applicationsRef = collection(db, "teamApplications");
           const q = query(applicationsRef, where("teamId", "==", teamId), where("userId", "==", user.uid), where("status", "==", "pending"));
-          const appSnapshot = await getDocs(q);
-          setApplicationStatus(!appSnapshot.empty ? 'applied' : 'idle');
+          getDocs(q).then(appSnapshot => {
+            setApplicationStatus(!appSnapshot.empty ? 'applied' : 'idle');
+          });
         }
       } else {
         setApplicationStatus('idle');
@@ -161,18 +159,16 @@ export default function TeamDetailPage() {
           setMembers([]);
       }
 
-    } catch (error) {
-      console.error("Error fetching team details:", error);
-      toast({ variant: "destructive", title: "Error al cargar el equipo" });
-    } finally {
       setIsLoading(false);
       setIsCheckingStatus(false);
-    }
-  }, [teamId, router, toast, user]);
+    }, (error) => {
+      console.error("Error fetching team details:", error);
+      toast({ variant: "destructive", title: "Error al cargar el equipo" });
+      setIsLoading(false);
+    });
 
-  useEffect(() => {
-    fetchTeamAndMembers();
-  }, [fetchTeamAndMembers]);
+    return () => unsubscribeTeam();
+  }, [teamId, router, toast, user]);
 
 
   const handleApply = async () => {

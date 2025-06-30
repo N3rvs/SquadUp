@@ -177,9 +177,9 @@ export default function DashboardLayout({
   };
 
   const statusInfo = {
-    disponible: { text: "Disponible", color: "text-green-500" },
-    ausente: { text: "Ausente", color: "text-yellow-500" },
-    ocupado: { text: "Ocupado", color: "text-red-500" },
+    disponible: { text: "Disponible", color: "text-green-500", bg: "bg-green-500" },
+    ausente: { text: "Ausente", color: "text-yellow-500", bg: "bg-yellow-500" },
+    ocupado: { text: "Ocupado", color: "text-red-500", bg: "bg-red-500" },
   };
 
   if (userProfile?.isBanned && (!userProfile.banExpiresAt || userProfile.banExpiresAt.toDate() > new Date())) {
@@ -225,15 +225,18 @@ export default function DashboardLayout({
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="relative h-9 w-9 rounded-full"
+                  className="relative h-9 w-9 rounded-full p-0"
                 >
                     {isLoadingProfile ? (
                         <Skeleton className="h-9 w-9 rounded-full" />
                     ) : (
-                        <Avatar className="h-9 w-9">
-                            <AvatarImage src={userProfile?.avatarUrl} alt={userProfile?.displayName || ''} />
-                            <AvatarFallback>{userProfile?.displayName?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
-                        </Avatar>
+                        <div className="relative h-9 w-9">
+                            <Avatar className="h-full w-full">
+                                <AvatarImage src={userProfile?.avatarUrl} alt={userProfile?.displayName || ''} />
+                                <AvatarFallback>{userProfile?.displayName?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                            </Avatar>
+                            <span className={cn("absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-card", statusInfo[status].bg)} />
+                        </div>
                     )}
                 </Button>
               </DropdownMenuTrigger>

@@ -340,7 +340,7 @@ export default function MarketplacePage() {
                                            <Link href={`/dashboard/profile/${player.uid}`} className="flex items-center gap-3">
                                               <Avatar className="h-10 w-10 border">
                                                   <AvatarImage src={player.avatarUrl} alt={player.displayName} />
-                                                  <AvatarFallback>{player.displayName.substring(0,2)}</AvatarFallback>
+                                                  <AvatarFallback>{player.displayName?.substring(0,2) || '??'}</AvatarFallback>
                                               </Avatar>
                                               <span className="font-medium hover:underline">{player.displayName}</span>
                                           </Link>
@@ -349,7 +349,7 @@ export default function MarketplacePage() {
                                             <div className="flex justify-between space-x-4">
                                             <Avatar>
                                                 <AvatarImage src={player.avatarUrl} />
-                                                <AvatarFallback>{player.displayName.substring(0,2)}</AvatarFallback>
+                                                <AvatarFallback>{player.displayName?.substring(0,2) || '??'}</AvatarFallback>
                                             </Avatar>
                                             <div className="space-y-1">
                                                 <h4 className="text-sm font-semibold">{player.displayName}</h4>

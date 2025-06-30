@@ -24,6 +24,13 @@ import { useAuthRole } from "@/hooks/useAuthRole";
 
 
 // --- TYPE DEFINITIONS ---
+interface TeamMember {
+    uid: string;
+    displayName: string;
+    avatarUrl: string;
+    valorantRoles: string[];
+    primaryRole?: string;
+}
 
 interface Team {
   id: string;
@@ -33,6 +40,7 @@ interface Team {
   bio?: string;
   ownerId: string;
   memberIds: string[];
+  members: TeamMember[];
   minRank: string;
   maxRank:string;
   isRecruiting?: boolean;
@@ -42,13 +50,6 @@ interface Team {
   country: string;
 }
 
-interface TeamMember extends DocumentData {
-    uid: string;
-    displayName: string;
-    avatarUrl: string;
-    valorantRoles: string[];
-    primaryRole?: string;
-}
 
 function getYoutubeEmbedUrl(url?: string): string | null {
     if (!url) return null;
@@ -149,19 +150,15 @@ export default function TeamDetailPage() {
         setApplicationStatus('idle');
       }
 
-      if (teamData.memberIds && teamData.memberIds.length > 0) {
-        const usersRef = collection(db, "users");
-        const q = query(usersRef, where("uid", "in", teamData.memberIds));
-        const querySnapshot = await getDocs(q);
-        const fetchedMembers = querySnapshot.docs.map(doc => doc.data() as TeamMember);
-        
-        const sortedMembers = [...fetchedMembers].sort((a, b) => {
+      if (teamData.members && teamData.members.length > 0) {
+        const sortedMembers = [...teamData.members].sort((a, b) => {
             if (a.uid === teamData.ownerId) return -1;
             if (b.uid === teamData.ownerId) return 1;
             return a.displayName.localeCompare(b.displayName);
         });
-        
         setMembers(sortedMembers);
+      } else {
+          setMembers([]);
       }
 
     } catch (error) {

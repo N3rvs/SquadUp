@@ -1,9 +1,10 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getFriendsList, getPendingFriendRequests, respondToFriendRequest } from './actions';
 import type { Friend, FriendRequest } from './actions';
@@ -16,6 +17,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Check, X, Loader2, UserPlus, UserMinus, MessageSquare } from 'lucide-react';
+import { ChatModal } from '@/components/chat-modal';
+import { doc, getDoc } from 'firebase/firestore';
 
 function PageSkeleton() {
     return (
@@ -34,19 +37,28 @@ function PageSkeleton() {
     );
 }
 
+type ChatUser = {
+  uid: string;
+  displayName: string;
+  avatarUrl?: string;
+};
+
 export default function FriendsPage() {
     const [user, setUser] = useState<User | null>(null);
+    const [currentUser, setCurrentUser] = useState<ChatUser | null>(null);
     const [friends, setFriends] = useState<Friend[]>([]);
     const [requests, setRequests] = useState<FriendRequest[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
+    const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
     const { toast } = useToast();
     
     const fetchData = useCallback(async (uid: string) => {
         setIsLoading(true);
-        const [friendsResult, requestsResult] = await Promise.all([
+        const [friendsResult, requestsResult, userDocSnap] = await Promise.all([
             getFriendsList(uid),
-            getPendingFriendRequests(uid)
+            getPendingFriendRequests(uid),
+            getDoc(doc(db, "users", uid))
         ]);
 
         if (friendsResult.success && friendsResult.friends) {
@@ -61,6 +73,15 @@ export default function FriendsPage() {
              toast({ variant: 'destructive', title: 'Error', description: requestsResult.error });
         }
         
+        if (userDocSnap.exists()) {
+            const data = userDocSnap.data();
+            setCurrentUser({
+                uid: uid,
+                displayName: data.displayName,
+                avatarUrl: data.avatarUrl
+            });
+        }
+
         setIsLoading(false);
     }, [toast]);
 
@@ -146,8 +167,8 @@ export default function FriendsPage() {
                                             </TableCell>
                                             <TableCell><Badge variant="outline">{friend.primaryRole}</Badge></TableCell>
                                             <TableCell className="text-right">
-                                                <Button variant="ghost" size="icon" asChild>
-                                                    <Link href="/dashboard/chat"><MessageSquare className="h-4 w-4" /></Link>
+                                                <Button variant="ghost" size="icon" onClick={() => setSelectedFriend(friend)}>
+                                                    <MessageSquare className="h-4 w-4" />
                                                 </Button>
                                                 <Button variant="ghost" size="icon" onClick={() => handleRemoveFriend(friend.uid)}>
                                                     <UserMinus className="h-4 w-4" />
@@ -214,6 +235,14 @@ export default function FriendsPage() {
                     </Card>
                 </TabsContent>
             </Tabs>
+            {selectedFriend && currentUser && (
+                <ChatModal
+                    isOpen={!!selectedFriend}
+                    onClose={() => setSelectedFriend(null)}
+                    friend={selectedFriend}
+                    currentUser={currentUser}
+                />
+            )}
         </div>
     );
 }

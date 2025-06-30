@@ -39,6 +39,7 @@ import {
     getManagedTeams,
     sendTeamInvite,
 } from "./actions";
+import { ChatModal } from "@/components/chat-modal";
 
 // --- DATA & TYPE DEFINITIONS ---
 
@@ -124,6 +125,7 @@ export default function MarketplacePage() {
     const [tempCountryFilter, setTempCountryFilter] = useState('All');
 
     const [playerToInvite, setPlayerToInvite] = useState<Player | null>(null);
+    const [chattingWith, setChattingWith] = useState<Player | null>(null);
     const [managedTeams, setManagedTeams] = useState<ManagedTeam[]>([]);
     const [selectedTeam, setSelectedTeam] = useState<string>("");
 
@@ -375,10 +377,8 @@ export default function MarketplacePage() {
                                                      <TooltipProvider>
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
-                                                                <Button variant="ghost" size="icon" asChild>
-                                                                    <Link href="/dashboard/chat">
-                                                                        <MessageSquare className="h-4 w-4" />
-                                                                    </Link>
+                                                                <Button variant="ghost" size="icon" onClick={() => setChattingWith(player)}>
+                                                                    <MessageSquare className="h-4 w-4" />
                                                                 </Button>
                                                             </TooltipTrigger>
                                                             <TooltipContent><p>Enviar Mensaje</p></TooltipContent>
@@ -557,6 +557,15 @@ export default function MarketplacePage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {chattingWith && user && (
+                <ChatModal
+                    isOpen={!!chattingWith}
+                    onClose={() => setChattingWith(null)}
+                    friend={chattingWith}
+                    currentUser={{ uid: user.uid, displayName: user.displayName || 'Me', avatarUrl: user.photoURL || '' }}
+                />
+            )}
         </div>
     );
 }

@@ -1,7 +1,7 @@
 
 import { db, functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
-import { collection, query, where, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, doc, getDoc, documentId } from 'firebase/firestore';
 
 export interface Notification {
   id: string;
@@ -82,16 +82,29 @@ async function getFriendRequestsForUser(userId: string): Promise<Notification[]>
     const q = query(requestsRef, where("to", "==", userId), where("status", "==", "pending"));
     const querySnapshot = await getDocs(q);
 
+    const senderIds = [...new Set(querySnapshot.docs.map(doc => doc.data().from))].filter(id => !!id);
+    const senderProfiles = new Map<string, DocumentData>();
+
+    if (senderIds.length > 0) {
+        const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', senderIds));
+        const usersSnapshot = await getDocs(usersQuery);
+        usersSnapshot.forEach(doc => {
+            senderProfiles.set(doc.id, doc.data());
+        });
+    }
+
     const notifications: Notification[] = querySnapshot.docs.map(requestDoc => {
         const requestData = requestDoc.data();
+        const senderProfile = senderProfiles.get(requestData.from) || {};
         const createdAt = requestData.createdAt instanceof Timestamp ? requestData.createdAt.toDate() : new Date();
+        
         return {
             id: requestDoc.id,
             type: 'friend_request',
             sender: {
                 uid: requestData.from,
-                displayName: requestData.fromDisplayName,
-                avatarUrl: requestData.fromAvatarUrl,
+                displayName: senderProfile.displayName || requestData.fromDisplayName || 'Usuario Desconocido',
+                avatarUrl: senderProfile.avatarUrl || requestData.fromAvatarUrl,
             },
             createdAt: createdAt.toISOString(),
         };

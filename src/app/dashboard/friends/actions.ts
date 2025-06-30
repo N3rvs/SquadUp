@@ -1,4 +1,4 @@
-import { db, functions } from "@/lib/firebase";
+import { db, functions, auth } from "@/lib/firebase";
 import { httpsCallable } from "firebase/functions";
 import { collection, doc, getDoc, query, where, getDocs, Timestamp, addDoc, serverTimestamp, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 
@@ -18,6 +18,23 @@ export interface FriendRequest {
     }
     createdAt: string;
 }
+
+function getErrorMessage(error: any): string {
+    if (error.code && error.message) {
+        switch (error.code) {
+            case 'unauthenticated':
+                return "No estás autenticado. Por favor, inicia sesión de nuevo.";
+            case 'permission-denied':
+                return "No tienes los permisos necesarios para realizar esta acción.";
+            case 'not-found':
+                return "La operación o el usuario no fue encontrado en el servidor.";
+            default:
+                return `Ocurrió un error con la función: ${error.message}`;
+        }
+    }
+    return error.message || "An unknown error occurred.";
+}
+
 
 export async function getFriendsList(userId: string): Promise<{ success: boolean; friends?: Friend[]; error?: string }> {
     if (!userId) {
@@ -146,74 +163,40 @@ export async function getOutgoingFriendRequests(userId: string): Promise<{ succe
 
 export async function respondToFriendRequest(
     requestId: string,
-    decision: 'accept' | 'reject',
-    accepterId: string,
-    senderId: string
+    decision: 'accept' | 'reject'
 ): Promise<{ success: boolean; error?: string; }> {
-    const requestRef = doc(db, "friendRequests", requestId);
-
+    if (!auth.currentUser) {
+        return { success: false, error: "User not authenticated." };
+    }
+    
     try {
-        await updateDoc(requestRef, {
-            status: decision,
-            updatedAt: serverTimestamp(),
-        });
-
-        if (decision === 'accept') {
-            const userRef = doc(db, "users", accepterId);
-            const friendRef = doc(db, "users", senderId);
-
-            // Add each user to the other's friends list atomically
-            await updateDoc(userRef, {
-                friends: arrayUnion(senderId),
-            });
-            await updateDoc(friendRef, {
-                friends: arrayUnion(accepterId),
-            });
-
-            // Create a notification for the original sender
-            await addDoc(collection(db, "notifications"), {
-                to: senderId,
-                from: accepterId,
-                type: 'friend_request_accepted',
-                read: false,
-                createdAt: serverTimestamp(),
-            });
-        }
+        await auth.currentUser.getIdToken(true);
+        const respondToRequestFunc = httpsCallable(functions, 'respondToFriendRequest');
+        await respondToRequestFunc({ requestId, decision });
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
         console.error(`Error handling friend request decision ${decision}:`, error);
-        if (error instanceof Error) {
-            return { success: false, error: error.message };
-        }
-        return { success: false, error: "An unknown error occurred while handling the request." };
+        return { success: false, error: getErrorMessage(error) };
     }
 }
 
+
 export async function removeFriend(
-    userId: string,
     friendId: string
 ): Promise<{ success: boolean; error?: string; }> {
-    if (!userId || !friendId) {
-        return { success: false, error: "User IDs are required." };
+     if (!auth.currentUser) {
+        return { success: false, error: "User not authenticated." };
     }
-
-    const userDocRef = doc(db, "users", userId);
-    const friendDocRef = doc(db, "users", friendId);
-
+    if (!friendId) {
+        return { success: false, error: "Friend ID is required." };
+    }
     try {
-        await updateDoc(userDocRef, {
-            friends: arrayRemove(friendId)
-        });
-        await updateDoc(friendDocRef, {
-            friends: arrayRemove(userId)
-        });
-
+        await auth.currentUser.getIdToken(true);
+        const unfriendUserFunc = httpsCallable(functions, 'unfriendUser');
+        await unfriendUserFunc({ friendId });
         return { success: true };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error removing friend:", error);
-        if (error instanceof Error) {
-            return { success: false, error: error.message };
-        }
-        return { success: false, error: "An unknown error occurred while removing the friend." };
+        return { success: false, error: getErrorMessage(error) };
     }
 }

@@ -88,7 +88,7 @@ export default function InboxPage() {
     const onHandleFriendRequest = async (notification: Notification, decision: 'accept' | 'reject') => {
         if (!user || !notification.sender) return;
         setIsProcessing(notification.id);
-        const result = await respondToFriendRequest(notification.id, decision, user.uid, notification.sender.uid);
+        const result = await respondToFriendRequest(notification.id, decision);
         if (result.success) {
             toast({ title: '¡Decisión procesada!', description: `La solicitud de amistad ha sido ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
             setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
@@ -99,6 +99,8 @@ export default function InboxPage() {
     };
     
     const handleDismissNotification = (notificationId: string) => {
+        // Here we should also mark it as read in the database
+        // For now, just removing from state
         setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
     };
 

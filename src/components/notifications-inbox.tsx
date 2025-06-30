@@ -72,7 +72,7 @@ export function NotificationsInbox() {
   const onHandleFriendRequest = async (notification: Notification, decision: 'accept' | 'reject') => {
     if (!user || !notification.sender) return;
     setIsProcessing(notification.id);
-    const result = await respondToFriendRequest(notification.id, decision, user.uid, notification.sender.uid);
+    const result = await respondToFriendRequest(notification.id, decision);
     if (result.success) {
         toast({ title: '¡Decisión procesada!', description: `La solicitud de amistad ha sido ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
         setNotifications((prev) => prev.filter((n) => n.id !== notification.id));

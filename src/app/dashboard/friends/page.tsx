@@ -104,7 +104,7 @@ export default function FriendsPage() {
     const onHandleRequest = async (request: FriendRequest, decision: 'accept' | 'reject') => {
         if (!user) return;
         setIsProcessing(request.id);
-        const result = await respondToFriendRequest(request.id, decision, user.uid, request.from);
+        const result = await respondToFriendRequest(request.id, decision);
         if (result.success) {
             toast({ title: '¡Decisión procesada!', description: `La solicitud ha sido ${decision === 'accept' ? 'aceptada' : 'rechazada'}.` });
             if (user) {
@@ -119,7 +119,7 @@ export default function FriendsPage() {
     const handleRemoveFriendConfirm = async () => {
         if (!friendToRemove || !user) return;
         setIsProcessingRemoval(true);
-        const result = await removeFriend(user.uid, friendToRemove.uid);
+        const result = await removeFriend(friendToRemove.uid);
         if (result.success) {
             toast({ title: 'Amigo eliminado', description: `${friendToRemove.displayName} ya no está en tu lista de amigos.` });
             if (user) {

@@ -10,7 +10,7 @@ import { format } from "date-fns";
 import { es } from 'date-fns/locale';
 import { auth, db, functions } from "@/lib/firebase";
 import { httpsCallable, FunctionsError } from "firebase/functions";
-import { collection, addDoc, getDocs, query, orderBy, Timestamp, where, doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, orderBy, Timestamp, where, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { useAuthRole } from "@/hooks/useAuthRole";
 
@@ -287,8 +287,9 @@ export default function TournamentsPage() {
         ...data,
         creatorId: user.uid,
         status: 'Pending',
+        approved: false,
         registeredTeams: [],
-        createdAt: new Date(),
+        createdAt: serverTimestamp(),
         startDate: Timestamp.fromDate(data.startDate),
       });
 

@@ -114,6 +114,13 @@ export default function TournamentsAdminPage() {
             const approved = status === 'Open';
             await approveTournamentFunc({ tournamentId, approved });
 
+            // Since the cloud function only sets the 'approved' field, we'll update the 'status'
+            // field from the client to keep the UI consistent. This is allowed by security rules for admins.
+            const tournamentDocRef = doc(db, 'tournaments', tournamentId);
+            await updateDoc(tournamentDocRef, {
+                status: status
+            });
+
             toast({ title: 'Éxito', description: `El torneo ha sido ${status === 'Open' ? 'aprobado' : 'rechazado'}.` });
             fetchTournaments();
 

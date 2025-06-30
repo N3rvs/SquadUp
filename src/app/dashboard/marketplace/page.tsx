@@ -146,6 +146,10 @@ export default function MarketplacePage() {
 
     useEffect(() => {
         const fetchData = async () => {
+            if (!user) {
+                // Wait for user to be authenticated
+                return;
+            }
             setIsLoading(true);
             try {
                 if (activeTab === 'players') {
@@ -177,7 +181,7 @@ export default function MarketplacePage() {
         };
 
         fetchData();
-    }, [activeTab, rankFilter, countryFilter, toast]);
+    }, [activeTab, rankFilter, countryFilter, toast, user]);
     
     const filteredTeams = useMemo(() => {
         if (rankFilter === 'All') return teams;

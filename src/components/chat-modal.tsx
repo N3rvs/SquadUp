@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -38,18 +39,20 @@ export function ChatModal({ friend, currentUser, open, onOpenChange }: ChatModal
   const { toast } = useToast();
 
   useEffect(() => {
-    if (open && currentUser && friend) {
+    // Only try to set up chat if the modal is open and we have valid user/friend data
+    if (open && currentUser?.uid && friend?.uid) {
       const setupChat = async () => {
         try {
             const id = await getOrCreateChat(currentUser.uid, friend.uid);
             setChatId(id);
         } catch(e) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not open chat.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'No se pudo abrir el chat.' });
             onOpenChange(false);
         }
       };
       setupChat();
     } else {
+        // Reset chatId if modal is closed or data is missing
         setChatId(null);
     }
   }, [open, currentUser, friend, onOpenChange, toast]);

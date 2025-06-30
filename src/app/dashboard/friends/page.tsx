@@ -92,7 +92,11 @@ export default function FriendsPage() {
     // Combined listener for friends and requests
     useEffect(() => {
         if (!user) {
-            return; // No user, no listeners
+            // This is important to stop listeners when user logs out.
+            setFriends([]);
+            setIncomingRequests([]);
+            setIsLoadingFriends(false);
+            return; 
         }
 
         setIsLoadingFriends(true);
@@ -264,7 +268,21 @@ export default function FriendsPage() {
                                         <span className="font-medium">{friend.displayName}</span>
                                     </Link>
                                     <div className="flex gap-2">
-                                        <Button size="icon" variant="outline" onClick={() => setChatWithFriend(friend)}>
+                                        <Button 
+                                            size="icon" 
+                                            variant="outline" 
+                                            onClick={() => {
+                                                if (!friend?.uid) {
+                                                    toast({
+                                                        variant: 'destructive',
+                                                        title: 'Error de Datos',
+                                                        description: 'No se puede iniciar el chat, el ID del amigo no es válido.',
+                                                    });
+                                                    return;
+                                                }
+                                                setChatWithFriend(friend)
+                                            }}
+                                        >
                                             <MessageSquare />
                                         </Button>
                                         <AlertDialog>

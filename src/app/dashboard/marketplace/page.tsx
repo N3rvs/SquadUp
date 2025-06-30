@@ -117,6 +117,7 @@ export default function MarketplacePage() {
     const { toast } = useToast();
     const { role } = useAuthRole();
     const [user, setUser] = useState<FirebaseUser | null>(null);
+    const [isAuthReady, setIsAuthReady] = useState(false);
 
     const [playerToInvite, setPlayerToInvite] = useState<Player | null>(null);
     const [managedTeams, setManagedTeams] = useState<ManagedTeam[]>([]);
@@ -125,6 +126,7 @@ export default function MarketplacePage() {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
+            setIsAuthReady(true);
         });
         return () => unsubscribe();
     }, []);
@@ -132,7 +134,7 @@ export default function MarketplacePage() {
     const isTeamManager = role === 'admin' || role === 'moderator' || role === 'founder';
     
     useEffect(() => {
-        if (isTeamManager && user) {
+        if (isAuthReady && isTeamManager && user) {
             const fetchManagedTeams = async () => {
                 const result = await getManagedTeams(user.uid);
                 if (result.success && result.teams) {
@@ -141,13 +143,12 @@ export default function MarketplacePage() {
             };
             fetchManagedTeams();
         }
-    }, [isTeamManager, user]);
+    }, [isAuthReady, isTeamManager, user]);
 
 
     useEffect(() => {
         const fetchData = async () => {
-            if (!user) {
-                // Wait for user to be authenticated
+            if (!isAuthReady) {
                 return;
             }
             setIsLoading(true);
@@ -181,7 +182,7 @@ export default function MarketplacePage() {
         };
 
         fetchData();
-    }, [activeTab, rankFilter, countryFilter, toast, user]);
+    }, [activeTab, rankFilter, countryFilter, toast, isAuthReady]);
     
     const filteredTeams = useMemo(() => {
         if (rankFilter === 'All') return teams;

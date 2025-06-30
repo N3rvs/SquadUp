@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { httpsCallable, FunctionsError } from "firebase/functions";
+import { httpsCallable } from "firebase/functions";
 import { doc, updateDoc, collection, getDocs, orderBy, query, Timestamp } from "firebase/firestore";
 
 
@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { auth, functions, db } from '@/lib/firebase';
 import { ArrowLeft, Check, Loader2, Trophy, X } from 'lucide-react';
+import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
 
 type TournamentStatus = 'Pending' | 'Open' | 'In Progress' | 'Finished' | 'Rejected';
 
@@ -42,26 +43,6 @@ const getStatusVariant = (status: Tournament['status']) => {
     default: return 'outline';
   }
 };
-
-function getErrorMessage(error: any): string {
-    if (error instanceof FunctionsError) {
-        switch (error.code) {
-            case 'unauthenticated':
-                return "No estás autenticado. Por favor, inicia sesión de nuevo.";
-            case 'permission-denied':
-                return "No tienes los permisos necesarios para realizar esta acción.";
-            case 'not-found':
-                return "La operación solicitada no fue encontrada en el servidor. Verifica que la función esté desplegada en la región correcta.";
-            case 'invalid-argument':
-                return "Los datos enviados son incorrectos. Por favor, revisa la información.";
-            case 'already-exists':
-                 return "El torneo ya ha sido aprobado o está en un estado que no permite esta acción.";
-            default:
-                return `Ocurrió un error con la función: ${error.message}`;
-        }
-    }
-    return "Ocurrió un error desconocido al contactar con el servidor.";
-}
 
 export default function TournamentsAdminPage() {
     const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -126,7 +107,7 @@ export default function TournamentsAdminPage() {
 
         } catch (error: any) {
             console.error(`Error updating tournament status to ${status}:`, error);
-            toast({ variant: 'destructive', title: 'Error', description: getErrorMessage(error) });
+            toast({ variant: 'destructive', title: 'Error', description: getFirebaseErrorMessage(error) });
         } finally {
             setIsUpdating(null);
         }

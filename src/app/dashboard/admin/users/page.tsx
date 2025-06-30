@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { collection, getDocs, orderBy, query, Timestamp, doc, updateDoc } from 'firebase/firestore';
 import { db, auth, functions } from '@/lib/firebase';
-import { httpsCallable, FunctionsError } from "firebase/functions";
+import { httpsCallable } from "firebase/functions";
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -45,6 +45,7 @@ import { useAuthRole } from '@/hooks/useAuthRole';
 import { Card, CardContent } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
 
 type UserData = {
     uid: string;
@@ -73,24 +74,6 @@ const editUserFormSchema = z.object({
   role: z.string().refine(val => [...securityRolesList, ...primaryRolesList].includes(val)),
   banOption: z.custom<BanOptionKey>(val => typeof val === 'string' && Object.keys(banOptions).includes(val)),
 });
-
-function getErrorMessage(error: any): string {
-    if (error instanceof FunctionsError) {
-        switch (error.code) {
-            case 'unauthenticated':
-                return "No estás autenticado. Por favor, inicia sesión de nuevo.";
-            case 'permission-denied':
-                return "No tienes los permisos necesarios para realizar esta acción.";
-            case 'not-found':
-                return "La operación o el usuario no fue encontrado en el servidor.";
-            case 'invalid-argument':
-                return "Los datos enviados son incorrectos. Por favor, revisa la información.";
-            default:
-                return `Ocurrió un error con la función: ${error.message}`;
-        }
-    }
-    return "Ocurrió un error desconocido al contactar con el servidor.";
-}
 
 function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: UserData | null, open: boolean, onOpenChange: (open: boolean) => void, onUserUpdate: () => void }) {
     const { toast } = useToast();
@@ -159,7 +142,7 @@ function UserEditDialog({ user, open, onOpenChange, onUserUpdate }: { user: User
             toast({ title: 'Usuario actualizado', description: 'Los cambios se han guardado. La interfaz puede tardar en reflejar todos los cambios.' });
             onUserUpdate();
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error al actualizar', description: getErrorMessage(error) });
+            toast({ variant: 'destructive', title: 'Error al actualizar', description: getFirebaseErrorMessage(error) });
         } finally {
             setIsSaving(false);
         }

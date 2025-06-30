@@ -3,6 +3,7 @@
 import { auth, db, functions } from '@/lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { collection, query, where, getDocs, doc, getDoc, documentId } from 'firebase/firestore';
+import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
 
 // Types
 export interface FriendRequest {
@@ -32,7 +33,7 @@ export async function sendFriendRequestAction(toId: string) {
         return { success: true };
     } catch (error: any) {
         console.error('Error sending friend request:', error);
-        return { success: false, error: error.message || 'Ocurrió un error desconocido.' };
+        return { success: false, error: getFirebaseErrorMessage(error) };
     }
 }
 
@@ -43,18 +44,21 @@ export async function respondToFriendRequestAction(requestId: string, accept: bo
         return { success: true };
     } catch (error: any) {
         console.error('Error responding to friend request:', error);
-        return { success: false, error: error.message || 'Ocurrió un error desconocido.' };
+        return { success: false, error: getFirebaseErrorMessage(error) };
     }
 }
 
 export async function removeFriendAction(friendId: string) {
+    if (!auth.currentUser) {
+        return { success: false, error: "Debes estar autenticado." };
+    }
     try {
         const removeFriend = httpsCallable(functions, 'removeFriend');
-        await removeFriend({ friendId });
-        return { success: true };
+        const result = await removeFriend({ friendId });
+        return { success: true, message: (result.data as { message: string }).message };
     } catch (error: any) {
         console.error('Error removing friend:', error);
-        return { success: false, error: error.message || 'Ocurrió un error desconocido.' };
+        return { success: false, error: getFirebaseErrorMessage(error) };
     }
 }
 
@@ -72,7 +76,7 @@ export async function getFriendsPageData(userId: string): Promise<{
         if (!userDocSnap.exists()) {
             throw new Error('User not found');
         }
-        const friendIds = userDocSnap.data().friends || [];
+        const friendIds = (userDocSnap.data().friends || []).filter((id): id is string => !!id);
 
         // 2. Fetch friend profiles
         let friends: Friend[] = [];
@@ -85,7 +89,7 @@ export async function getFriendsPageData(userId: string): Promise<{
                 friendPromises.push(getDocs(q));
             }
             const friendSnapshots = await Promise.all(friendPromises);
-            friends = friendSnapshots.flatMap(snap => snap.docs.map(d => ({ uid: d.id, ...d.data() } as Friend)));
+            friends = friendSnapshots.flatMap(snap => snap.docs.map(d => ({ ...d.data(), uid: d.id } as Friend)));
         }
 
         // 3. Fetch incoming friend requests
@@ -93,13 +97,13 @@ export async function getFriendsPageData(userId: string): Promise<{
         const incomingSnapshot = await getDocs(incomingQuery);
         const incomingRequestsData = incomingSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         
-        const fromIds = [...new Set(incomingRequestsData.map(req => req.from))];
+        const fromIds = [...new Set(incomingRequestsData.map(req => req.from))].filter(id => !!id);
         let fromUsers: Friend[] = [];
         if (fromIds.length > 0) {
             // Use documentId() for querying by UID, as UID is the document ID in 'users' collection
              const fromUsersQuery = query(collection(db, 'users'), where(documentId(), 'in', fromIds));
              const fromUsersSnapshot = await getDocs(fromUsersQuery);
-             fromUsers = fromUsersSnapshot.docs.map(d => ({ uid: d.id, ...d.data() } as Friend));
+             fromUsers = fromUsersSnapshot.docs.map(d => ({ ...d.data(), uid: d.id } as Friend));
         }
 
         const incomingRequests = incomingRequestsData.map(req => {

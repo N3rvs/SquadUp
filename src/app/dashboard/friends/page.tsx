@@ -169,7 +169,9 @@ export default function FriendsPage() {
     const handleRemove = async (friendId: string) => {
         setIsProcessing(friendId);
         const result = await removeFriendAction(friendId);
-        if (!result.success) {
+        if (result.success) {
+            toast({ title: 'Éxito', description: result.message });
+        } else {
             toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
         setIsProcessing(null);
